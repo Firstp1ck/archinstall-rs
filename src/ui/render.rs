@@ -1,10 +1,13 @@
-use ratatui::layout::{Constraint, Direction, Layout, Alignment};
+use ratatui::Frame;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
-use ratatui::Frame;
 
-use super::app::{self, AppState, Focus, PopupKind, RepoSignOption, RepoSignature, Screen, INFOBOX_HEIGHT, KEYBINDS_WIDTH, LEFT_MENU_WIDTH};
+use super::app::{
+    self, AppState, Focus, INFOBOX_HEIGHT, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, PopupKind,
+    RepoSignOption, RepoSignature, Screen,
+};
 
 pub fn draw(frame: &mut Frame, app: &mut AppState) {
     let size = frame.area();
@@ -25,10 +28,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(INFOBOX_HEIGHT),
-            Constraint::Min(5),
-        ])
+        .constraints([Constraint::Length(INFOBOX_HEIGHT), Constraint::Min(5)])
         .split(right_rect);
 
     let infobox_rect = right_chunks[0];
@@ -54,25 +54,42 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
     };
     let menu = List::new(items)
         .block(Block::default().borders(Borders::ALL).title(menu_title))
-        .highlight_style(Style::default().fg(highlight_color).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            Style::default()
+                .fg(highlight_color)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol("▶ ");
     frame.render_stateful_widget(menu, left_menu_rect, &mut app.list_state);
 
     // Info
-    let mut info_lines = vec![
-        Line::from(Span::styled(
-            "Info",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        )),
-    ];
+    let mut info_lines = vec![Line::from(Span::styled(
+        "Info",
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    ))];
     if app.current_screen() == Screen::Locales {
-        info_lines.push(Line::from(format!("Keyboard: {}", app.current_keyboard_layout())));
-        info_lines.push(Line::from(format!("Language: {}", app.current_locale_language())));
-        info_lines.push(Line::from(format!("Encoding: {}", app.current_locale_encoding())));
+        info_lines.push(Line::from(format!(
+            "Keyboard: {}",
+            app.current_keyboard_layout()
+        )));
+        info_lines.push(Line::from(format!(
+            "Language: {}",
+            app.current_locale_language()
+        )));
+        info_lines.push(Line::from(format!(
+            "Encoding: {}",
+            app.current_locale_encoding()
+        )));
     } else if app.current_screen() == Screen::MirrorsRepos {
         // Summaries for mirrors
         let regions_count = app.mirrors_regions_selected.len();
-        let opt_selected: Vec<&str> = app.optional_repos_selected.iter().filter_map(|&i| app.optional_repos_options.get(i).map(|s| s.as_str())).collect();
+        let opt_selected: Vec<&str> = app
+            .optional_repos_selected
+            .iter()
+            .filter_map(|&i| app.optional_repos_options.get(i).map(|s| s.as_str()))
+            .collect();
         let servers_count = app.mirrors_custom_servers.len();
         let repos_count = app.custom_repos.len();
         info_lines.push(Line::from(format!("Regions selected: {}", regions_count)));
@@ -82,26 +99,50 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
                     info_lines.push(Line::from(format!("- {}", name)));
                 }
             }
-            if regions_count > 5 { info_lines.push(Line::from("…")); }
+            if regions_count > 5 {
+                info_lines.push(Line::from("…"));
+            }
         }
-        info_lines.push(Line::from(format!("Optional repos: {}", if opt_selected.is_empty() { "none".into() } else { opt_selected.join(", ") })));
+        info_lines.push(Line::from(format!(
+            "Optional repos: {}",
+            if opt_selected.is_empty() {
+                "none".into()
+            } else {
+                opt_selected.join(", ")
+            }
+        )));
         if servers_count > 0 {
             info_lines.push(Line::from(format!("Custom servers ({}):", servers_count)));
             for s in app.mirrors_custom_servers.iter().take(3) {
                 info_lines.push(Line::from(format!("- {}", s)));
             }
-            if servers_count > 3 { info_lines.push(Line::from("…")); }
+            if servers_count > 3 {
+                info_lines.push(Line::from("…"));
+            }
         } else {
             info_lines.push(Line::from("Custom servers: none"));
         }
         if repos_count > 0 {
             info_lines.push(Line::from("Custom repos:"));
             for repo in app.custom_repos.iter().take(3) {
-                let sig = match repo.signature { RepoSignature::Never => "Never", RepoSignature::Optional => "Optional", RepoSignature::Required => "Required" };
-                let signopt = match repo.sign_option { Some(RepoSignOption::TrustedOnly) => "TrustedOnly", Some(RepoSignOption::TrustedAll) => "TrustedAll", None => "-" };
-                info_lines.push(Line::from(format!("{} | {} | {} | {}", repo.name, repo.url, sig, signopt)));
+                let sig = match repo.signature {
+                    RepoSignature::Never => "Never",
+                    RepoSignature::Optional => "Optional",
+                    RepoSignature::Required => "Required",
+                };
+                let signopt = match repo.sign_option {
+                    Some(RepoSignOption::TrustedOnly) => "TrustedOnly",
+                    Some(RepoSignOption::TrustedAll) => "TrustedAll",
+                    None => "-",
+                };
+                info_lines.push(Line::from(format!(
+                    "{} | {} | {} | {}",
+                    repo.name, repo.url, sig, signopt
+                )));
             }
-            if repos_count > 3 { info_lines.push(Line::from("…")); }
+            if repos_count > 3 {
+                info_lines.push(Line::from("…"));
+            }
         } else {
             info_lines.push(Line::from("Custom repos: none"));
         }
@@ -116,10 +157,19 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
             info_lines.push(Line::from(format!("Selected drive: {}", dev)));
         }
     } else if app.current_screen() == Screen::SwapPartition {
-        let swap = if app.swap_enabled { "Enabled" } else { "Disabled" };
+        let swap = if app.swap_enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        };
         info_lines.push(Line::from(format!("Swap: {}", swap)));
     } else if app.current_screen() == Screen::Bootloader {
-        let bl = match app.bootloader_index { 0 => "Systemd-boot (Default)", 1 => "Grub", 2 => "Efistub", _ => "Limine" };
+        let bl = match app.bootloader_index {
+            0 => "Systemd-boot (Default)",
+            1 => "Grub",
+            2 => "Efistub",
+            _ => "Limine",
+        };
         info_lines.push(Line::from(format!("Bootloader: {}", bl)));
     } else if app.current_screen() == Screen::UserAccount {
         if app.users.is_empty() {
@@ -130,7 +180,9 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
                 let sudo = if u.is_sudo { "sudo" } else { "user" };
                 info_lines.push(Line::from(format!("- {} ({})", u.username, sudo)));
             }
-            if app.users.len() > 5 { info_lines.push(Line::from("…")); }
+            if app.users.len() > 5 {
+                info_lines.push(Line::from("…"));
+            }
         }
     } else {
         info_lines.push(Line::from(format!(
@@ -145,67 +197,155 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
 
     // Keybindings window (vertical right)
     let key_lines = vec![
-        Line::from(Span::styled("Keybindings", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Keybindings",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
-        Line::from(Span::styled("Global", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Global",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(vec![
-            Span::styled("q, ESC", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "q, ESC",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — back / close"),
         ]),
-        
         Line::from(""),
-        Line::from(Span::styled("Main Menu", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Main Menu",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — select section"),
         ]),
         Line::from(vec![
-            Span::styled("j/k, ↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "j/k, ↑/↓",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — move selection"),
         ]),
         Line::from(""),
-        Line::from(Span::styled("Decision Menu", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Decision Menu",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(vec![
-            Span::styled("Tab / Shift-Tab", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Tab / Shift-Tab",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — switch field"),
         ]),
         Line::from(vec![
-            Span::styled("h/l, ←/→", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "h/l, ←/→",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — change value"),
         ]),
         Line::from(vec![
-            Span::styled(":", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                ":",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — open command line"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — activate item / Continue"),
         ]),
         Line::from(""),
-        Line::from(Span::styled("Popups", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Popups",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(vec![
-            Span::styled("j/k, ↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "j/k, ↑/↓",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — move selection"),
         ]),
         Line::from(vec![
-            Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "/",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — start search"),
         ]),
         Line::from(vec![
-            Span::styled("Backspace", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Backspace",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — delete character"),
         ]),
         Line::from(vec![
-            Span::styled("Space", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Space",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — toggle (multi-select)"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" — select / close"),
         ]),
     ];
     let keybinds = Paragraph::new(key_lines)
-        .block(Block::default().borders(Borders::ALL).title(" Keybindings "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Keybindings "),
+        )
         .wrap(Wrap { trim: false });
     frame.render_widget(keybinds, keybinds_rect);
 
@@ -214,7 +354,9 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
         Screen::Locales => app::locales::draw_locales(frame, app, content_rect),
         Screen::MirrorsRepos => app::mirrors::draw_mirrors_repos(frame, app, content_rect),
         Screen::Disks => app::disks::draw_disks(frame, app, content_rect),
-        Screen::DiskEncryption => app::disk_encryption::draw_disk_encryption(frame, app, content_rect),
+        Screen::DiskEncryption => {
+            app::disk_encryption::draw_disk_encryption(frame, app, content_rect)
+        }
         Screen::Bootloader => app::bootloader::draw_bootloader(frame, app, content_rect),
         Screen::Hostname => app::hostname::draw_hostname(frame, app, content_rect),
         Screen::RootPassword => app::root_password::draw_root_password(frame, app, content_rect),
@@ -224,8 +366,10 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
         _ => {
             let content_lines = vec![
                 Line::from(Span::styled(
-                    format!("{}", app.menu_entries[app.selected_index].label),
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                    app.menu_entries[app.selected_index].label.to_string(),
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Line::from(""),
                 Line::from(app.menu_entries[app.selected_index].content.clone()),
@@ -233,13 +377,19 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
                 Line::from(Span::styled(
                     "[ Continue ]",
                     match app.focus {
-                        Focus::Content => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                        Focus::Content => Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD),
                         _ => Style::default(),
                     },
                 )),
             ];
             let content = Paragraph::new(content_lines)
-                .block(Block::default().borders(Borders::ALL).title(" Desicion Menu "))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" Desicion Menu "),
+                )
                 .wrap(Wrap { trim: false });
             frame.render_widget(content, content_rect);
         }
@@ -259,26 +409,35 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
 fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
     let area = frame.area();
     // Smaller popup for simple inputs and yes/no
-    let (width, height) = if matches!(app.popup_kind,
+    let (width, height) = if matches!(
+        app.popup_kind,
         Some(PopupKind::AbortConfirm)
-        | Some(PopupKind::Info)
-        | Some(PopupKind::HostnameInput)
-        | Some(PopupKind::RootPassword)
-        | Some(PopupKind::RootPasswordConfirm)
-        | Some(PopupKind::UserAddUsername)
-        | Some(PopupKind::UserAddPassword)
-        | Some(PopupKind::UserAddPasswordConfirm)
-        | Some(PopupKind::UserAddSudo)
+            | Some(PopupKind::Info)
+            | Some(PopupKind::HostnameInput)
+            | Some(PopupKind::RootPassword)
+            | Some(PopupKind::RootPasswordConfirm)
+            | Some(PopupKind::UserAddUsername)
+            | Some(PopupKind::UserAddPassword)
+            | Some(PopupKind::UserAddPasswordConfirm)
+            | Some(PopupKind::UserAddSudo)
     ) {
-        let w = area.width.min(34).max(20);
-        let h = area.height.min(7).max(5);
+        let w = area.width.clamp(20, 34);
+        let h = area.height.clamp(5, 7);
         (w, h)
     } else {
-        (area.width.saturating_mul(2) / 3, area.height.saturating_mul(2) / 3)
+        (
+            area.width.saturating_mul(2) / 3,
+            area.height.saturating_mul(2) / 3,
+        )
     };
     let x = area.x + (area.width - width) / 2;
     let y = area.y + (area.height - height) / 2;
-    let popup_rect = ratatui::layout::Rect { x, y, width, height };
+    let popup_rect = ratatui::layout::Rect {
+        x,
+        y,
+        width,
+        height,
+    };
 
     // Title based on kind
     let title_text = match app.popup_kind {
@@ -310,8 +469,20 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
     };
 
     // Build visible items list (with checkbox for multi-select kinds)
-    let is_multi = matches!(app.popup_kind, Some(PopupKind::MirrorsRegions) | Some(PopupKind::OptionalRepos));
-    let is_text_input = matches!(app.popup_kind, Some(PopupKind::MirrorsCustomServerInput | PopupKind::MirrorsCustomRepoName | PopupKind::MirrorsCustomRepoUrl | PopupKind::DiskEncryptionPassword | PopupKind::DiskEncryptionPasswordConfirm));
+    let is_multi = matches!(
+        app.popup_kind,
+        Some(PopupKind::MirrorsRegions) | Some(PopupKind::OptionalRepos)
+    );
+    let is_text_input = matches!(
+        app.popup_kind,
+        Some(
+            PopupKind::MirrorsCustomServerInput
+                | PopupKind::MirrorsCustomRepoName
+                | PopupKind::MirrorsCustomRepoUrl
+                | PopupKind::DiskEncryptionPassword
+                | PopupKind::DiskEncryptionPasswordConfirm
+        )
+    );
     let is_info = matches!(app.popup_kind, Some(PopupKind::Info));
 
     if is_info {
@@ -327,12 +498,14 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
         // Content area (use inner layout, but no search/list chrome)
         let inner = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(3),
-            ])
+            .constraints([Constraint::Min(3)])
             .split(popup_rect);
 
-        let body = if app.popup_items.is_empty() { String::new() } else { app.popup_items[0].clone() };
+        let body = if app.popup_items.is_empty() {
+            String::new()
+        } else {
+            app.popup_items[0].clone()
+        };
         let lines = vec![
             Line::from(body),
             Line::from(""),
@@ -346,13 +519,14 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
     }
 
     // Dedicated, small, single-line input popup (no search/options)
-    if matches!(app.popup_kind,
+    if matches!(
+        app.popup_kind,
         Some(PopupKind::HostnameInput)
-        | Some(PopupKind::RootPassword)
-        | Some(PopupKind::RootPasswordConfirm)
-        | Some(PopupKind::UserAddUsername)
-        | Some(PopupKind::UserAddPassword)
-        | Some(PopupKind::UserAddPasswordConfirm)
+            | Some(PopupKind::RootPassword)
+            | Some(PopupKind::RootPasswordConfirm)
+            | Some(PopupKind::UserAddUsername)
+            | Some(PopupKind::UserAddPassword)
+            | Some(PopupKind::UserAddPasswordConfirm)
     ) {
         frame.render_widget(ratatui::widgets::Clear, popup_rect);
         let popup_block = Block::default()
@@ -385,11 +559,26 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
             .wrap(Wrap { trim: false });
         frame.render_widget(prompt, inner[0]);
 
-        let masked = if matches!(app.popup_kind, Some(PopupKind::RootPassword | PopupKind::RootPasswordConfirm | PopupKind::UserAddPassword | PopupKind::UserAddPasswordConfirm)) {
+        let masked = if matches!(
+            app.popup_kind,
+            Some(
+                PopupKind::RootPassword
+                    | PopupKind::RootPasswordConfirm
+                    | PopupKind::UserAddPassword
+                    | PopupKind::UserAddPasswordConfirm
+            )
+        ) {
             "*".repeat(app.custom_input_buffer.chars().count())
-        } else { app.custom_input_buffer.clone() };
+        } else {
+            app.custom_input_buffer.clone()
+        };
         let input_line = Paragraph::new(Line::from(vec![
-            Span::styled("> ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "> ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(masked),
         ]))
         .alignment(Alignment::Center)
@@ -417,9 +606,7 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
         // Single list area inside
         let inner = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(3),
-            ])
+            .constraints([Constraint::Min(3)])
             .split(popup_rect);
 
         let items: Vec<ListItem> = app
@@ -430,8 +617,16 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
         let mut state = ratatui::widgets::ListState::default();
         state.select(Some(app.popup_selected_visible));
         let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(" Select Yes/No — Should User be Superuser (sudo)? "))
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Select Yes/No — Should User be Superuser (sudo)? "),
+            )
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
             .highlight_symbol("▶ ");
         frame.render_stateful_widget(list, inner[0], &mut state);
         return;
@@ -439,34 +634,47 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
 
     let items: Vec<ListItem> = if is_text_input {
         let prompt = match app.popup_kind {
-            Some(PopupKind::MirrorsCustomServerInput) => "Enter a server URL and press Enter to add.",
+            Some(PopupKind::MirrorsCustomServerInput) => {
+                "Enter a server URL and press Enter to add."
+            }
             Some(PopupKind::MirrorsCustomRepoName) => "Enter repository name and press Enter.",
             Some(PopupKind::MirrorsCustomRepoUrl) => "Enter repository URL and press Enter.",
             Some(PopupKind::DiskEncryptionPassword) => "Type password and press Enter.",
             Some(PopupKind::DiskEncryptionPasswordConfirm) => "Re-type password and press Enter.",
             _ => "",
         };
-        let display_buffer = if matches!(app.popup_kind, Some(PopupKind::DiskEncryptionPassword | PopupKind::DiskEncryptionPasswordConfirm)) {
+        let display_buffer = if matches!(
+            app.popup_kind,
+            Some(PopupKind::DiskEncryptionPassword | PopupKind::DiskEncryptionPasswordConfirm)
+        ) {
             "*".repeat(app.custom_input_buffer.chars().count())
-        } else { app.custom_input_buffer.clone() };
+        } else {
+            app.custom_input_buffer.clone()
+        };
         vec![ListItem::new(vec![
             Line::from(prompt),
-            Line::from("") ,
+            Line::from(""),
             Line::from(vec![
-                Span::styled("> ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "> ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(display_buffer),
             ]),
-            Line::from("") ,
+            Line::from(""),
             Line::from("Press ESC to close when finished."),
         ])]
     } else {
-        app
-            .popup_visible_indices
+        app.popup_visible_indices
             .iter()
             .map(|&i| {
                 if is_multi {
                     let checked = match app.popup_kind {
-                        Some(PopupKind::MirrorsRegions) => app.mirrors_regions_selected.contains(&i),
+                        Some(PopupKind::MirrorsRegions) => {
+                            app.mirrors_regions_selected.contains(&i)
+                        }
                         Some(PopupKind::OptionalRepos) => app.optional_repos_selected.contains(&i),
                         _ => false,
                     };
@@ -480,12 +688,21 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
     };
 
     let mut state = ratatui::widgets::ListState::default();
-    state.select(if is_text_input { None } else { Some(app.popup_selected_visible) });
+    state.select(if is_text_input {
+        None
+    } else {
+        Some(app.popup_selected_visible)
+    });
 
     // Search line
     let search_label = if app.popup_in_search { "/" } else { "" };
     let search = Paragraph::new(Line::from(vec![
-        Span::styled(search_label, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            search_label,
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(app.popup_search_query.clone()),
     ]))
     .block(Block::default().borders(Borders::ALL).title(" Search "))
@@ -494,10 +711,7 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
     // Layout within popup: search on top, list below
     let inner = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(3),
-        ])
+        .constraints([Constraint::Length(3), Constraint::Min(3)])
         .split(popup_rect);
 
     // Clear area to avoid underlying text leaking through
@@ -523,22 +737,30 @@ fn draw_popup(frame: &mut ratatui::Frame, app: &mut AppState) {
         // Split inner[1] to place header above list
         let inner_list = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Length(3),
-                Constraint::Min(3),
-            ])
+            .constraints([Constraint::Length(3), Constraint::Min(3)])
             .split(inner[1]);
         frame.render_widget(header, inner_list[0]);
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title(" Options "))
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
             .highlight_symbol("▶ ");
         frame.render_stateful_widget(list, inner_list[1], &mut state);
     } else {
-        let list_title = match app.popup_kind { Some(PopupKind::AbortConfirm) => " Save choices before exit? ", _ => " Options " };
+        let list_title = match app.popup_kind {
+            Some(PopupKind::AbortConfirm) => " Save choices before exit? ",
+            _ => " Options ",
+        };
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title(list_title))
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
             .highlight_symbol("▶ ");
         frame.render_stateful_widget(list, inner[1], &mut state);
     }
@@ -553,7 +775,12 @@ fn draw_cmdline(frame: &mut ratatui::Frame, app: &mut AppState, area: ratatui::l
         height: 3,
     };
     let content = Paragraph::new(Line::from(vec![
-        Span::styled(":", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            ":",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw(app.cmdline_buffer.clone()),
     ]))
     .block(Block::default().borders(Borders::ALL).title(" Command "))
@@ -561,44 +788,4 @@ fn draw_cmdline(frame: &mut ratatui::Frame, app: &mut AppState, area: ratatui::l
     frame.render_widget(content, cmd_area);
 }
 
-fn draw_configuration(frame: &mut ratatui::Frame, app: &mut AppState, area: ratatui::layout::Rect) {
-    let title = Span::styled(
-        "Configuration",
-        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-    );
-
-    let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
-
-    let options = vec![
-        ("Save Configuration", 0),
-        ("Load Configuration", 1),
-    ];
-
-    for (label, idx) in options {
-        let is_focused_line = app.config_focus_index == idx;
-        let is_active_line = is_focused_line && matches!(app.focus, Focus::Content);
-        let bullet = if is_focused_line { "▶" } else { " " };
-        let bullet_style = if is_active_line { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::White) };
-        let label_style = if is_active_line { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::White) };
-        let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(label.to_string(), label_style),
-        ]);
-        lines.push(line);
-    }
-
-    let continue_style = if app.config_focus_index == 2 && matches!(app.focus, Focus::Content) {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::White)
-    };
-    lines.push(Line::from(""));
-    lines.push(Line::from(Span::styled("[ Continue ]", continue_style)));
-
-    let content = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(match app.focus { Focus::Content => " Desicion Menu (focused) ", _ => " Desicion Menu " }))
-        .wrap(Wrap { trim: false });
-    frame.render_widget(content, area);
-}
-
-
+// ... existing code ...

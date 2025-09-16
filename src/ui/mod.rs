@@ -1,6 +1,6 @@
 pub mod app;
-mod render;
 mod input;
+mod render;
 
 use std::io;
 use std::time::{Duration, Instant};
@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use crossterm::event::{self, Event};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crossterm::{execute, terminal};
-use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 use self::app::AppState;
 use self::input::handle_event;
@@ -59,5 +59,3 @@ fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result
 
     Ok(())
 }
-
-

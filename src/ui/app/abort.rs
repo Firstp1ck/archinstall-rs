@@ -1,6 +1,7 @@
 use super::AppState;
 
 impl AppState {
+    #[allow(dead_code)]
     pub fn init_abort(&mut self) {
         // placeholder
     }
@@ -15,5 +16,3 @@ impl AppState {
         self.popup_open = true;
     }
 }
-
-

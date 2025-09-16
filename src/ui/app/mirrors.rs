@@ -8,25 +8,29 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 impl AppState {
     pub fn load_mirrors_options(&mut self) -> Result<(), ()> {
-        if self.mirrors_loaded { return Ok(()); }
-        if let Ok(output) = Command::new("reflector").arg("--list-countries").output() {
-            if output.status.success() {
-                let text = String::from_utf8_lossy(&output.stdout);
-                let mut items: Vec<String> = text
-                    .lines()
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                items.sort();
-                self.mirrors_regions_options = items;
-            }
+        if self.mirrors_loaded {
+            return Ok(());
+        }
+        if let Ok(output) = Command::new("reflector").arg("--list-countries").output()
+            && output.status.success()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut items: Vec<String> = text
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            items.sort();
+            self.mirrors_regions_options = items;
         }
         self.mirrors_loaded = true;
         Ok(())
     }
 
     pub fn open_mirrors_regions_popup(&mut self) {
-        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content { return; }
+        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content {
+            return;
+        }
         let _ = self.load_mirrors_options();
         self.popup_kind = Some(PopupKind::MirrorsRegions);
         self.popup_items = self.mirrors_regions_options.clone();
@@ -38,7 +42,9 @@ impl AppState {
     }
 
     pub fn open_optional_repos_popup(&mut self) {
-        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content { return; }
+        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content {
+            return;
+        }
         self.popup_kind = Some(PopupKind::OptionalRepos);
         self.popup_items = self.optional_repos_options.clone();
         self.popup_search_query.clear();
@@ -49,14 +55,18 @@ impl AppState {
     }
 
     pub fn open_mirrors_custom_server_input(&mut self) {
-        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content { return; }
+        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content {
+            return;
+        }
         self.popup_kind = Some(PopupKind::MirrorsCustomServerInput);
         self.custom_input_buffer.clear();
         self.popup_open = true;
     }
 
     pub fn open_mirrors_custom_repo_flow(&mut self) {
-        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content { return; }
+        if self.current_screen() != Screen::MirrorsRepos || self.focus != super::Focus::Content {
+            return;
+        }
         self.draft_repo_name.clear();
         self.draft_repo_url.clear();
         self.draft_repo_sig_index = 2;
@@ -74,7 +84,9 @@ impl AppState {
         self.popup_kind = Some(PopupKind::MirrorsCustomRepoSig);
         self.popup_items = vec!["Never".into(), "Optional".into(), "Required".into()];
         self.popup_visible_indices = (0..self.popup_items.len()).collect();
-        self.popup_selected_visible = self.draft_repo_sig_index.min(self.popup_items.len().saturating_sub(1));
+        self.popup_selected_visible = self
+            .draft_repo_sig_index
+            .min(self.popup_items.len().saturating_sub(1));
         self.popup_in_search = false;
         self.popup_search_query.clear();
     }
@@ -83,7 +95,9 @@ impl AppState {
         self.popup_kind = Some(PopupKind::MirrorsCustomRepoSignOpt);
         self.popup_items = vec!["TrustedOnly".into(), "TrustedAll".into()];
         self.popup_visible_indices = (0..self.popup_items.len()).collect();
-        self.popup_selected_visible = self.draft_repo_signopt_index.min(self.popup_items.len().saturating_sub(1));
+        self.popup_selected_visible = self
+            .draft_repo_signopt_index
+            .min(self.popup_items.len().saturating_sub(1));
         self.popup_in_search = false;
         self.popup_search_query.clear();
     }
@@ -92,7 +106,9 @@ impl AppState {
 pub fn draw_mirrors_repos(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     let title = Span::styled(
         "Mirrors and Repositories",
-        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
     );
 
     let options = vec![
@@ -106,8 +122,20 @@ pub fn draw_mirrors_repos(frame: &mut ratatui::Frame, app: &mut AppState, area: 
     for (label, is_focused_line) in options {
         let is_active_line = is_focused_line && matches!(app.focus, super::Focus::Content);
         let bullet = if is_focused_line { "▶" } else { " " };
-        let bullet_style = if is_active_line { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::White) };
-        let label_style = if is_active_line { Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD) } else { Style::default().fg(Color::White) };
+        let bullet_style = if is_active_line {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        let label_style = if is_active_line {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
         let line = Line::from(vec![
             Span::styled(format!("{} ", bullet), bullet_style),
             Span::styled(label.to_string(), label_style),
@@ -115,18 +143,26 @@ pub fn draw_mirrors_repos(frame: &mut ratatui::Frame, app: &mut AppState, area: 
         lines.push(line);
     }
 
-    let continue_style = if app.mirrors_focus_index == 4 && matches!(app.focus, super::Focus::Content) {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::White)
-    };
+    let continue_style =
+        if app.mirrors_focus_index == 4 && matches!(app.focus, super::Focus::Content) {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled("[ Continue ]", continue_style)));
 
     let content = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(match app.focus { super::Focus::Content => " Desicion Menu (focused) ", _ => " Desicion Menu " }))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(match app.focus {
+                    super::Focus::Content => " Desicion Menu (focused) ",
+                    _ => " Desicion Menu ",
+                }),
+        )
         .wrap(Wrap { trim: false });
     frame.render_widget(content, area);
 }
-
-

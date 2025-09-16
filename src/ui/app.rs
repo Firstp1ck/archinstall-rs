@@ -1,29 +1,29 @@
 use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use serde::{Serialize, Deserialize};
 
+mod abort;
+mod additional_packages;
+mod audio;
+mod automatic_time_sync;
+pub mod bootloader;
 pub mod config;
+pub mod disk_encryption;
 pub mod disks;
+mod experience_mode;
+pub mod hostname;
+mod install;
+mod kernels;
 pub mod locales;
 pub mod mirrors;
-pub mod disk_encryption;
-pub mod swap_partition;
-pub mod bootloader;
-mod unified_kernel_images;
-pub mod hostname;
-pub mod root_password;
-pub mod user_account;
-mod experience_mode;
-mod audio;
-mod kernels;
 mod network_configuration;
-mod additional_packages;
-mod timezone;
-mod automatic_time_sync;
+pub mod root_password;
 mod save_configuration;
-mod install;
-mod abort;
+pub mod swap_partition;
+mod timezone;
+mod unified_kernel_images;
+pub mod user_account;
 
 pub const LEFT_MENU_WIDTH: u16 = 30;
 pub const INFOBOX_HEIGHT: u16 = 12;
@@ -115,14 +115,13 @@ pub struct CustomRepo {
     pub signature: RepoSignature,
     pub sign_option: Option<RepoSignOption>,
 }
- 
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UserAccount {
     pub username: String,
     pub password: String,
     pub is_sudo: bool,
 }
- 
 
 // Config structs moved to app/config.rs
 
@@ -187,7 +186,7 @@ pub struct AppState {
     pub draft_repo_signopt_index: usize,
 
     // Disk Encryption screen state
-    pub diskenc_focus_index: usize, // fields + Continue
+    pub diskenc_focus_index: usize,        // fields + Continue
     pub disk_encryption_type_index: usize, // 0: None, 1: LUKS
     pub disk_encryption_password: String,
     pub disk_encryption_password_confirm: String,
@@ -199,7 +198,7 @@ pub struct AppState {
 
     // Bootloader state
     pub bootloader_focus_index: usize, // 0: selector, 1: Continue
-    pub bootloader_index: usize, // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
+    pub bootloader_index: usize,       // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
 
     // Hostname state
     pub hostname_focus_index: usize, // 0 input, 1 Continue
@@ -209,7 +208,7 @@ pub struct AppState {
     pub rootpass_focus_index: usize, // 0 set, 1 confirm, 2 Continue
     pub root_password: String,
     pub root_password_confirm: String,
-    
+
     // User Account state
     pub user_focus_index: usize, // 0: Add user, 1: Continue
     pub users: Vec<UserAccount>,
@@ -228,27 +227,111 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let menu_entries = vec![
-            MenuEntry { label: "Overview".into(), content: "Welcome to archinstall-rs. Use Up/Down, Enter".into(), screen: Screen::Overview },
-            MenuEntry { label: "Locales".into(), content: String::new(), screen: Screen::Locales },
-            MenuEntry { label: "Mirrors and Repositories".into(), content: String::new(), screen: Screen::MirrorsRepos },
-            MenuEntry { label: "Disk Partitioning".into(), content: String::new(), screen: Screen::Disks },
-            MenuEntry { label: "Disk Encryption".into(), content: String::new(), screen: Screen::DiskEncryption },
-            MenuEntry { label: "Swap Partition".into(), content: String::new(), screen: Screen::SwapPartition },
-            MenuEntry { label: "Bootloader".into(), content: String::new(), screen: Screen::Bootloader },
-            MenuEntry { label: "Unified Kernel Images".into(), content: String::new(), screen: Screen::UnifiedKernelImages },
-            MenuEntry { label: "Hostname".into(), content: String::new(), screen: Screen::Hostname },
-            MenuEntry { label: "Root Password".into(), content: String::new(), screen: Screen::RootPassword },
-            MenuEntry { label: "User Account".into(), content: String::new(), screen: Screen::UserAccount },
-            MenuEntry { label: "Experience Mode".into(), content: String::new(), screen: Screen::ExperienceMode },
-            MenuEntry { label: "Audio".into(), content: String::new(), screen: Screen::Audio },
-            MenuEntry { label: "Kernels".into(), content: String::new(), screen: Screen::Kernels },
-            MenuEntry { label: "Network Configuration".into(), content: "Network setup and status.".into(), screen: Screen::NetworkConfiguration },
-            MenuEntry { label: "Additional Packages".into(), content: "Package selection and groups.".into(), screen: Screen::AdditionalPackages },
-            MenuEntry { label: "Timezone".into(), content: String::new(), screen: Screen::Timezone },
-            MenuEntry { label: "Automatic Time Sync".into(), content: String::new(), screen: Screen::AutomaticTimeSync },
-            MenuEntry { label: "Configuration".into(), content: String::new(), screen: Screen::SaveConfiguration },
-            MenuEntry { label: "Install".into(), content: "Review and start installation.".into(), screen: Screen::Install },
-            MenuEntry { label: "Abort (Ctrl + C)".into(), content: String::new(), screen: Screen::Abort },
+            MenuEntry {
+                label: "Overview".into(),
+                content: "Welcome to archinstall-rs. Use Up/Down, Enter".into(),
+                screen: Screen::Overview,
+            },
+            MenuEntry {
+                label: "Locales".into(),
+                content: String::new(),
+                screen: Screen::Locales,
+            },
+            MenuEntry {
+                label: "Mirrors and Repositories".into(),
+                content: String::new(),
+                screen: Screen::MirrorsRepos,
+            },
+            MenuEntry {
+                label: "Disk Partitioning".into(),
+                content: String::new(),
+                screen: Screen::Disks,
+            },
+            MenuEntry {
+                label: "Disk Encryption".into(),
+                content: String::new(),
+                screen: Screen::DiskEncryption,
+            },
+            MenuEntry {
+                label: "Swap Partition".into(),
+                content: String::new(),
+                screen: Screen::SwapPartition,
+            },
+            MenuEntry {
+                label: "Bootloader".into(),
+                content: String::new(),
+                screen: Screen::Bootloader,
+            },
+            MenuEntry {
+                label: "Unified Kernel Images".into(),
+                content: String::new(),
+                screen: Screen::UnifiedKernelImages,
+            },
+            MenuEntry {
+                label: "Hostname".into(),
+                content: String::new(),
+                screen: Screen::Hostname,
+            },
+            MenuEntry {
+                label: "Root Password".into(),
+                content: String::new(),
+                screen: Screen::RootPassword,
+            },
+            MenuEntry {
+                label: "User Account".into(),
+                content: String::new(),
+                screen: Screen::UserAccount,
+            },
+            MenuEntry {
+                label: "Experience Mode".into(),
+                content: String::new(),
+                screen: Screen::ExperienceMode,
+            },
+            MenuEntry {
+                label: "Audio".into(),
+                content: String::new(),
+                screen: Screen::Audio,
+            },
+            MenuEntry {
+                label: "Kernels".into(),
+                content: String::new(),
+                screen: Screen::Kernels,
+            },
+            MenuEntry {
+                label: "Network Configuration".into(),
+                content: "Network setup and status.".into(),
+                screen: Screen::NetworkConfiguration,
+            },
+            MenuEntry {
+                label: "Additional Packages".into(),
+                content: "Package selection and groups.".into(),
+                screen: Screen::AdditionalPackages,
+            },
+            MenuEntry {
+                label: "Timezone".into(),
+                content: String::new(),
+                screen: Screen::Timezone,
+            },
+            MenuEntry {
+                label: "Automatic Time Sync".into(),
+                content: String::new(),
+                screen: Screen::AutomaticTimeSync,
+            },
+            MenuEntry {
+                label: "Configuration".into(),
+                content: String::new(),
+                screen: Screen::SaveConfiguration,
+            },
+            MenuEntry {
+                label: "Install".into(),
+                content: "Review and start installation.".into(),
+                screen: Screen::Install,
+            },
+            MenuEntry {
+                label: "Abort (Ctrl + C)".into(),
+                content: String::new(),
+                screen: Screen::Abort,
+            },
         ];
 
         let mut list_state = ListState::default();
@@ -326,7 +409,7 @@ impl AppState {
             rootpass_focus_index: 0,
             root_password: String::new(),
             root_password_confirm: String::new(),
-            
+
             user_focus_index: 0,
             users: Vec::new(),
             draft_user_username: String::new(),
@@ -353,24 +436,61 @@ impl AppState {
     // locales popup open moved to app/locales.rs
 
     pub fn apply_popup_selection(&mut self) {
-        if !self.popup_open { return; }
-        if let Some(idx) = self.popup_visible_indices.get(self.popup_selected_visible).copied() {
+        if !self.popup_open {
+            return;
+        }
+        if let Some(idx) = self
+            .popup_visible_indices
+            .get(self.popup_selected_visible)
+            .copied()
+        {
             match self.popup_kind {
                 Some(PopupKind::KeyboardLayout) => {
-                    if self.editing_locales { self.draft_keyboard_layout_index = idx; } else { self.keyboard_layout_index = idx; }
+                    if self.editing_locales {
+                        self.draft_keyboard_layout_index = idx;
+                    } else {
+                        self.keyboard_layout_index = idx;
+                    }
                 }
                 Some(PopupKind::LocaleLanguage) => {
-                    if self.editing_locales { self.draft_locale_language_index = idx; } else { self.locale_language_index = idx; }
+                    if self.editing_locales {
+                        self.draft_locale_language_index = idx;
+                    } else {
+                        self.locale_language_index = idx;
+                    }
                 }
                 Some(PopupKind::LocaleEncoding) => {
-                    if self.editing_locales { self.draft_locale_encoding_index = idx; } else { self.locale_encoding_index = idx; }
+                    if self.editing_locales {
+                        self.draft_locale_encoding_index = idx;
+                    } else {
+                        self.locale_encoding_index = idx;
+                    }
                 }
-                Some(PopupKind::MirrorsRegions) => { /* multi-select handled via spacebar; Enter closes */ }
-                Some(PopupKind::OptionalRepos) => { /* multi-select handled via spacebar; Enter closes */ }
-                Some(PopupKind::MirrorsCustomServerInput) => { /* handled via Enter appending buffer; keep open */ }
-                Some(PopupKind::MirrorsCustomRepoName) | Some(PopupKind::MirrorsCustomRepoUrl) | Some(PopupKind::MirrorsCustomRepoSig) | Some(PopupKind::MirrorsCustomRepoSignOpt) => { /* handled in input flow */ }
-                Some(PopupKind::DisksDeviceList) => { /* handled in input flow; no direct selection */ }
-                Some(PopupKind::DiskEncryptionType) | Some(PopupKind::DiskEncryptionPassword) | Some(PopupKind::DiskEncryptionPasswordConfirm) | Some(PopupKind::DiskEncryptionPartitionList) | Some(PopupKind::AbortConfirm) | Some(PopupKind::Info) | Some(PopupKind::HostnameInput) | Some(PopupKind::RootPassword) | Some(PopupKind::RootPasswordConfirm) | Some(PopupKind::UserAddUsername) | Some(PopupKind::UserAddPassword) | Some(PopupKind::UserAddPasswordConfirm) | Some(PopupKind::UserAddSudo) => { /* handled in input flow */ }
+                Some(PopupKind::MirrorsRegions) => { /* multi-select handled via spacebar; Enter closes */
+                }
+                Some(PopupKind::OptionalRepos) => { /* multi-select handled via spacebar; Enter closes */
+                }
+                Some(PopupKind::MirrorsCustomServerInput) => { /* handled via Enter appending buffer; keep open */
+                }
+                Some(PopupKind::MirrorsCustomRepoName)
+                | Some(PopupKind::MirrorsCustomRepoUrl)
+                | Some(PopupKind::MirrorsCustomRepoSig)
+                | Some(PopupKind::MirrorsCustomRepoSignOpt) => { /* handled in input flow */ }
+                Some(PopupKind::DisksDeviceList) => { /* handled in input flow; no direct selection */
+                }
+                Some(PopupKind::DiskEncryptionType)
+                | Some(PopupKind::DiskEncryptionPassword)
+                | Some(PopupKind::DiskEncryptionPasswordConfirm)
+                | Some(PopupKind::DiskEncryptionPartitionList)
+                | Some(PopupKind::AbortConfirm)
+                | Some(PopupKind::Info)
+                | Some(PopupKind::HostnameInput)
+                | Some(PopupKind::RootPassword)
+                | Some(PopupKind::RootPasswordConfirm)
+                | Some(PopupKind::UserAddUsername)
+                | Some(PopupKind::UserAddPassword)
+                | Some(PopupKind::UserAddPasswordConfirm)
+                | Some(PopupKind::UserAddSudo) => { /* handled in input flow */ }
                 None => {}
             }
         }
@@ -388,7 +508,9 @@ impl AppState {
     }
 
     pub fn filter_popup(&mut self) {
-        if !self.popup_open { return; }
+        if !self.popup_open {
+            return;
+        }
         if self.popup_search_query.is_empty() {
             self.popup_visible_indices = (0..self.popup_items.len()).collect();
             self.popup_selected_visible = 0;
@@ -400,7 +522,11 @@ impl AppState {
             .iter()
             .enumerate()
             .filter_map(|(i, s)| {
-                if s.to_lowercase().contains(&q) { Some(i) } else { None }
+                if s.to_lowercase().contains(&q) {
+                    Some(i)
+                } else {
+                    None
+                }
             })
             .collect();
         if self.popup_visible_indices.is_empty() {
@@ -415,13 +541,25 @@ impl AppState {
     // mirrors helpers moved to app/mirrors.rs
 
     pub fn finalize_custom_repo(&mut self) {
-        let sig = match self.draft_repo_sig_index { 0 => RepoSignature::Never, 1 => RepoSignature::Optional, _ => RepoSignature::Required };
+        let sig = match self.draft_repo_sig_index {
+            0 => RepoSignature::Never,
+            1 => RepoSignature::Optional,
+            _ => RepoSignature::Required,
+        };
         let sign_option = if self.draft_repo_sig_index == 0 {
             None
         } else {
-            Some(match self.draft_repo_signopt_index { 0 => RepoSignOption::TrustedOnly, _ => RepoSignOption::TrustedAll })
+            Some(match self.draft_repo_signopt_index {
+                0 => RepoSignOption::TrustedOnly,
+                _ => RepoSignOption::TrustedAll,
+            })
         };
-        self.custom_repos.push(CustomRepo { name: self.draft_repo_name.clone(), url: self.draft_repo_url.clone(), signature: sig, sign_option });
+        self.custom_repos.push(CustomRepo {
+            name: self.draft_repo_name.clone(),
+            url: self.draft_repo_url.clone(),
+            signature: sig,
+            sign_option,
+        });
         self.close_popup();
     }
 
@@ -527,24 +665,41 @@ impl AppState {
             .iter()
             .position(|e| matches!(e.screen, Screen::UnifiedKernelImages));
         if should_show {
-            if uki_pos.is_none() {
-                if let Some(bl_idx) = self.menu_entries.iter().position(|e| matches!(e.screen, Screen::Bootloader)) {
-                    let insert_at = bl_idx + 1;
-                    self.menu_entries.insert(insert_at, MenuEntry { label: "Unified Kernel Images".into(), content: String::new(), screen: Screen::UnifiedKernelImages });
-                    if self.selected_index >= insert_at {
-                        self.selected_index += 1;
-                        self.list_state.select(Some(self.selected_index));
-                    }
+            if uki_pos.is_none()
+                && let Some(bl_idx) = self
+                    .menu_entries
+                    .iter()
+                    .position(|e| matches!(e.screen, Screen::Bootloader))
+            {
+                let insert_at = bl_idx + 1;
+                self.menu_entries.insert(
+                    insert_at,
+                    MenuEntry {
+                        label: "Unified Kernel Images".into(),
+                        content: String::new(),
+                        screen: Screen::UnifiedKernelImages,
+                    },
+                );
+                if self.selected_index >= insert_at {
+                    self.selected_index += 1;
+                    self.list_state.select(Some(self.selected_index));
                 }
             }
         } else if let Some(idx) = uki_pos {
             // If currently selected, move selection away first
             if self.selected_index == idx {
-                if idx + 1 < self.menu_entries.len() { self.selected_index += 1; } else if idx > 0 { self.selected_index -= 1; }
+                if idx + 1 < self.menu_entries.len() {
+                    self.selected_index += 1;
+                } else if idx > 0 {
+                    self.selected_index -= 1;
+                }
                 self.list_state.select(Some(self.selected_index));
             }
             self.menu_entries.remove(idx);
-            if self.selected_index > idx { self.selected_index = self.selected_index.saturating_sub(1); self.list_state.select(Some(self.selected_index)); }
+            if self.selected_index > idx {
+                self.selected_index = self.selected_index.saturating_sub(1);
+                self.list_state.select(Some(self.selected_index));
+            }
         }
     }
 
@@ -552,5 +707,3 @@ impl AppState {
     // locales helpers moved to app/locales.rs
     // mirrors helpers moved to app/mirrors.rs
 }
-
-

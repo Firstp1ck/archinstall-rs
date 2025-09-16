@@ -3,32 +3,79 @@ use std::process::Command;
 use super::{AppState, PopupKind, Screen};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::Span;
 use ratatui::text::Line;
+use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 impl AppState {
     pub fn current_keyboard_layout(&self) -> String {
-        let idx = if self.editing_locales { self.draft_keyboard_layout_index } else { self.keyboard_layout_index };
-        self.keyboard_layout_options.get(idx).cloned().unwrap_or_else(|| "<none>".into())
+        let idx = if self.editing_locales {
+            self.draft_keyboard_layout_index
+        } else {
+            self.keyboard_layout_index
+        };
+        self.keyboard_layout_options
+            .get(idx)
+            .cloned()
+            .unwrap_or_else(|| "<none>".into())
     }
 
     pub fn current_locale_language(&self) -> String {
-        let idx = if self.editing_locales { self.draft_locale_language_index } else { self.locale_language_index };
-        self.locale_language_options.get(idx).cloned().unwrap_or_else(|| "<none>".into())
+        let idx = if self.editing_locales {
+            self.draft_locale_language_index
+        } else {
+            self.locale_language_index
+        };
+        self.locale_language_options
+            .get(idx)
+            .cloned()
+            .unwrap_or_else(|| "<none>".into())
     }
 
     pub fn current_locale_encoding(&self) -> String {
-        let idx = if self.editing_locales { self.draft_locale_encoding_index } else { self.locale_encoding_index };
-        self.locale_encoding_options.get(idx).cloned().unwrap_or_else(|| "<none>".into())
+        let idx = if self.editing_locales {
+            self.draft_locale_encoding_index
+        } else {
+            self.locale_encoding_index
+        };
+        self.locale_encoding_options
+            .get(idx)
+            .cloned()
+            .unwrap_or_else(|| "<none>".into())
     }
 
     pub fn open_locales_popup(&mut self) {
-        if self.current_screen() != Screen::Locales || self.focus != super::Focus::Content { return; }
+        if self.current_screen() != Screen::Locales || self.focus != super::Focus::Content {
+            return;
+        }
         let (kind, opts, current_idx) = match self.locales_focus_index {
-            0 => (PopupKind::KeyboardLayout, self.keyboard_layout_options.clone(), if self.editing_locales { self.draft_keyboard_layout_index } else { self.keyboard_layout_index }),
-            1 => (PopupKind::LocaleLanguage, self.locale_language_options.clone(), if self.editing_locales { self.draft_locale_language_index } else { self.locale_language_index }),
-            2 => (PopupKind::LocaleEncoding, self.locale_encoding_options.clone(), if self.editing_locales { self.draft_locale_encoding_index } else { self.locale_encoding_index }),
+            0 => (
+                PopupKind::KeyboardLayout,
+                self.keyboard_layout_options.clone(),
+                if self.editing_locales {
+                    self.draft_keyboard_layout_index
+                } else {
+                    self.keyboard_layout_index
+                },
+            ),
+            1 => (
+                PopupKind::LocaleLanguage,
+                self.locale_language_options.clone(),
+                if self.editing_locales {
+                    self.draft_locale_language_index
+                } else {
+                    self.locale_language_index
+                },
+            ),
+            2 => (
+                PopupKind::LocaleEncoding,
+                self.locale_encoding_options.clone(),
+                if self.editing_locales {
+                    self.draft_locale_encoding_index
+                } else {
+                    self.locale_encoding_index
+                },
+            ),
             _ => return,
         };
         self.popup_kind = Some(kind);
@@ -45,7 +92,9 @@ impl AppState {
     }
 
     pub fn start_locales_edit(&mut self) {
-        if self.current_screen() != Screen::Locales { return; }
+        if self.current_screen() != Screen::Locales {
+            return;
+        }
         let _ = self.load_locales_options();
         self.editing_locales = true;
         self.draft_keyboard_layout_index = self.keyboard_layout_index;
@@ -56,7 +105,9 @@ impl AppState {
     }
 
     pub fn apply_locales_edit(&mut self) {
-        if !self.editing_locales { return; }
+        if !self.editing_locales {
+            return;
+        }
         self.keyboard_layout_index = self.draft_keyboard_layout_index;
         self.locale_language_index = self.draft_locale_language_index;
         self.locale_encoding_index = self.draft_locale_encoding_index;
@@ -70,16 +121,22 @@ impl AppState {
     }
 
     pub fn load_locales_options(&mut self) -> Result<(), ()> {
-        if self.locales_loaded { return Ok(()); }
+        if self.locales_loaded {
+            return Ok(());
+        }
 
         // Keyboard layouts
-        if let Ok(output) = Command::new("localectl").arg("list-keymaps").output() {
-            if output.status.success() {
-                let text = String::from_utf8_lossy(&output.stdout);
-                let mut items: Vec<String> = text.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-                items.sort();
-                self.keyboard_layout_options = items;
-            }
+        if let Ok(output) = Command::new("localectl").arg("list-keymaps").output()
+            && output.status.success()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut items: Vec<String> = text
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            items.sort();
+            self.keyboard_layout_options = items;
         }
 
         // Locale languages from /etc/locale.gen
@@ -87,7 +144,9 @@ impl AppState {
             let mut set = std::collections::BTreeSet::new();
             for line in text.lines() {
                 let l = line.trim();
-                if l.is_empty() || l.starts_with('#') { continue; }
+                if l.is_empty() || l.starts_with('#') {
+                    continue;
+                }
                 let mut parts = l.split_whitespace();
                 if let Some(locale_spec) = parts.next() {
                     set.insert(locale_spec.to_string());
@@ -97,13 +156,17 @@ impl AppState {
         }
 
         // Encodings
-        if let Ok(output) = Command::new("locale").arg("-m").output() {
-            if output.status.success() {
-                let text = String::from_utf8_lossy(&output.stdout);
-                let mut items: Vec<String> = text.lines().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-                items.sort();
-                self.locale_encoding_options = items;
-            }
+        if let Ok(output) = Command::new("locale").arg("-m").output()
+            && output.status.success()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let mut items: Vec<String> = text
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            items.sort();
+            self.locale_encoding_options = items;
         }
 
         self.locales_loaded = true;
@@ -114,7 +177,9 @@ impl AppState {
 pub fn draw_locales(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     let title = Span::styled(
         "Locales",
-        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
     );
 
     let options = vec![
@@ -140,17 +205,23 @@ pub fn draw_locales(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         let is_active_line = is_focused_line && matches!(app.focus, super::Focus::Content);
         let bullet = if is_focused_line { "▶" } else { " " };
         let bullet_style = if is_active_line {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
         let label_style = if is_active_line {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
         let value_style = if is_active_line {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
@@ -163,11 +234,14 @@ pub fn draw_locales(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     }
 
     // Continue button
-    let continue_style = if app.locales_focus_index == 3 && matches!(app.focus, super::Focus::Content) {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(Color::White)
-    };
+    let continue_style =
+        if app.locales_focus_index == 3 && matches!(app.focus, super::Focus::Content) {
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled("[ Continue ]", continue_style)));
 
@@ -180,5 +254,3 @@ pub fn draw_locales(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         .wrap(Wrap { trim: false });
     frame.render_widget(content, area);
 }
-
-
