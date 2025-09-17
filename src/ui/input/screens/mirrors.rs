@@ -32,5 +32,3 @@ pub(crate) fn move_mirrors_repos_down(app: &mut AppState) {
     }
     app.mirrors_focus_index = (app.mirrors_focus_index + 1) % 5;
 }
-
-

@@ -73,5 +73,3 @@ pub(crate) fn handle_enter_locales(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

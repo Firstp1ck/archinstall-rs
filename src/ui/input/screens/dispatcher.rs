@@ -1,9 +1,9 @@
 #![allow(dead_code)]
-use crate::ui::app::{AppState, Focus, Screen};
 use super::{
-    addpkgs, ats, audio, bootloader, disk_encryption as de, disks, experience, hostname,
-    kernels, locales, mirrors, network, rootpass, save_config, swap, timezone, uki, user,
+    addpkgs, ats, audio, bootloader, disk_encryption as de, disks, experience, hostname, kernels,
+    locales, mirrors, network, rootpass, save_config, swap, timezone, uki, user,
 };
+use crate::ui::app::{AppState, Focus, Screen};
 
 pub(crate) fn move_menu_up(app: &mut AppState) {
     if app.selected_index > 0 {
@@ -174,35 +174,67 @@ fn handle_enter_config(app: &mut AppState) {
     }
 }
 
-fn handle_enter_locales(app: &mut AppState) { locales::handle_enter_locales(app); }
+fn handle_enter_locales(app: &mut AppState) {
+    locales::handle_enter_locales(app);
+}
 
-fn handle_enter_mirrors(app: &mut AppState) { mirrors::handle_enter_mirrors(app); }
+fn handle_enter_mirrors(app: &mut AppState) {
+    mirrors::handle_enter_mirrors(app);
+}
 
-fn advance(app: &mut AppState) { super::common::advance(app); }
+fn advance(app: &mut AppState) {
+    super::common::advance(app);
+}
 
-fn handle_enter_disks(app: &mut AppState) { disks::handle_enter_disks(app); }
+fn handle_enter_disks(app: &mut AppState) {
+    disks::handle_enter_disks(app);
+}
 
-fn handle_enter_diskenc(app: &mut AppState) { de::handle_enter_diskenc(app); }
+fn handle_enter_diskenc(app: &mut AppState) {
+    de::handle_enter_diskenc(app);
+}
 
-fn handle_enter_swap(app: &mut AppState) { swap::handle_enter_swap(app); }
+fn handle_enter_swap(app: &mut AppState) {
+    swap::handle_enter_swap(app);
+}
 
-fn handle_enter_bootloader(app: &mut AppState) { bootloader::handle_enter_bootloader(app); }
+fn handle_enter_bootloader(app: &mut AppState) {
+    bootloader::handle_enter_bootloader(app);
+}
 
-fn handle_enter_uki(app: &mut AppState) { uki::handle_enter_uki(app); }
-fn handle_enter_ats(app: &mut AppState) { ats::handle_enter_ats(app); }
+fn handle_enter_uki(app: &mut AppState) {
+    uki::handle_enter_uki(app);
+}
+fn handle_enter_ats(app: &mut AppState) {
+    ats::handle_enter_ats(app);
+}
 
-fn handle_enter_kernels(app: &mut AppState) { kernels::handle_enter_kernels(app); }
+fn handle_enter_kernels(app: &mut AppState) {
+    kernels::handle_enter_kernels(app);
+}
 
-fn handle_enter_hostname(app: &mut AppState) { hostname::handle_enter_hostname(app); }
+fn handle_enter_hostname(app: &mut AppState) {
+    hostname::handle_enter_hostname(app);
+}
 
-fn handle_enter_timezone(app: &mut AppState) { timezone::handle_enter_timezone(app); }
-fn handle_enter_addpkgs(app: &mut AppState) { addpkgs::handle_enter_addpkgs(app); }
+fn handle_enter_timezone(app: &mut AppState) {
+    timezone::handle_enter_timezone(app);
+}
+fn handle_enter_addpkgs(app: &mut AppState) {
+    addpkgs::handle_enter_addpkgs(app);
+}
 
-fn handle_enter_rootpass(app: &mut AppState) { rootpass::handle_enter_rootpass(app); }
+fn handle_enter_rootpass(app: &mut AppState) {
+    rootpass::handle_enter_rootpass(app);
+}
 
-fn handle_enter_user(app: &mut AppState) { user::handle_enter_user(app); }
+fn handle_enter_user(app: &mut AppState) {
+    user::handle_enter_user(app);
+}
 
-fn handle_enter_experience(app: &mut AppState) { experience::handle_enter_experience(app); }
+fn handle_enter_experience(app: &mut AppState) {
+    experience::handle_enter_experience(app);
+}
 
 // The following are screen- and popup-specific helpers moved from input.rs
 pub(crate) fn move_disks_up(app: &mut AppState) {
@@ -239,7 +271,11 @@ pub(crate) fn move_diskenc_up(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
-    let max = if app.disk_encryption_type_index == 1 { 5 } else { 2 };
+    let max = if app.disk_encryption_type_index == 1 {
+        5
+    } else {
+        2
+    };
     if app.diskenc_focus_index == 0 {
         app.diskenc_focus_index = max - 1;
     } else {
@@ -250,7 +286,11 @@ pub(crate) fn move_diskenc_down(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
-    let max = if app.disk_encryption_type_index == 1 { 5 } else { 2 };
+    let max = if app.disk_encryption_type_index == 1 {
+        5
+    } else {
+        2
+    };
     app.diskenc_focus_index = (app.diskenc_focus_index + 1) % max;
 }
 pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
@@ -533,9 +573,15 @@ pub(crate) fn move_timezone_down(app: &mut AppState) {
     app.timezone_focus_index = (app.timezone_focus_index + 1) % 2;
 }
 pub(crate) fn change_timezone_value(_app: &mut AppState, _next: bool) {}
-pub(crate) fn move_addpkgs_up(app: &mut AppState) { addpkgs::move_addpkgs_up(app); }
-pub(crate) fn move_addpkgs_down(app: &mut AppState) { addpkgs::move_addpkgs_down(app); }
-pub(crate) fn change_addpkgs_value(app: &mut AppState, next: bool) { addpkgs::change_addpkgs_value(app, next); }
+pub(crate) fn move_addpkgs_up(app: &mut AppState) {
+    addpkgs::move_addpkgs_up(app);
+}
+pub(crate) fn move_addpkgs_down(app: &mut AppState) {
+    addpkgs::move_addpkgs_down(app);
+}
+pub(crate) fn change_addpkgs_value(app: &mut AppState, next: bool) {
+    addpkgs::change_addpkgs_value(app, next);
+}
 pub(crate) fn move_rootpass_up(app: &mut AppState) {
     if app.current_screen() != Screen::RootPassword || app.focus != Focus::Content {
         return;
@@ -587,5 +633,3 @@ pub(crate) fn move_config_down(app: &mut AppState) {
     app.config_focus_index = (app.config_focus_index + 1) % 3;
 }
 pub(crate) fn change_config_value(_app: &mut AppState, _next: bool) {}
-
-

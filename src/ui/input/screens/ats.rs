@@ -38,5 +38,3 @@ pub(crate) fn handle_enter_ats(app: &mut AppState) {
         _ => {}
     }
 }
-
-

@@ -100,7 +100,8 @@ impl AppState {
 
     fn disk_freespace_low(&self, dev: &str) -> bool {
         if let Some(found) = self.disks_devices.iter().find(|d| d.path == dev)
-            && !found.freespace.is_empty() && found.freespace != "-"
+            && !found.freespace.is_empty()
+            && found.freespace != "-"
         {
             let s = found.freespace.to_lowercase();
             let is_low = s.ends_with(" mib") || s.ends_with(" kib") || s.ends_with(" b");

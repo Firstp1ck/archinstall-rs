@@ -25,5 +25,3 @@ pub(crate) fn handle_enter_hostname(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

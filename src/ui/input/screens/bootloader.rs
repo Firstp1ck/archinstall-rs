@@ -33,5 +33,3 @@ pub(crate) fn handle_enter_bootloader(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

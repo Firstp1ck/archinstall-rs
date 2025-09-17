@@ -34,5 +34,3 @@ pub(crate) fn handle_enter_audio(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

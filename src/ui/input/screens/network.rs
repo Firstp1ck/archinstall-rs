@@ -54,5 +54,3 @@ pub(crate) fn handle_enter_network(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

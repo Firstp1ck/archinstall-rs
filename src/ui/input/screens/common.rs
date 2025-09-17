@@ -17,5 +17,3 @@ pub(crate) fn advance(app: &mut AppState) {
         app.focus = crate::ui::app::Focus::Menu;
     }
 }
-
-

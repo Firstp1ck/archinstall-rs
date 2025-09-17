@@ -55,5 +55,3 @@ pub(crate) fn handle_enter_user(app: &mut AppState) {
         _ => {}
     }
 }
-
-

@@ -111,5 +111,3 @@ pub(crate) fn popup_move_down(app: &mut AppState) {
             (app.popup_selected_visible + 1) % app.popup_visible_indices.len();
     }
 }
-
-

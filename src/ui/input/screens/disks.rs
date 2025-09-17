@@ -41,5 +41,3 @@ pub(crate) fn handle_enter_disks(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

@@ -31,5 +31,3 @@ pub(crate) fn handle_enter_kernels(app: &mut AppState) {
         _ => {}
     }
 }
-
-

@@ -45,5 +45,3 @@ pub(crate) fn handle_enter_config(app: &mut AppState) {
         _ => {}
     }
 }
-
-

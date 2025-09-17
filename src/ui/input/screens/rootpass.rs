@@ -26,5 +26,3 @@ pub(crate) fn handle_enter_rootpass(app: &mut AppState) {
         _ => {}
     }
 }
-
-

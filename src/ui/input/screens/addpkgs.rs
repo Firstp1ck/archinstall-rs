@@ -17,7 +17,8 @@ pub(crate) fn move_addpkgs_down(app: &mut AppState) {
         return;
     }
     if !app.additional_packages.is_empty() {
-        app.addpkgs_selected_index = (app.addpkgs_selected_index + 1) % app.additional_packages.len();
+        app.addpkgs_selected_index =
+            (app.addpkgs_selected_index + 1) % app.additional_packages.len();
     }
 }
 pub(crate) fn change_addpkgs_value(app: &mut AppState, next: bool) {
@@ -38,5 +39,3 @@ pub(crate) fn handle_enter_addpkgs(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-

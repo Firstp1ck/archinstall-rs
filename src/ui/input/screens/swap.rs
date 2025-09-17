@@ -32,5 +32,3 @@ pub(crate) fn handle_enter_swap(app: &mut AppState) {
         super::common::advance(app);
     }
 }
-
-
