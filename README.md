@@ -133,13 +133,18 @@ chmod +x archinstall-rs
 
 #### Command-line mode (Locales)
 
-- Open with `:` while editing Locales.
-- Type commands then press `Enter`:
-  - `w`: apply changes
-  - `wq`: apply and return to menu
-  - `q`: discard and return to menu
-  - any other text: close without action
-| `Esc` | Exit command line |
+| Key | Action |
+|-----|--------|
+| `:` | Open command-line while editing Locales |
+| `Esc` | Exit command-line |
+| `Enter` | Execute current command |
+
+| Command | Effect |
+|---------|--------|
+| `w` | Apply changes |
+| `wq` | Apply changes and return to menu |
+| `q` | Discard changes and return to menu |
+| any other text | Close without action |
 
 ### Configuration Sections
 
