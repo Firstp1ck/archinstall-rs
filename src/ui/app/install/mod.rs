@@ -1,7 +1,6 @@
-mod ui;
 mod flow;
-mod partitioning;
 mod packages;
+mod partitioning;
+mod ui;
 
 pub use ui::draw_install;
-

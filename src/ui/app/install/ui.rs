@@ -73,7 +73,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
 
     {
         let mut items: Vec<String> = Vec::new();
-        let enc = if app.disk_encryption_type_index == 1 { "LUKS" } else { "None" };
+        let enc = if app.disk_encryption_type_index == 1 {
+            "LUKS"
+        } else {
+            "None"
+        };
         items.push(format!("Type: {}", enc));
         if let Some(p) = &app.disk_encryption_selected_partition {
             items.push(format!("Partition: {}", p));
@@ -84,7 +88,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
 
     let swap_items = vec![format!(
         "{}",
-        if app.swap_enabled { "Enabled" } else { "Disabled" }
+        if app.swap_enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
     )];
     push_section_lines(&mut sections, "Swap", &swap_items);
 
@@ -102,7 +110,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     if app.bootloader_index != 1 {
         let uki_items = vec![format!(
             "{}",
-            if app.uki_enabled { "Enabled" } else { "Disabled" }
+            if app.uki_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
         )];
         push_section_lines(&mut sections, "Unified Kernel Images", &uki_items);
     }
@@ -211,14 +223,15 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 .collect();
             servers.sort_unstable();
             for server in servers {
-                let mut pkgs: Vec<String> = if let Some(set) = app.selected_server_packages.get(server) {
-                    set.iter().cloned().collect()
-                } else {
-                    crate::ui::app::install::packages::server_default_packages(server)
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect()
-                };
+                let mut pkgs: Vec<String> =
+                    if let Some(set) = app.selected_server_packages.get(server) {
+                        set.iter().cloned().collect()
+                    } else {
+                        crate::ui::app::install::packages::server_default_packages(server)
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect()
+                    };
                 pkgs.sort_unstable();
                 let joined = pkgs.join(", ");
                 exp_pkg_sec.push(Line::from(format!(
@@ -386,4 +399,3 @@ fn push_section_lines(sections: &mut Vec<Vec<Line>>, name: &str, items: &Vec<Str
     sec.push(Line::from(""));
     sections.push(sec);
 }
-

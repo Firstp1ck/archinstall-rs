@@ -122,4 +122,3 @@ pub fn xorg_default_packages(xorg: &str) -> Vec<&'static str> {
         _ => Vec::new(),
     }
 }
-

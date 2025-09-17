@@ -6,7 +6,9 @@ impl AppState {
     }
 
     pub fn start_install_flow(&mut self) {
-        let Some(target) = self.select_target_and_run_prechecks() else { return };
+        let Some(target) = self.select_target_and_run_prechecks() else {
+            return;
+        };
         let plan = self.build_install_plan(&target);
         self.run_install_plan(plan);
     }
@@ -97,12 +99,12 @@ impl AppState {
     }
 
     fn disk_freespace_low(&self, dev: &str) -> bool {
-        if let Some(found) = self.disks_devices.iter().find(|d| d.path == dev) {
-            if !found.freespace.is_empty() && found.freespace != "-" {
-                let s = found.freespace.to_lowercase();
-                let is_low = s.ends_with(" mib") || s.ends_with(" kib") || s.ends_with(" b");
-                return is_low;
-            }
+        if let Some(found) = self.disks_devices.iter().find(|d| d.path == dev)
+            && !found.freespace.is_empty() && found.freespace != "-"
+        {
+            let s = found.freespace.to_lowercase();
+            let is_low = s.ends_with(" mib") || s.ends_with(" kib") || s.ends_with(" b");
+            return is_low;
         }
         false
     }
@@ -111,18 +113,39 @@ impl AppState {
         std::path::Path::new("/sys/firmware/efi").exists()
     }
 
-    fn build_locales_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_mirrors_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_bootloader_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_uki_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_system_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_users_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_experience_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_graphics_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_kernels_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_network_plan(&self) -> Vec<String> { Vec::new() }
-    fn build_additional_packages_plan(&self) -> Vec<String> { Vec::new() }
+    fn build_locales_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_mirrors_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_bootloader_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_uki_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_system_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_users_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_experience_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_graphics_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_kernels_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_network_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
+    fn build_additional_packages_plan(&self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 // (no free-function entry; use AppState::start_install instead)
-

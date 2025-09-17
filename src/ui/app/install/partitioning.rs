@@ -72,4 +72,3 @@ impl AppState {
         self.open_info_popup("Partitioning completed.".into());
     }
 }
-
