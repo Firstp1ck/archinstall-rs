@@ -99,15 +99,47 @@ chmod +x archinstall-rs
 
 ### Navigation
 
+#### Global
+
 | Key | Action |
 |-----|--------|
-| `↑/↓` | Navigate menu items |
-| `←/→` | Switch between menu and content |
-| `Enter` | Select/Confirm |
-| `Esc` | Back/Cancel |
-| `Tab` | Switch focus |
-| `Space` | Toggle selection (in multi-select lists) |
-| `q` | Quit (with confirmation) |
+| `↑/↓` or `k/j` | Navigate items (menu or content, based on focus) |
+| `←/→` or `h/l` | Change value/selection in active decision |
+| `Enter` | Select/Confirm/Run action |
+| `Esc` or `q` | Close popup or return focus to menu (never quits) |
+| `Ctrl-C` | Quit application |
+| `Tab` / `Shift-Tab` | Next/Prev field (Locales screen) |
+| `:` | Open command line (Locales screen) |
+
+#### Popups
+
+| Key | Action |
+|-----|--------|
+| `↑/↓` or `k/j` | Move selection |
+| `←/→` or `h/l` | Change option/side |
+| `Enter` | Confirm/Apply |
+| `Esc` or `q` | Close popup |
+| `Space` | Toggle checkbox/selection (if supported) |
+| `/` | Start search filter; type to filter, `Backspace` to edit |
+
+#### Additional Packages
+
+| Key | Action |
+|-----|--------|
+| `↑/↓` | Move in package list |
+| `j/k` | Switch between action buttons (Add/Continue) |
+| `Space` | Toggle selection on the current package |
+| `Backspace`/`Delete` | Remove current or all checked packages |
+
+#### Command-line mode (Locales)
+
+- Open with `:` while editing Locales.
+- Type commands then press `Enter`:
+  - `w`: apply changes
+  - `wq`: apply and return to menu
+  - `q`: discard and return to menu
+  - any other text: close without action
+| `Esc` | Exit command line |
 
 ### Configuration Sections
 
@@ -192,14 +224,19 @@ The installer supports saving and loading configurations in TOML format. This al
 ### Example Configuration
 
 ```toml
+[users]
+
+users = []
+additional_packages = []
+
 [locales]
 keyboard_layout = "us"
-locale_language = "en_US"
+locale_language = "en_US.UTF-8"
 locale_encoding = "UTF-8"
 
 [mirrors]
-regions = ["United States", "Canada"]
-optional_repos = ["multilib", "multilib-testing"]
+regions = ["United States"]
+optional_repos = ["multilib"]
 custom_servers = []
 custom_repos = []
 
@@ -215,36 +252,42 @@ enabled = true
 [bootloader]
 kind = "systemd-boot"
 
-[[users]]
-username = "myuser"
-password_hash = "..." # SHA256 hash
-is_sudo = true
-
-[hostname]
-name = "archlinux"
+[system]
+hostname = "archlinux"
+root_password_hash = "" # optional, SHA256 hex
+automatic_time_sync = true
+timezone = "Europe/London"
 
 [experience]
 mode = "Desktop"
-desktop_environment = "KDE Plasma"
+desktop_envs = ["KDE Plasma"]
+# login_manager = "sddm"
+# login_manager_user_set = false
 
 [audio]
-system = "pipewire"
+kind = "pipewire"
 
 [kernels]
 selected = ["linux", "linux-lts"]
 
 [network]
-configuration = "NetworkManager"
+mode = "NetworkManager"
 
-[packages]
-additional = ["firefox", "neovim", "git"]
+[unified_kernel_images]
+enabled = false
 
-[timezone]
-region = "America"
-city = "New_York"
+# Optional: define users
+[[users]]
+username = "myuser"
+password_hash = "..." # SHA256 hex
+is_sudo = true
 
-[time_sync]
-ntp_enabled = true
+# Optional: additional packages
+#[[additional_packages]]
+#repo = "extra"
+#name = "firefox"
+#version = ""
+#description = "Web browser"
 ```
 
 ### Loading a Configuration
@@ -262,48 +305,64 @@ ntp_enabled = true
 ```
 archinstall-rs/
 ├── src/
-│   ├── main.rs              # Entry point
+│   ├── main.rs                     # Entry point
 │   └── ui/
-│       ├── mod.rs           # UI module root
-│       ├── app.rs           # Application state and logic
-│       ├── render/          # Rendering modules
-│       │   ├── mod.rs
-│       │   ├── sections.rs
-│       │   ├── popup.rs
-│       │   └── cmdline.rs
-│       ├── input/           # Input handling
-│       │   ├── mod.rs
-│       │   ├── screens.rs
-│       │   ├── popup.rs
-│       │   ├── top.rs
-│       │   └── cmdline.rs
-│       └── app/             # Installation sections
-│           ├── abort.rs
-│           ├── additional_packages.rs
-│           ├── audio.rs
-│           ├── automatic_time_sync.rs
-│           ├── bootloader.rs
-│           ├── config.rs
-│           ├── disk_encryption.rs
-│           ├── disks.rs
-│           ├── experience_mode.rs
-│           ├── hostname.rs
-│           ├── install.rs
-│           ├── kernels.rs
-│           ├── locales.rs
-│           ├── mirrors.rs
-│           ├── network_configuration.rs
-│           ├── root_password.rs
-│           ├── save_configuration.rs
-│           ├── swap_partition.rs
-│           ├── timezone.rs
-│           ├── unified_kernel_images.rs
-│           └── user_account.rs
+│       ├── mod.rs                  # UI module root
+│       ├── app.rs                  # App state and screen registry
+│       ├── app/                    # Installation sections
+│       │   ├── abort.rs            # Abort/exit screen with confirmation
+│       │   ├── additional_packages.rs # Manage additional packages list
+│       │   ├── audio.rs            # Select audio system
+│       │   ├── automatic_time_sync.rs # Enable/disable NTP time sync
+│       │   ├── bootloader.rs       # Choose bootloader
+│       │   ├── config/             # Config save/load/types and summary
+│       │   │   ├── io.rs           # Build/save/load TOML configuration
+│       │   │   ├── mod.rs          # Module glue
+│       │   │   ├── types.rs        # Serializable config schema
+│       │   │   └── view.rs         # Config summary UI
+│       │   ├── disk_encryption.rs  # LUKS encryption configuration
+│       │   ├── disks.rs            # Disk selection and partitioning plan
+│       │   ├── experience_mode.rs  # Desktop/Minimal/Server/Xorg profiles
+│       │   ├── hostname.rs         # Hostname screen
+│       │   ├── install/            # Install action screens/logic
+│       │   ├── kernels.rs          # Kernel selection
+│       │   ├── locales.rs          # Keyboard layout and locale
+│       │   ├── mirrors.rs          # Mirrors and repositories
+│       │   ├── network_configuration.rs # Network mode selection
+│       │   ├── root_password.rs    # Root password entry
+│       │   ├── save_configuration.rs # Save/load configuration actions
+│       │   ├── swap_partition.rs   # Swap toggle and automatic sizing
+│       │   ├── timezone.rs         # Timezone selection
+│       │   ├── unified_kernel_images.rs # Unified Kernel Images (UKI) toggle
+│       │   └── user_account.rs     # Manage user accounts and sudo
+│       ├── common/
+│       │   ├── mod.rs              # Shared UI utilities module
+│       │   ├── popups.rs           # Common popup components
+│       │   └── utils.rs            # Misc UI helpers
+│       ├── core/
+│       │   ├── mod.rs              # Core app plumbing
+│       │   ├── state.rs            # Global app state
+│       │   └── types.rs            # Core shared types
+│       ├── input/
+│       │   ├── cmdline.rs          # Command line input (Locales)
+│       │   ├── mod.rs              # Input modules root
+│       │   ├── popup/              # Popup input handlers
+│       │   ├── screens/            # Screen-specific input handlers
+│       │   └── top.rs              # Top-level crossterm event dispatcher
+│       └── render/
+│           ├── cmdline.rs          # Render the command line input
+│           ├── mod.rs              # Rendering modules root
+│           ├── popup/              # Popup rendering
+│           └── sections/           # Screen content rendering
 ├── Documents/
+│   ├── arch_manual.md
+│   └── HOW_TO.md
 ├── Images/
-├── archinstall-rs.config.toml  # Example configuration
-├── Cargo.toml                   # Rust dependencies
-└── README.md                    # This file
+│   └── example_v0.0.1.png
+├── archinstall-rs.config.toml      # Example configuration
+├── Cargo.toml
+├── Cargo.lock
+└── README.md
 ```
 
 ## 🔧 Development
