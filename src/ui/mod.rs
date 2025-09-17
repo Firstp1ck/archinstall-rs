@@ -15,7 +15,7 @@ use self::app::AppState;
 use self::input::handle_event;
 use self::render::draw;
 
-pub fn run() -> io::Result<()> {
+pub fn run(dry_run: bool) -> io::Result<()> {
     // Terminal setup
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -23,7 +23,7 @@ pub fn run() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_loop(&mut terminal);
+    let res = run_loop(&mut terminal, dry_run);
 
     // Restore terminal
     disable_raw_mode()?;
@@ -33,8 +33,11 @@ pub fn run() -> io::Result<()> {
     res
 }
 
-fn run_loop(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
-    let mut app = AppState::new();
+fn run_loop(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    dry_run: bool,
+) -> io::Result<()> {
+    let mut app = AppState::new(dry_run);
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(250);
 

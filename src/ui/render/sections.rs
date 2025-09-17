@@ -27,8 +27,11 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     let keybinds_rect = chunks[2];
 
     // On ExperienceMode, split Info and Decision content evenly
+    // On Install, hide Info and give full height to Decision content
     let right_constraints = if app.current_screen() == Screen::ExperienceMode {
         [Constraint::Percentage(50), Constraint::Percentage(50)]
+    } else if app.current_screen() == Screen::Install {
+        [Constraint::Length(0), Constraint::Percentage(100)]
     } else {
         [Constraint::Length(INFOBOX_HEIGHT), Constraint::Min(5)]
     };
@@ -48,7 +51,13 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     let items: Vec<ListItem> = app
         .menu_entries
         .iter()
-        .map(|entry| ListItem::new(Line::from(entry.label.clone())))
+        .map(|entry| {
+            let mut label = entry.label.clone();
+            if app.processed_sections.contains(&entry.screen) {
+                label = format!("✔ {}", label);
+            }
+            ListItem::new(Line::from(label))
+        })
         .collect();
     let menu_title = match app.focus {
         Focus::Menu => " Main Menu (focused) ",
@@ -68,7 +77,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         .highlight_symbol("▶ ");
     frame.render_stateful_widget(menu, left_menu_rect, &mut app.list_state);
 
-    // Info
+    // Info (skip on Install screen)
     let mut info_lines = vec![Line::from(Span::styled(
         "Info",
         Style::default()
@@ -154,13 +163,59 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         }
     } else if app.current_screen() == Screen::Disks {
         let mode = match app.disks_mode_index {
-            0 => "Best-effort default partition layout",
+            0 => "Best-effort partition layout",
             1 => "Manual Partitioning",
             _ => "Pre-mounted configuration",
         };
         info_lines.push(Line::from(format!("Disk mode: {}", mode)));
         if let Some(dev) = &app.disks_selected_device {
             info_lines.push(Line::from(format!("Selected drive: {}", dev)));
+        }
+        // Partition plan preview
+        if app.disks_mode_index == 1 && !app.disks_partitions.is_empty() {
+            // Manual: show explicit partitions from config
+            if let Some(label) = &app.disks_label { info_lines.push(Line::from(format!("Label: {}", label))); }
+            info_lines.push(Line::from(format!("Wipe: {}", if app.disks_wipe { "Yes" } else { "No" })));
+            if let Some(align) = &app.disks_align { info_lines.push(Line::from(format!("Align: {}", align))); }
+            info_lines.push(Line::from("Partitions:"));
+            for p in &app.disks_partitions {
+                let name = p.name.clone().unwrap_or_default();
+                let role = p.role.clone().unwrap_or_default();
+                let fs = p.fs.clone().unwrap_or_default();
+                let start = p.start.clone().unwrap_or_default();
+                let size = p.size.clone().unwrap_or_default();
+                let flags = if p.flags.is_empty() { String::new() } else { p.flags.join(",") };
+                let mp = p.mountpoint.clone().unwrap_or_default();
+                let enc = if p.encrypt.unwrap_or(false) { " enc" } else { "" };
+                let mut line = String::new();
+                if !name.is_empty() { line.push_str(&format!("{} ", name)); }
+                if !role.is_empty() { line.push_str(&format!("({}) ", role)); }
+                if !fs.is_empty() { line.push_str(&format!("{} ", fs)); }
+                if !start.is_empty() || !size.is_empty() { line.push_str(&format!("[{}..{}] ", start, size)); }
+                if !flags.is_empty() { line.push_str(&format!("flags:{} ", flags)); }
+                if !mp.is_empty() { line.push_str(&format!("-> {} ", mp)); }
+                line.push_str(enc);
+                if line.is_empty() { line = "(empty)".into(); }
+                info_lines.push(Line::from(format!("- {}", line.trim())));
+            }
+        } else if app.disks_mode_index == 0 {
+            // Best-effort: show derived plan summary
+            // Heuristics: UEFI vs BIOS via /sys/firmware/efi (not executed here), show template
+            let bl = match app.bootloader_index { 1 => "GRUB", 0 => "systemd-boot", 2 => "efistub", _ => "other" };
+            info_lines.push(Line::from(format!("Bootloader: {}", bl)));
+            // Basic recommended layout summary
+            info_lines.push(Line::from("Planned layout:"));
+            if bl == "GRUB" {
+                info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
+                if app.swap_enabled { info_lines.push(Line::from("- swap: 4GiB")); }
+                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+            } else {
+                info_lines.push(Line::from("- gpt: 512MiB EFI (vfat, esp) -> /boot"));
+                if app.swap_enabled { info_lines.push(Line::from("- swap: 4GiB")); }
+                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+            }
         }
     } else if app.current_screen() == Screen::SwapPartition {
         let swap = if app.swap_enabled {
@@ -171,7 +226,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         info_lines.push(Line::from(format!("Swap: {}", swap)));
     } else if app.current_screen() == Screen::Bootloader {
         let bl = match app.bootloader_index {
-            0 => "Systemd-boot (Default)",
+            0 => "Systemd-boot",
             1 => "Grub",
             2 => "Efistub",
             _ => "Limine",
@@ -183,6 +238,12 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         } else {
             info_lines.push(Line::from(format!("Hostname: {}", app.hostname_value)));
         }
+    } else if app.current_screen() == Screen::Timezone {
+        if app.timezone_value.is_empty() {
+            info_lines.push(Line::from("Timezone: (not set)"));
+        } else {
+            info_lines.push(Line::from(format!("Timezone: {}", app.timezone_value)));
+        }
     } else if app.current_screen() == Screen::UnifiedKernelImages {
         let uki = if app.uki_enabled {
             "Enabled"
@@ -190,6 +251,71 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             "Disabled"
         };
         info_lines.push(Line::from(format!("UKI: {}", uki)));
+    } else if app.current_screen() == Screen::AutomaticTimeSync {
+        info_lines.push(Line::from(format!(
+            "Automatic Time Sync: {}",
+            if app.ats_enabled { "Yes" } else { "No" }
+        )));
+    } else if app.current_screen() == Screen::Kernels {
+        if app.selected_kernels.is_empty() {
+            info_lines.push(Line::from("Kernels: none"));
+        } else {
+            let mut v: Vec<&str> = app.selected_kernels.iter().map(|s| s.as_str()).collect();
+            v.sort_unstable();
+            info_lines.push(Line::from(format!("Kernels: {}", v.join(", "))));
+        }
+    } else if app.current_screen() == Screen::AdditionalPackages {
+        if app.additional_packages.is_empty() {
+            info_lines.push(Line::from("Additional packages: none"));
+        } else {
+            // Show name and possibly truncated description
+            let mut entries: Vec<(String, String)> = app
+                .additional_packages
+                .iter()
+                .map(|p| (p.name.clone(), p.description.clone()))
+                .collect();
+            entries.sort_by(|a, b| a.0.cmp(&b.0));
+            info_lines.push(Line::from(format!("Packages ({}):", entries.len())));
+            // Display up to N lines; each line: name - desc
+            for (name, desc) in entries.into_iter().take(8) {
+                let max_line = (infobox_rect.width.saturating_sub(4)) as usize;
+                let mut line = format!("{} — {}", name, desc);
+                if line.len() > max_line {
+                    line.truncate(max_line);
+                }
+                info_lines.push(Line::from(format!("  {}", line)));
+            }
+            if app.additional_packages.len() > 8 {
+                info_lines.push(Line::from("  …"));
+            }
+        }
+    } else if app.current_screen() == Screen::Audio {
+        info_lines.push(Line::from(format!("Audio: {}", app.current_audio_label())));
+    } else if app.current_screen() == Screen::NetworkConfiguration {
+        info_lines.push(Line::from(format!(
+            "Network: {}",
+            app.current_network_label()
+        )));
+        if !app.network_configs.is_empty() {
+            info_lines.push(Line::from("Interfaces:"));
+            for cfg in &app.network_configs {
+                let mode = match cfg.mode {
+                    crate::ui::app::NetworkConfigMode::Dhcp => "DHCP",
+                    crate::ui::app::NetworkConfigMode::Static => "Static",
+                };
+                let mut line = format!("- {} ({})", cfg.interface, mode);
+                if let Some(ip) = &cfg.ip_cidr {
+                    line.push_str(&format!(" IP={} ", ip));
+                }
+                if let Some(gw) = &cfg.gateway {
+                    line.push_str(&format!(" GW={} ", gw));
+                }
+                if let Some(dns) = &cfg.dns {
+                    line.push_str(&format!(" DNS={} ", dns));
+                }
+                info_lines.push(Line::from(line));
+            }
+        }
     } else if app.current_screen() == Screen::UserAccount {
         if app.users.is_empty() {
             info_lines.push(Line::from("No users added yet."));
@@ -563,10 +689,12 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             app.menu_entries[app.selected_index].label
         )));
     }
-    let info = Paragraph::new(info_lines)
-        .block(Block::default().borders(Borders::ALL).title(" Info "))
-        .wrap(Wrap { trim: true });
-    frame.render_widget(info, infobox_rect);
+    if app.current_screen() != Screen::Install {
+        let info = Paragraph::new(info_lines)
+            .block(Block::default().borders(Borders::ALL).title(" Info "))
+            .wrap(Wrap { trim: true });
+        frame.render_widget(info, infobox_rect);
+    }
 
     // Keybindings window (vertical right)
     let key_lines = vec![
@@ -741,7 +869,20 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         Screen::UnifiedKernelImages => {
             app::unified_kernel_images::draw_unified_kernel_images(frame, app, content_rect)
         }
+        Screen::Kernels => app::kernels::draw_kernels(frame, app, content_rect),
+        Screen::Audio => app::audio::draw_audio(frame, app, content_rect),
+        Screen::Timezone => app::timezone::draw_timezone(frame, app, content_rect),
+        Screen::AutomaticTimeSync => {
+            app::automatic_time_sync::draw_automatic_time_sync(frame, app, content_rect)
+        }
+        Screen::NetworkConfiguration => {
+            app::network_configuration::draw_network_configuration(frame, app, content_rect)
+        }
+        Screen::AdditionalPackages => {
+            app::additional_packages::draw_additional_packages(frame, app, content_rect)
+        }
         Screen::SaveConfiguration => app::config::draw_configuration(frame, app, content_rect),
+        Screen::Install => app::install::draw_install(frame, app, content_rect),
         _ => {
             let content_lines = vec![
                 Line::from(Span::styled(
@@ -754,7 +895,11 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
                 Line::from(app.menu_entries[app.selected_index].content.clone()),
                 Line::from(""),
                 Line::from(Span::styled(
-                    "[ Continue ]",
+                    if app.current_screen() == Screen::Abort {
+                        "[ Close/Exit ]"
+                    } else {
+                        "[ Continue ]"
+                    },
                     match app.focus {
                         Focus::Content => Style::default()
                             .fg(Color::Yellow)

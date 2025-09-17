@@ -19,8 +19,8 @@ pub fn draw_user_account(frame: &mut ratatui::Frame, app: &mut AppState, area: R
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
-    // Options: Add user, Continue
-    let options = vec![("Add a user", 0)];
+    // Options: Add user, Edit user, Delete user
+    let options = vec![("Add a user", 0), ("Edit user", 1), ("Delete user", 2)];
 
     for (label, idx) in options {
         let is_focused_line = app.user_focus_index == idx;
@@ -47,7 +47,7 @@ pub fn draw_user_account(frame: &mut ratatui::Frame, app: &mut AppState, area: R
         lines.push(line);
     }
 
-    let continue_style = if app.user_focus_index == 1 && matches!(app.focus, Focus::Content) {
+    let continue_style = if app.user_focus_index == 3 && matches!(app.focus, Focus::Content) {
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD)

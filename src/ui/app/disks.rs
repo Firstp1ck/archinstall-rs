@@ -28,7 +28,7 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     );
 
     let options = vec![
-        ("Best-effort default partition layout", 0),
+        ("Best-effort partition layout", 0),
         ("Manual Partitioning", 1),
         ("Pre-mounted configuration", 2),
     ];
@@ -181,6 +181,22 @@ impl AppState {
                     }
                 }
                 self.disks_devices = devices;
+                // Default disk selection preference: /dev/sda, fallback /dev/sdb
+                if self.disks_selected_device.is_none() {
+                    if self
+                        .disks_devices
+                        .iter()
+                        .any(|d| d.path == "/dev/sda")
+                    {
+                        self.disks_selected_device = Some("/dev/sda".into());
+                    } else if self
+                        .disks_devices
+                        .iter()
+                        .any(|d| d.path == "/dev/sdb")
+                    {
+                        self.disks_selected_device = Some("/dev/sdb".into());
+                    }
+                }
             }
         }
     }

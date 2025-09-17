@@ -184,7 +184,7 @@ custom_servers = []
 custom_repos = []
 
 [disks]
-mode = "Best-effort default partition layout"
+mode = "Best-effort partition layout"
 
 [disk_encryption]
 encryption_type = "None"

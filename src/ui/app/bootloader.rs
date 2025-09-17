@@ -13,7 +13,7 @@ impl AppState {
     #[allow(dead_code)]
     pub fn current_bootloader_label(&self) -> &'static str {
         match self.bootloader_index {
-            0 => "Systemd-boot (Default)",
+            0 => "Systemd-boot",
             1 => "Grub",
             2 => "Efistub",
             _ => "Limine",
@@ -31,7 +31,7 @@ pub fn draw_bootloader(frame: &mut ratatui::Frame, app: &mut AppState, area: Rec
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
-    let choices = ["Systemd-boot (Default)", "Grub", "Efistub", "Limine"];
+    let choices = ["Systemd-boot", "Grub", "Efistub", "Limine"];
 
     for (idx, label) in choices.iter().enumerate() {
         let is_focused_line = app.bootloader_focus_index == idx;

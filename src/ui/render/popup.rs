@@ -17,12 +17,17 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::RootPassword)
             | Some(PopupKind::RootPasswordConfirm)
             | Some(PopupKind::UserAddUsername)
+            | Some(PopupKind::UserEditUsername)
             | Some(PopupKind::UserAddPassword)
             | Some(PopupKind::UserAddPasswordConfirm)
+            | Some(PopupKind::AdditionalPackageInput)
             | Some(PopupKind::UserAddSudo)
             | Some(PopupKind::MinimalClearConfirm)
             | Some(PopupKind::DiskEncryptionPassword)
             | Some(PopupKind::DiskEncryptionPasswordConfirm)
+            | Some(PopupKind::NetworkIP)
+            | Some(PopupKind::NetworkGateway)
+            | Some(PopupKind::NetworkDNS)
     ) {
         let w = area.width.clamp(20, 34);
         let h = area.height.clamp(7, 9);
@@ -55,8 +60,14 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::MirrorsCustomRepoSignOpt) => " Custom repo: sign option (Enter) ",
         Some(PopupKind::OptionalRepos) => " Optional repositories (space to toggle) ",
         Some(PopupKind::HostnameInput) => " Enter Hostname ",
+        Some(PopupKind::AdditionalPackageInput) => " Add package (Enter to add) ",
         Some(PopupKind::RootPassword) => " Enter Root Password ",
         Some(PopupKind::RootPasswordConfirm) => " Confirm Root Password ",
+        Some(PopupKind::NetworkInterfaces) => " Select interface ",
+        Some(PopupKind::NetworkMode) => " Select mode ",
+        Some(PopupKind::NetworkIP) => " Enter IP address/CIDR ",
+        Some(PopupKind::NetworkGateway) => " Enter Gateway/Router (optional) ",
+        Some(PopupKind::NetworkDNS) => " Enter DNS (optional, e.g., 1.1.1.1) ",
         Some(PopupKind::UserAddUsername) => " Enter Username ",
         Some(PopupKind::UserAddPassword) => " Enter User Password ",
         Some(PopupKind::UserAddPasswordConfirm) => " Confirm User Password ",
@@ -74,6 +85,11 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             " Select Desktop/WM (space to toggle, Enter to close) "
         }
         Some(PopupKind::Info) => " Info ",
+        Some(PopupKind::KernelSelect) => " Select Kernels (space to toggle) ",
+        Some(PopupKind::UserSelectEdit) => " Select user to edit ",
+        Some(PopupKind::UserSelectDelete) => " Select user to delete ",
+        Some(PopupKind::UserEditUsername) => " Edit username ",
+        Some(PopupKind::TimezoneSelect) => " Select Timezone ",
         None => " Select ",
     };
 
@@ -84,6 +100,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::OptionalRepos)
             | Some(PopupKind::DesktopEnvSelect)
             | Some(PopupKind::XorgTypeSelect)
+            | Some(PopupKind::KernelSelect)
     );
     let is_text_input = matches!(
         app.popup_kind,
@@ -93,6 +110,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 | PopupKind::MirrorsCustomRepoUrl
                 | PopupKind::DiskEncryptionPassword
                 | PopupKind::DiskEncryptionPasswordConfirm
+                | PopupKind::AdditionalPackageInput
         )
     );
     let is_info = matches!(app.popup_kind, Some(PopupKind::Info));
@@ -137,10 +155,15 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::RootPassword)
             | Some(PopupKind::RootPasswordConfirm)
             | Some(PopupKind::UserAddUsername)
+            | Some(PopupKind::UserEditUsername)
             | Some(PopupKind::UserAddPassword)
             | Some(PopupKind::UserAddPasswordConfirm)
             | Some(PopupKind::DiskEncryptionPassword)
             | Some(PopupKind::DiskEncryptionPasswordConfirm)
+            | Some(PopupKind::AdditionalPackageInput)
+            | Some(PopupKind::NetworkIP)
+            | Some(PopupKind::NetworkGateway)
+            | Some(PopupKind::NetworkDNS)
     ) {
         frame.render_widget(ratatui::widgets::Clear, popup_rect);
         let popup_block = Block::default()
@@ -163,13 +186,18 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
 
         let prompt_text = match app.popup_kind {
             Some(PopupKind::HostnameInput) => "Enter hostname:",
+            Some(PopupKind::AdditionalPackageInput) => "Enter package name:",
             Some(PopupKind::RootPassword) => "Type root password:",
             Some(PopupKind::RootPasswordConfirm) => "Re-type root password:",
             Some(PopupKind::UserAddUsername) => "Enter username:",
+            Some(PopupKind::UserEditUsername) => "Edit username:",
             Some(PopupKind::UserAddPassword) => "Type user password:",
             Some(PopupKind::UserAddPasswordConfirm) => "Re-type user password:",
             Some(PopupKind::DiskEncryptionPassword) => "Type encryption password:",
             Some(PopupKind::DiskEncryptionPasswordConfirm) => "Re-type encryption password:",
+            Some(PopupKind::NetworkIP) => "Enter IPv4 optional), e.g., 192.168.1.1 or 192.168.1.1/24:",
+            Some(PopupKind::NetworkGateway) => "Enter gateway (optional):",
+            Some(PopupKind::NetworkDNS) => "Enter DNS (optional):",
             _ => "Enter value:",
         };
         let prompt = Paragraph::new(Line::from(prompt_text))
@@ -209,6 +237,26 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: false });
         frame.render_widget(hint, inner[2]);
+        // Bottom example line for network inputs
+        if matches!(
+            app.popup_kind,
+            Some(
+                PopupKind::NetworkIP | PopupKind::NetworkGateway | PopupKind::NetworkDNS
+            )
+        ) {
+            let example_text = match app.popup_kind {
+                Some(PopupKind::NetworkIP) =>
+                    "E.g. 192.168.1.1/24",
+                Some(PopupKind::NetworkGateway) => "E.g. 192.168.1.1",
+                Some(PopupKind::NetworkDNS) => "E.g. 1.1.1.1",
+                _ => "",
+            };
+            let example = Paragraph::new(Line::from(example_text))
+                .alignment(Alignment::Center)
+                .wrap(Wrap { trim: false });
+            // inner[3] is the bottom area (Min(1))
+            frame.render_widget(example, inner[3]);
+        }
         return;
     }
 
@@ -309,6 +357,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             Some(PopupKind::MirrorsCustomRepoUrl) => "Enter repository URL and press Enter.",
             Some(PopupKind::DiskEncryptionPassword) => "Type password and press Enter.",
             Some(PopupKind::DiskEncryptionPasswordConfirm) => "Re-type password and press Enter.",
+            Some(PopupKind::AdditionalPackageInput) => "Enter package name and press Enter.",
             _ => "",
         };
         let display_buffer = if matches!(
@@ -344,6 +393,13 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                             app.mirrors_regions_selected.contains(&i)
                         }
                         Some(PopupKind::OptionalRepos) => app.optional_repos_selected.contains(&i),
+                        Some(PopupKind::KernelSelect) => {
+                            if let Some(name) = app.popup_items.get(i) {
+                                app.selected_kernels.contains(name)
+                            } else {
+                                false
+                            }
+                        }
                         _ => false,
                     };
                     let marker = if checked { "[x]" } else { "[ ]" };
@@ -419,9 +475,10 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         frame.render_stateful_widget(list, inner_list[1], &mut state);
     } else if matches!(app.popup_kind, Some(PopupKind::DesktopEnvSelect)) {
         // Two columns: left selection (split by type), right info panel
+        // Give minimal fixed width to Desktop Environments/Window Managers
         let cols = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints([Constraint::Length(28), Constraint::Min(1)])
             .split(inner[1]);
 
         // Split visible indices into Desktop Environments and Window Managers
@@ -533,7 +590,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             .highlight_symbol("▶ ");
         frame.render_stateful_widget(wm_list, left_split[1], &mut wm_state);
 
-        // Right info column (split into Installed packages | Login Manager)
+        // Right info column
         let selected_label = if let Some(&global_idx) =
             app.popup_visible_indices.get(app.popup_selected_visible)
             && let Some(name) = app.popup_items.get(global_idx)
@@ -563,14 +620,50 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "xorg-xrandr",
                 "xsel",
                 "xterm",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
-            "Bspwm" => vec!["bspwm", "dmenu", "rxvt-unicode", "sxhkd", "xdo"],
+            "Bspwm" => vec![
+                "bspwm",
+                "dmenu",
+                "rxvt-unicode",
+                "sxhkd",
+                "xdo",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
             "Budgie" => vec![
                 "arc-gtk-theme",
                 "budgie",
                 "mate-terminal",
                 "nemo",
                 "papirus-icon-theme",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
             "Cinnamon" => vec![
                 "blueman",
@@ -584,11 +677,74 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "system-config-printer",
                 "xdg-user-dirs-gtk",
                 "xed",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
-            "Cutefish" => vec!["cutefish", "noto-fonts"],
-            "Deepin" => vec!["deepin", "deepin-editor", "deepin-terminal"],
-            "Enlightenment" => vec!["enlightenment", "terminology"],
-            "GNOME" => vec!["gnome", "gnome-tweaks"],
+            "Cutefish" => vec![
+                "cutefish",
+                "noto-fonts",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
+            "Deepin" => vec![
+                "deepin",
+                "deepin-editor",
+                "deepin-terminal",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
+            "Enlightenment" => vec![
+                "enlightenment",
+                "terminology",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
+            "GNOME" => vec![
+                "gnome",
+                "gnome-tweaks",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
             "Hyprland" => vec![
                 "dolphin",
                 "dunst",
@@ -599,8 +755,19 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "qt5-wayland",
                 "qt6-wayland",
                 "slurp",
+                "polkit",
                 "wofi",
                 "xdg-desktop-portal-hyprland",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
             "KDE Plasma" => vec![
                 "ark",
@@ -609,6 +776,16 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "konsole",
                 "plasma-meta",
                 "plasma-workspace",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
             "Lxqt" => vec![
                 "breeze-icons",
@@ -617,9 +794,46 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "slock",
                 "ttf-freefont",
                 "xdg-utils",
+                // Common tools
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
             ],
-            "Mate" => vec!["mate", "mate-extra"],
-            "Qtile" => vec!["alacritty", "qtile"],
+            "Mate" => vec![
+                "mate",
+                "mate-extra",
+                // Common tools
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
+            "Qtile" => vec![
+                "alacritty",
+                "qtile",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
             "Sway" => vec![
                 "brightnessctl",
                 "dmenu",
@@ -631,10 +845,38 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "swaybg",
                 "swayidle",
                 "swaylock",
+                "polkit",
                 "waybar",
                 "xorg-xwayland",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
-            "Xfce4" => vec!["gvfs", "pavucontrol", "xarchiver", "xfce4", "xfce4-goodies"],
+            "Xfce4" => vec![
+                "gvfs",
+                "pavucontrol",
+                "xarchiver",
+                "xfce4",
+                "xfce4-goodies",
+                // Common tools
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ],
             "i3-wm" => vec![
                 "dmenu",
                 "i3-wm",
@@ -645,6 +887,16 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                 "lightdm-gtk-greeter",
                 "xss-lock",
                 "xterm",
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
             ],
             _ => vec![],
         };
@@ -668,11 +920,17 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             })
             .collect();
 
-        // Right side: split into two panels
+        // Right side: two columns (packages+drivers in left; login manager in right)
         let right_cols = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(cols[1]);
+
+        // Split the left info column horizontally: Installed packages (left) | Graphic Drivers (right)
+        let pkg_cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(right_cols[0]);
 
         // Packages list with selection highlight
         let mut pkg_state = ratatui::widgets::ListState::default();
@@ -703,7 +961,82 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                     .add_modifier(Modifier::BOLD),
             )
             .highlight_symbol("▶ ");
-        frame.render_stateful_widget(pkg_list, right_cols[0], &mut pkg_state);
+        frame.render_stateful_widget(pkg_list, pkg_cols[0], &mut pkg_state);
+
+        // Graphic Drivers list (multi-select)
+        let drivers_all: Vec<(&str, bool)> = vec![
+            (" Open Source Drivers ", false),
+            ("intel-media-driver", true),
+            ("libva-intel-driver", true),
+            ("mesa", true),
+            ("vulkan-intel", true),
+            ("vulkan-nouveau", true),
+            ("vulkan-radeon", true),
+            ("xf86-video-amdgpu", true),
+            ("xf86-video-ati", true),
+            ("xf86-video-nouveau", true),
+            ("xf86-video-vmware", true),
+            ("xorg-server", true),
+            ("xorg-xinit", true),
+            (" Nvidia Drivers ", false),
+            ("dkms", true),
+            ("libva-nvidia-driver", true),
+            (" Choose one ", false),
+            ("nvidia-open-dkms", true),
+            ("nvidia-dkms", true),
+        ];
+        // Build display items with checkboxes; non-selectable headers have no checkbox
+        let driver_items: Vec<ListItem> = drivers_all
+            .iter()
+            .map(|(name, selectable)| {
+                if *selectable {
+                    let marker = if app.selected_graphic_drivers.contains(*name) {
+                        "[x]"
+                    } else {
+                        "[ ]"
+                    };
+                    ListItem::new(format!("{} {}", marker, name))
+                } else {
+                    let title_span = Span::styled(
+                        name.trim(),
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    );
+                    ListItem::new(Line::from(title_span))
+                }
+            })
+            .collect();
+        let mut drv_state = ratatui::widgets::ListState::default();
+        // clamp index to selectable items range length
+        let drv_len = driver_items.len();
+        if drv_len == 0 {
+            drv_state.select(None);
+        } else {
+            if app.popup_drivers_selected_index >= drv_len {
+                app.popup_drivers_selected_index = drv_len - 1;
+            }
+            drv_state.select(Some(app.popup_drivers_selected_index));
+        }
+        let drv_title = if app.popup_drivers_focus {
+            " Graphic Drivers (focused) "
+        } else {
+            " Graphic Drivers "
+        };
+        let drv_highlight = if app.popup_drivers_focus {
+            Color::Yellow
+        } else {
+            Color::White
+        };
+        let drv_list = List::new(driver_items)
+            .block(Block::default().borders(Borders::ALL).title(drv_title))
+            .highlight_style(
+                Style::default()
+                    .fg(drv_highlight)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("▶ ");
+        frame.render_stateful_widget(drv_list, pkg_cols[1], &mut drv_state);
 
         // Login manager list (selectable) with default per environment
         let login_managers = [
@@ -840,7 +1173,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             let pkg_items: Vec<ListItem> = pkgs
                 .iter()
                 .map(|name| {
-                    let marker = if set.contains(&name.to_string()) {
+                    let marker = if set.contains(*name) {
                         "[x]"
                     } else {
                         "[ ]"
@@ -876,7 +1209,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             frame.render_stateful_widget(pkg_list, cols[1], &mut pkg_state);
         }
     } else if matches!(app.popup_kind, Some(PopupKind::XorgTypeSelect)) {
-        // Xorg Type single column (left) and Installed packages (right)
+        // Xorg Type single column (left) and Installed packages + Graphic Drivers (right)
         let cols = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -940,7 +1273,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             let pkg_items: Vec<ListItem> = pkgs
                 .iter()
                 .map(|name| {
-                    let marker = if set.contains(&name.to_string()) {
+                    let marker = if set.contains(*name) {
                         "[x]"
                     } else {
                         "[ ]"
@@ -948,6 +1281,12 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                     ListItem::new(format!("{} {}", marker, name))
                 })
                 .collect();
+            // Split right column horizontally: Installed packages | Graphic Drivers
+            let right_split = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(cols[1]);
+
             let mut pkg_state = ratatui::widgets::ListState::default();
             let mut idx = app.popup_packages_selected_index;
             if idx >= pkg_items.len() {
@@ -972,7 +1311,80 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
                         .add_modifier(Modifier::BOLD),
                 )
                 .highlight_symbol("▶ ");
-            frame.render_stateful_widget(pkg_list, cols[1], &mut pkg_state);
+            frame.render_stateful_widget(pkg_list, right_split[0], &mut pkg_state);
+
+            // Graphic Drivers list
+            let drivers_all: Vec<(&str, bool)> = vec![
+                (" Open Source Drivers ", false),
+                ("intel-media-driver", true),
+                ("libva-intel-driver", true),
+                ("mesa", true),
+                ("vulkan-intel", true),
+                ("vulkan-nouveau", true),
+                ("vulkan-radeon", true),
+                ("xf86-video-amdgpu", true),
+                ("xf86-video-ati", true),
+                ("xf86-video-nouveau", true),
+                ("xf86-video-vmware", true),
+                ("xorg-server", true),
+                ("xorg-xinit", true),
+                (" Nvidia Drivers ", false),
+                ("dkms", true),
+                ("libva-nvidia-driver", true),
+                (" Choose one ", false),
+                ("nvidia-open-dkms", true),
+                ("nvidia-dkms", true),
+            ];
+            let driver_items: Vec<ListItem> = drivers_all
+                .iter()
+                .map(|(name, selectable)| {
+                    if *selectable {
+                        let marker = if app.selected_graphic_drivers.contains(*name) {
+                            "[x]"
+                        } else {
+                            "[ ]"
+                        };
+                        ListItem::new(format!("{} {}", marker, name))
+                    } else {
+                        let title_span = Span::styled(
+                            name.trim(),
+                            Style::default()
+                                .fg(Color::Cyan)
+                                .add_modifier(Modifier::BOLD),
+                        );
+                        ListItem::new(Line::from(title_span))
+                    }
+                })
+                .collect();
+            let mut drv_state = ratatui::widgets::ListState::default();
+            let drv_len = driver_items.len();
+            if drv_len == 0 {
+                drv_state.select(None);
+            } else {
+                if app.popup_drivers_selected_index >= drv_len {
+                    app.popup_drivers_selected_index = drv_len - 1;
+                }
+                drv_state.select(Some(app.popup_drivers_selected_index));
+            }
+            let drv_title = if app.popup_drivers_focus {
+                " Graphic Drivers (focused) "
+            } else {
+                " Graphic Drivers "
+            };
+            let drv_highlight = if app.popup_drivers_focus {
+                Color::Yellow
+            } else {
+                Color::White
+            };
+            let drv_list = List::new(driver_items)
+                .block(Block::default().borders(Borders::ALL).title(drv_title))
+                .highlight_style(
+                    Style::default()
+                        .fg(drv_highlight)
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+            frame.render_stateful_widget(drv_list, right_split[1], &mut drv_state);
         }
     } else {
         let list_title = match app.popup_kind {

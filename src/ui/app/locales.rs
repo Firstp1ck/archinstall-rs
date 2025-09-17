@@ -112,6 +112,19 @@ impl AppState {
         self.locale_language_index = self.draft_locale_language_index;
         self.locale_encoding_index = self.draft_locale_encoding_index;
         self.editing_locales = false;
+
+        // Apply keyboard layout to the live environment (unless dry-run)
+        if let Some(layout) = self
+            .keyboard_layout_options
+            .get(self.keyboard_layout_index)
+            .cloned()
+        {
+            if self.dry_run {
+                self.info_message = format!("[DRY-RUN] Would run: loadkeys {}", layout);
+            } else {
+                let _ = Command::new("loadkeys").arg(&layout).status();
+            }
+        }
     }
 
     pub fn discard_locales_edit(&mut self) {
@@ -139,9 +152,10 @@ impl AppState {
             self.keyboard_layout_options = items;
         }
 
-        // Locale languages from /etc/locale.gen
+        // Locale languages and their encodings from /etc/locale.gen
         if let Ok(text) = std::fs::read_to_string("/etc/locale.gen") {
             let mut set = std::collections::BTreeSet::new();
+            let mut map = std::collections::BTreeMap::new();
             for line in text.lines() {
                 let l = line.trim();
                 if l.is_empty() || l.starts_with('#') {
@@ -150,9 +164,13 @@ impl AppState {
                 let mut parts = l.split_whitespace();
                 if let Some(locale_spec) = parts.next() {
                     set.insert(locale_spec.to_string());
+                    if let Some(charmap) = parts.next() {
+                        map.insert(locale_spec.to_string(), charmap.to_string());
+                    }
                 }
             }
             self.locale_language_options = set.into_iter().collect();
+            self.locale_language_to_encoding = map;
         }
 
         // Encodings

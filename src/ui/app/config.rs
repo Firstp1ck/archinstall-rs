@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use super::{AppState, CustomRepo, RepoSignOption, RepoSignature, UserAccount};
+use super::{AdditionalPackage, AppState, CustomRepo, RepoSignOption, RepoSignature, UserAccount};
 use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Default)]
@@ -41,6 +41,31 @@ pub struct CustomRepoConfig {
 pub struct ConfigDisks {
     pub mode: String,
     pub selected_device: Option<String>,
+    pub selected_device_model: Option<String>,
+    pub selected_device_devtype: Option<String>,
+    pub selected_device_size: Option<String>,
+    pub selected_device_freespace: Option<String>,
+    pub selected_device_sector_size: Option<String>,
+    pub selected_device_read_only: Option<bool>,
+    // Extended disk configuration for explicit partitioning
+    pub label: Option<String>,          // "gpt" | "msdos"
+    pub wipe: Option<bool>,             // wipe the disk before partitioning
+    pub align: Option<String>,          // e.g. "1MiB"
+    pub partitions: Vec<ConfigPartition>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct ConfigPartition {
+    pub name: Option<String>,
+    pub role: Option<String>,          // e.g. efi, bios_boot, root, swap, home, var, ...
+    pub fs: Option<String>,            // vfat, ext4, btrfs, xfs, swap, ...
+    pub start: Option<String>,         // e.g. 1MiB, 513MiB
+    pub size: Option<String>,          // e.g. 512MiB, 8GiB, 100%
+    pub flags: Vec<String>,            // esp, boot, legacy_boot, ...
+    pub mountpoint: Option<String>,
+    pub mount_options: Option<String>,
+    pub encrypt: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -68,12 +93,26 @@ pub struct ConfigBootloader {
 pub struct ConfigSystem {
     pub hostname: String,
     pub root_password_hash: Option<String>,
+    pub automatic_time_sync: bool,
+    pub timezone: String,
 }
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct ConfigUnifiedKernelImages {
     pub enabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigNetwork {
+    pub mode: String, // "CopyISO" | "Manual" | "NetworkManager"
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigAudio {
+    pub kind: String, // "None" | "pipewire" | "pulseaudio"
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -88,6 +127,7 @@ pub struct ConfigExperience {
     pub xorg_packages: BTreeMap<String, Vec<String>>,        // type -> packages
     pub login_manager: Option<String>,
     pub login_manager_user_set: bool,
+    pub graphic_drivers: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -101,8 +141,12 @@ pub struct AppConfig {
     pub bootloader: ConfigBootloader,
     pub system: ConfigSystem,
     pub unified_kernel_images: ConfigUnifiedKernelImages,
+    pub kernels: ConfigKernels,
+    pub audio: ConfigAudio,
     pub experience: ConfigExperience,
     pub users: Vec<ConfigUser>,
+    pub network: ConfigNetwork,
+    pub additional_packages: Vec<ConfigAdditionalPackage>,
 }
 
 impl AppState {
@@ -149,13 +193,37 @@ impl AppState {
                 .collect(),
         };
         let disks_mode = match self.disks_mode_index {
-            0 => "Best-effort default partition layout",
+            0 => "Best-effort partition layout",
             1 => "Manual Partitioning",
             _ => "Pre-mounted configuration",
         };
         let disks = ConfigDisks {
             mode: disks_mode.into(),
             selected_device: self.disks_selected_device.clone(),
+            selected_device_model: self.disks_selected_device_model.clone(),
+            selected_device_devtype: self.disks_selected_device_devtype.clone(),
+            selected_device_size: self.disks_selected_device_size.clone(),
+            selected_device_freespace: self.disks_selected_device_freespace.clone(),
+            selected_device_sector_size: self.disks_selected_device_sector_size.clone(),
+            selected_device_read_only: self.disks_selected_device_read_only,
+            label: self.disks_label.clone(),
+            wipe: Some(self.disks_wipe),
+            align: self.disks_align.clone(),
+            partitions: self
+                .disks_partitions
+                .iter()
+                .map(|p| ConfigPartition {
+                    name: p.name.clone(),
+                    role: p.role.clone(),
+                    fs: p.fs.clone(),
+                    start: p.start.clone(),
+                    size: p.size.clone(),
+                    flags: p.flags.clone(),
+                    mountpoint: p.mountpoint.clone(),
+                    mount_options: p.mount_options.clone(),
+                    encrypt: p.encrypt,
+                })
+                .collect(),
         };
         let encryption_type = match self.disk_encryption_type_index {
             0 => "None",
@@ -189,17 +257,22 @@ impl AppState {
         };
         let system = ConfigSystem {
             hostname: self.hostname_value.clone(),
-            root_password_hash: if !self.root_password.is_empty()
-                && !self.root_password_confirm.is_empty()
-                && self.root_password == self.root_password_confirm
-            {
-                let mut hasher = Sha256::new();
-                hasher.update(self.root_password.as_bytes());
-                let result = hasher.finalize();
-                Some(format!("{:x}", result))
-            } else {
-                None
-            },
+            // Prefer precomputed hash if present; else compute SHA-256 only if both match
+            root_password_hash: self.root_password_hash.clone().or_else(|| {
+                if !self.root_password.is_empty()
+                    && !self.root_password_confirm.is_empty()
+                    && self.root_password == self.root_password_confirm
+                {
+                    let mut hasher = Sha256::new();
+                    hasher.update(self.root_password.as_bytes());
+                    let result = hasher.finalize();
+                    Some(format!("{:x}", result))
+                } else {
+                    None
+                }
+            }),
+            automatic_time_sync: self.ats_enabled,
+            timezone: self.timezone_value.clone(),
         };
         let unified_kernel_images = ConfigUnifiedKernelImages {
             enabled: self.uki_enabled,
@@ -260,21 +333,59 @@ impl AppState {
             ),
             login_manager: self.selected_login_manager.clone(),
             login_manager_user_set: self.login_manager_user_set,
+            graphic_drivers: {
+                let mut v: Vec<String> = self.selected_graphic_drivers.iter().cloned().collect();
+                v.sort();
+                v
+            },
         };
         let users: Vec<ConfigUser> = self
             .users
             .iter()
             .map(|u: &UserAccount| {
-                let mut hasher = Sha256::new();
-                hasher.update(u.password.as_bytes());
-                let result = hasher.finalize();
+                let hash = if let Some(h) = &u.password_hash {
+                    h.clone()
+                } else if !u.password.is_empty() {
+                    let mut hasher = Sha256::new();
+                    hasher.update(u.password.as_bytes());
+                    let result = hasher.finalize();
+                    format!("{:x}", result)
+                } else {
+                    String::new()
+                };
                 ConfigUser {
                     username: u.username.clone(),
-                    password_hash: format!("{:x}", result),
+                    password_hash: hash,
                     is_sudo: u.is_sudo,
                 }
             })
             .collect();
+        let kernels = ConfigKernels {
+            selected: {
+                let mut v: Vec<String> = self.selected_kernels.iter().cloned().collect();
+                v.sort();
+                v
+            },
+        };
+        let audio = ConfigAudio {
+            kind: match self.audio_index {
+                0 => "None",
+                1 => "pipewire",
+                _ => "pulseaudio",
+            }
+            .to_string(),
+        };
+        let additional_packages: Vec<ConfigAdditionalPackage> = self
+            .additional_packages
+            .iter()
+            .map(|p: &AdditionalPackage| ConfigAdditionalPackage {
+                repo: p.repo.clone(),
+                name: p.name.clone(),
+                version: p.version.clone(),
+                description: p.description.clone(),
+            })
+            .collect();
+
         AppConfig {
             locales,
             mirrors,
@@ -284,8 +395,18 @@ impl AppState {
             bootloader,
             system,
             unified_kernel_images,
+            kernels,
+            audio,
             experience,
             users,
+            network: ConfigNetwork {
+                mode: match self.network_mode_index {
+                    0 => "CopyISO".into(),
+                    1 => "Manual".into(),
+                    _ => "NetworkManager".into(),
+                },
+            },
+            additional_packages,
         }
     }
 
@@ -403,7 +524,7 @@ impl AppState {
             self.last_load_missing_sections.push("Disks: mode".into());
         }
         self.disks_mode_index = match cfg.disks.mode.as_str() {
-            "Best-effort default partition layout" => 0,
+            "Best-effort partition layout" => 0,
             "Manual Partitioning" => 1,
             _ => 2,
         };
@@ -414,10 +535,54 @@ impl AppState {
                 None
             }
         });
+        // Populate cached disk details by matching the path
+        if let Some(ref sel_path) = self.disks_selected_device {
+            if let Some(dev) = self.disks_devices.iter().find(|d| &d.path == sel_path) {
+                self.disks_selected_device_model = Some(dev.model.clone());
+                self.disks_selected_device_devtype = Some(dev.devtype.clone());
+                self.disks_selected_device_size = Some(dev.size.clone());
+                self.disks_selected_device_freespace = Some(dev.freespace.clone());
+                self.disks_selected_device_sector_size = Some(dev.sector_size.clone());
+                self.disks_selected_device_read_only = Some(dev.read_only);
+            }
+        } else {
+            self.disks_selected_device_model = None;
+            self.disks_selected_device_devtype = None;
+            self.disks_selected_device_size = None;
+            self.disks_selected_device_freespace = None;
+            self.disks_selected_device_sector_size = None;
+            self.disks_selected_device_read_only = None;
+        }
         if self.disks_selected_device.is_none() {
             self.last_load_missing_sections
                 .push("Disks: selected_device".into());
         }
+        // Extended disk configuration
+        if let Some(l) = cfg.disks.label.clone() {
+            self.disks_label = Some(l);
+        }
+        if let Some(w) = cfg.disks.wipe {
+            self.disks_wipe = w;
+        }
+        if let Some(a) = cfg.disks.align.clone() {
+            self.disks_align = Some(a);
+        }
+        self.disks_partitions = cfg
+            .disks
+            .partitions
+            .into_iter()
+            .map(|p| super::DiskPartitionSpec {
+                name: p.name,
+                role: p.role,
+                fs: p.fs,
+                start: p.start,
+                size: p.size,
+                flags: p.flags,
+                mountpoint: p.mountpoint,
+                mount_options: p.mount_options,
+                encrypt: p.encrypt,
+            })
+            .collect();
 
         // Disk encryption
         if cfg.disk_encryption.encryption_type.is_empty() {
@@ -456,14 +621,47 @@ impl AppState {
             self.last_load_missing_sections
                 .push("System: hostname".into());
         }
-        // Note: do not set root password from hash; require re-entry
-        if cfg.system.root_password_hash.is_none() {
+        // Preserve hash for use during install (no plaintext in memory)
+        self.root_password_hash = cfg.system.root_password_hash;
+        if self.root_password_hash.is_none() {
             self.last_load_missing_sections
                 .push("System: root_password_hash".into());
+        }
+        self.ats_enabled = cfg.system.automatic_time_sync;
+        self.timezone_value = cfg.system.timezone;
+        if self.timezone_value.is_empty() {
+            self.last_load_missing_sections
+                .push("System: timezone".into());
         }
 
         // Unified Kernel Images
         self.uki_enabled = cfg.unified_kernel_images.enabled;
+
+        // Kernels
+        self.selected_kernels.clear();
+        if cfg.kernels.selected.is_empty() {
+            self.last_load_missing_sections
+                .push("Kernels: selected".into());
+        }
+        for name in cfg.kernels.selected {
+            match name.as_str() {
+                "linux" | "linux-hardened" | "linux-lts" | "linux-zen" => {
+                    self.selected_kernels.insert(name);
+                }
+                _ => {}
+            }
+        }
+
+        // Audio
+        if cfg.audio.kind.is_empty() {
+            self.last_load_missing_sections.push("Audio: kind".into());
+        }
+        self.audio_index = match cfg.audio.kind.to_lowercase().as_str() {
+            "none" | "no audio server" => 0,
+            "pipewire" => 1,
+            "pulseaudio" => 2,
+            _ => 0,
+        };
 
         // Experience Mode and selections
         self.experience_mode_index = match cfg.experience.mode.as_str() {
@@ -495,19 +693,46 @@ impl AppState {
         self.selected_xorg_packages = vec_map_to_set(cfg.experience.xorg_packages);
         self.selected_login_manager = cfg.experience.login_manager;
         self.login_manager_user_set = cfg.experience.login_manager_user_set;
-        // Users
+        self.selected_graphic_drivers = cfg.experience.graphic_drivers.into_iter().collect();
+        // Network
+        self.network_mode_index = match cfg.network.mode.as_str() {
+            "CopyISO" => 0,
+            "Manual" => 1,
+            _ => 2,
+        };
+        // Users (keep only hash; plaintext is not loaded)
         self.users = cfg
             .users
             .into_iter()
             .map(|c| UserAccount {
                 username: c.username,
                 password: String::new(),
+                password_hash: if c.password_hash.is_empty() {
+                    None
+                } else {
+                    Some(c.password_hash)
+                },
                 is_sudo: c.is_sudo,
             })
             .collect();
         if self.users.is_empty() {
             self.last_load_missing_sections
                 .push("UserAccount: users".into());
+        }
+        // Additional Packages
+        self.additional_packages = cfg
+            .additional_packages
+            .into_iter()
+            .map(|p| AdditionalPackage {
+                name: p.name,
+                repo: p.repo,
+                version: p.version,
+                description: p.description,
+            })
+            .collect();
+        if self.additional_packages.is_empty() {
+            self.last_load_missing_sections
+                .push("AdditionalPackages: additional_packages".into());
         }
         Ok(())
     }
@@ -519,6 +744,21 @@ pub struct ConfigUser {
     pub username: String,
     pub password_hash: String,
     pub is_sudo: bool,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigKernels {
+    pub selected: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigAdditionalPackage {
+    pub repo: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
 }
 
 pub fn draw_configuration(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {

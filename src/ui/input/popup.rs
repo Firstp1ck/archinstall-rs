@@ -11,6 +11,44 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
             match app.popup_kind {
                 Some(PopupKind::Info) => {
                     app.close_popup();
+                    // If the info was triggered by add-package validation, reopen input
+                    if app.addpkgs_reopen_after_info {
+                        app.addpkgs_reopen_after_info = false;
+                        app.open_additional_package_input();
+                    } else if app.hostname_reopen_after_info {
+                        app.hostname_reopen_after_info = false;
+                        app.open_hostname_input();
+                    } else if app.username_reopen_after_info {
+                        app.username_reopen_after_info = false;
+                        app.open_user_username_input();
+                    } else if app.useredit_reopen_after_info {
+                        app.useredit_reopen_after_info = false;
+                        app.popup_kind = Some(PopupKind::UserEditUsername);
+                        app.popup_open = true;
+                        app.popup_items.clear();
+                        app.popup_visible_indices.clear();
+                        app.popup_selected_visible = 0;
+                        app.popup_in_search = false;
+                        app.popup_search_query.clear();
+                    } else if app.network_reopen_after_info_ip {
+                        app.network_reopen_after_info_ip = false;
+                        app.open_network_ip_input();
+                    } else if app.network_reopen_after_info_gateway {
+                        app.network_reopen_after_info_gateway = false;
+                        app.open_network_gateway_input();
+                    } else if app.network_reopen_after_info_dns {
+                        app.network_reopen_after_info_dns = false;
+                        app.open_network_dns_input();
+                    } else if app.userpass_reopen_after_info {
+                        app.userpass_reopen_after_info = false;
+                        app.open_user_password_confirm_input();
+                    } else if app.rootpass_reopen_after_info {
+                        app.rootpass_reopen_after_info = false;
+                        app.open_root_password_confirm_input();
+                    } else if app.diskenc_reopen_after_info {
+                        app.diskenc_reopen_after_info = false;
+                        app.open_disk_encryption_password_confirm_input();
+                    }
                     return false;
                 }
                 Some(PopupKind::KeyboardLayout)
@@ -18,10 +56,285 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                 | Some(PopupKind::LocaleEncoding) => {
                     app.apply_popup_selection();
                 }
-                Some(PopupKind::HostnameInput) => {
-                    app.hostname_value = app.custom_input_buffer.trim().to_string();
+                Some(PopupKind::NetworkInterfaces) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                        && let Some(name) = app.popup_items.get(global_idx)
+                    {
+                        app.network_selected_interface = Some(name.clone());
+                        app.close_popup();
+                        app.open_network_mode_popup();
+                    }
+                }
+                Some(PopupKind::NetworkMode) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                    {
+                        app.network_draft_mode_static = global_idx == 1; // 0 DHCP, 1 Static
+                        app.close_popup();
+                        if app.network_draft_mode_static {
+                            app.open_network_ip_input();
+                        } else if let Some(iface) = app.network_selected_interface.clone() {
+                            app.network_configs.push(crate::ui::app::NetworkInterfaceConfig {
+                                interface: iface,
+                                mode: crate::ui::app::NetworkConfigMode::Dhcp,
+                                ip_cidr: None,
+                                gateway: None,
+                                dns: None,
+                            });
+                            // Ensure DHCP client package is added for installation
+                            let has_dhcp = app
+                                .additional_packages
+                                .iter()
+                                .any(|p| p.name.eq_ignore_ascii_case("dhcp"));
+                            if !has_dhcp {
+                                if let Some((repo, pkg_name, version, description)) =
+                                    app.validate_package("dhcp")
+                                {
+                                    app.additional_packages.push(
+                                        crate::ui::app::AdditionalPackage {
+                                            name: pkg_name,
+                                            repo,
+                                            version,
+                                            description,
+                                        },
+                                    );
+                                } else {
+                                    app.additional_packages.push(
+                                        crate::ui::app::AdditionalPackage {
+                                            name: "dhcp".into(),
+                                            repo: String::new(),
+                                            version: String::new(),
+                                            description: String::from("DHCP client"),
+                                        },
+                                    );
+                                }
+                            }
+                            app.open_info_popup("Interface added with DHCP".into());
+                        }
+                    }
+                }
+                Some(PopupKind::NetworkIP) => {
+                    let val = app.custom_input_buffer.trim().to_string();
                     app.custom_input_buffer.clear();
+                    let valid = {
+                        // Accept IPv4 1-255.1-255.1-255.1-255 with optional /0-32
+                        let parts: Vec<&str> = val.split('/').collect();
+                        let ip = parts.first().map(|s| s.trim()).unwrap_or("");
+                        let cidr_ok = if parts.len() > 1 {
+                            if let Ok(n) = parts[1].trim().parse::<u8>() {
+                                n <= 32
+                            } else {
+                                false
+                            }
+                        } else {
+                            true
+                        };
+                        let octets: Vec<&str> = ip.split('.').collect();
+                        let ip_ok = octets.len() == 4
+                            && octets.iter().all(|o| {
+                                if o.is_empty() { return false; }
+                                // forbid leading plus/minus, only digits
+                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
+                                if let Ok(n) = o.parse::<u8>() {
+                                    n >= 1
+                                } else {
+                                    false
+                                }
+                            });
+                        !val.is_empty() && cidr_ok && ip_ok
+                    };
+                    if !valid {
+                        app.network_reopen_after_info_ip = true;
+                        app.open_info_popup(
+                            "Invalid IP. Use IPv4 like 192.168.1.1 or 192.168.1.1/24".into(),
+                        );
+                    } else {
+                        app.network_draft_ip_cidr = val;
+                        app.close_popup();
+                        app.open_network_gateway_input();
+                    }
+                }
+                Some(PopupKind::NetworkGateway) => {
+                    let val = app.custom_input_buffer.trim().to_string();
+                    app.custom_input_buffer.clear();
+                    let valid = if val.is_empty() {
+                        true
+                    } else {
+                        let octets: Vec<&str> = val.split('.').collect();
+                        octets.len() == 4
+                            && octets.iter().all(|o| {
+                                if o.is_empty() { return false; }
+                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
+                                if let Ok(n) = o.parse::<u8>() { n >= 1 } else { false }
+                            })
+                    };
+                    if !valid {
+                        app.network_reopen_after_info_gateway = true;
+                        app.open_info_popup(
+                            "Invalid Gateway/Router. Use IPv4 like 192.168.1.1".into(),
+                        );
+                    } else {
+                        app.network_draft_gateway = val;
+                        app.close_popup();
+                        app.open_network_dns_input();
+                    }
+                }
+                Some(PopupKind::NetworkDNS) => {
+                    let val = app.custom_input_buffer.trim().to_string();
+                    app.custom_input_buffer.clear();
+                    let valid = if val.is_empty() {
+                        true
+                    } else {
+                        let octets: Vec<&str> = val.split('.').collect();
+                        octets.len() == 4
+                            && octets.iter().all(|o| {
+                                if o.is_empty() { return false; }
+                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
+                                if let Ok(n) = o.parse::<u8>() { n >= 1 } else { false }
+                            })
+                    };
+                    if !valid {
+                        app.network_reopen_after_info_dns = true;
+                        app.open_info_popup("Invalid DNS. Use IPv4 like 1.1.1.1".into());
+                    } else {
+                        app.network_draft_dns = val;
+                        app.close_popup();
+                        if let Some(iface) = app.network_selected_interface.clone() {
+                            app.network_configs.push(crate::ui::app::NetworkInterfaceConfig {
+                                interface: iface,
+                                mode: crate::ui::app::NetworkConfigMode::Static,
+                                ip_cidr: Some(app.network_draft_ip_cidr.clone()),
+                                gateway: if app.network_draft_gateway.is_empty() {
+                                    None
+                                } else {
+                                    Some(app.network_draft_gateway.clone())
+                                },
+                                dns: if app.network_draft_dns.is_empty() {
+                                    None
+                                } else {
+                                    Some(app.network_draft_dns.clone())
+                                },
+                            });
+                            app.open_info_popup("Interface added with Static IP".into());
+                        }
+                    }
+                }
+                Some(PopupKind::UserSelectEdit) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                    {
+                        app.selected_user_index = global_idx;
+                        app.close_popup();
+                        // Open username editor prefilled
+                        app.popup_kind = Some(PopupKind::UserEditUsername);
+                        app.custom_input_buffer = app
+                            .users
+                            .get(app.selected_user_index)
+                            .map(|u| u.username.clone())
+                            .unwrap_or_default();
+                        app.popup_open = true;
+                        app.popup_items.clear();
+                        app.popup_visible_indices.clear();
+                        app.popup_selected_visible = 0;
+                        app.popup_in_search = false;
+                        app.popup_search_query.clear();
+                    }
+                }
+                Some(PopupKind::UserSelectDelete) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                    {
+                        let username = app
+                            .users
+                            .get(global_idx)
+                            .map(|u| u.username.clone())
+                            .unwrap_or_default();
+                        if global_idx < app.users.len() {
+                            app.users.remove(global_idx);
+                            app.info_message = format!("Deleted user '{}'.", username);
+                        }
+                        app.close_popup();
+                    }
+                }
+                Some(PopupKind::UserEditUsername) => {
+                    let value = app.custom_input_buffer.trim().to_string();
+                    if !value.is_empty()
+                        && !crate::ui::app::AppState::is_ascii_lowercase_only(&value)
+                    {
+                        app.useredit_reopen_after_info = true;
+                        app.open_info_popup(
+                            "Username must contain only lowercase ASCII characters".into(),
+                        );
+                    } else if app.selected_user_index < app.users.len() {
+                        if let Some(u) = app.users.get_mut(app.selected_user_index) {
+                            u.username = value;
+                        }
+                        app.custom_input_buffer.clear();
+                        app.close_popup();
+                    } else {
+                        app.close_popup();
+                    }
+                }
+                Some(PopupKind::KernelSelect) => {
+                    // Ensure at least one selection; default to linux if none
+                    if app.selected_kernels.is_empty() {
+                        app.selected_kernels.insert("linux".into());
+                    }
                     app.close_popup();
+                }
+                Some(PopupKind::TimezoneSelect) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                        && let Some(name) = app.popup_items.get(global_idx)
+                    {
+                        app.timezone_value = name.clone();
+                    }
+                    app.close_popup();
+                }
+                Some(PopupKind::HostnameInput) => {
+                    let value = app.custom_input_buffer.trim().to_string();
+                    if !value.is_empty() && !crate::ui::app::AppState::is_ascii_only(&value) {
+                        app.hostname_reopen_after_info = true;
+                        app.open_info_popup("Hostname must contain only ASCII characters".into());
+                    } else {
+                        app.hostname_value = value;
+                        app.custom_input_buffer.clear();
+                        app.close_popup();
+                    }
+                }
+                Some(PopupKind::AdditionalPackageInput) => {
+                    let name = app.custom_input_buffer.trim().to_string();
+                    if !name.is_empty() {
+                        if let Some((repo, pkg_name, version, description)) =
+                            app.validate_package(&name)
+                        {
+                            // Check conflicts with existing selections
+                            if let Some(reason) = app.check_additional_pkg_conflicts(&pkg_name) {
+                                app.addpkgs_reopen_after_info = true;
+                                app.open_info_popup(format!(
+                                    "Package '{}' not added: {}.",
+                                    pkg_name, reason
+                                ));
+                                app.custom_input_buffer.clear();
+                                return false;
+                            }
+                            app.additional_packages
+                                .push(crate::ui::app::AdditionalPackage {
+                                    name: pkg_name,
+                                    repo,
+                                    version,
+                                    description,
+                                });
+                            app.info_message.clear();
+                        } else {
+                            // Show info popup but remember to return to input afterwards
+                            app.addpkgs_reopen_after_info = true;
+                            app.open_info_popup("Package does not exist".into());
+                        }
+                    }
+                    // keep popup open for next entry
+                    app.custom_input_buffer.clear();
                 }
                 Some(PopupKind::MirrorsRegions) => {
                     app.close_popup();
@@ -35,18 +348,29 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     app.root_password_confirm = app.custom_input_buffer.clone();
                     app.custom_input_buffer.clear();
                     if app.root_password != app.root_password_confirm {
-                        app.info_message = "Root passwords do not match".into();
+                        app.rootpass_reopen_after_info = true;
+                        app.open_info_popup("Root passwords do not match".into());
                     } else {
                         app.info_message.clear();
+                        app.close_popup();
                     }
-                    app.close_popup();
                 }
                 Some(PopupKind::UserAddUsername) => {
-                    app.draft_user_username = app.custom_input_buffer.trim().to_string();
-                    app.custom_input_buffer.clear();
-                    app.close_popup();
-                    if !app.draft_user_username.is_empty() {
-                        app.open_user_password_input();
+                    let value = app.custom_input_buffer.trim().to_string();
+                    if !value.is_empty()
+                        && !crate::ui::app::AppState::is_ascii_lowercase_only(&value)
+                    {
+                        app.username_reopen_after_info = true;
+                        app.open_info_popup(
+                            "Username must contain only lowercase ASCII characters".into(),
+                        );
+                    } else {
+                        app.draft_user_username = value;
+                        app.custom_input_buffer.clear();
+                        app.close_popup();
+                        if !app.draft_user_username.is_empty() {
+                            app.open_user_password_input();
+                        }
                     }
                 }
                 Some(PopupKind::UserAddPassword) => {
@@ -59,8 +383,8 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     app.draft_user_password_confirm = app.custom_input_buffer.clone();
                     app.custom_input_buffer.clear();
                     if app.draft_user_password != app.draft_user_password_confirm {
-                        app.info_message = "User passwords do not match".into();
-                        app.close_popup();
+                        app.userpass_reopen_after_info = true;
+                        app.open_info_popup("User passwords do not match".into());
                     } else {
                         app.info_message.clear();
                         app.close_popup();
@@ -75,6 +399,7 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         app.users.push(crate::ui::app::UserAccount {
                             username: app.draft_user_username.clone(),
                             password: app.draft_user_password.clone(),
+                            password_hash: None,
                             is_sudo: app.draft_user_is_sudo,
                         });
                     }
@@ -128,10 +453,22 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         && let Some(line) = app.popup_items.get(global_idx)
                     {
                         let parts: Vec<&str> = line.split("|").map(|s| s.trim()).collect();
-                        if parts.len() >= 2 {
+                        if parts.len() >= 7 {
+                            let model_col = parts[0];
                             let path_col = parts[1];
+                            let devtype_col = parts[2];
+                            let size_col = parts[3];
+                            let freespace_col = parts[4];
+                            let sector_size_col = parts[5];
+                            let read_only_col = parts[6];
                             if !path_col.is_empty() {
                                 app.disks_selected_device = Some(path_col.to_string());
+                                app.disks_selected_device_model = Some(model_col.to_string());
+                                app.disks_selected_device_devtype = Some(devtype_col.to_string());
+                                app.disks_selected_device_size = Some(size_col.to_string());
+                                app.disks_selected_device_freespace = Some(freespace_col.to_string());
+                                app.disks_selected_device_sector_size = Some(sector_size_col.to_string());
+                                app.disks_selected_device_read_only = Some(read_only_col.eq_ignore_ascii_case("true"));
                             }
                         }
                     }
@@ -154,11 +491,12 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     app.disk_encryption_password_confirm = app.custom_input_buffer.clone();
                     app.custom_input_buffer.clear();
                     if app.disk_encryption_password != app.disk_encryption_password_confirm {
-                        app.info_message = "Passwords do not match".into();
+                        app.diskenc_reopen_after_info = true;
+                        app.open_info_popup("Disk encryption passwords do not match".into());
                     } else {
                         app.info_message.clear();
+                        app.close_popup();
                     }
-                    app.close_popup();
                 }
                 Some(PopupKind::DiskEncryptionPartitionList) => {
                     if let Some(&global_idx) =
@@ -226,12 +564,17 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                 Some(PopupKind::MirrorsCustomServerInput)
                     | Some(PopupKind::MirrorsCustomRepoName)
                     | Some(PopupKind::MirrorsCustomRepoUrl)
+                    | Some(PopupKind::NetworkIP)
+                    | Some(PopupKind::NetworkGateway)
+                    | Some(PopupKind::NetworkDNS)
                     | Some(PopupKind::DiskEncryptionPassword)
                     | Some(PopupKind::DiskEncryptionPasswordConfirm)
                     | Some(PopupKind::HostnameInput)
+                    | Some(PopupKind::AdditionalPackageInput)
                     | Some(PopupKind::RootPassword)
                     | Some(PopupKind::RootPasswordConfirm)
                     | Some(PopupKind::UserAddUsername)
+                    | Some(PopupKind::UserEditUsername)
                     | Some(PopupKind::UserAddPassword)
                     | Some(PopupKind::UserAddPasswordConfirm)
             ) =>
@@ -245,12 +588,17 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                 Some(PopupKind::MirrorsCustomServerInput)
                     | Some(PopupKind::MirrorsCustomRepoName)
                     | Some(PopupKind::MirrorsCustomRepoUrl)
+                    | Some(PopupKind::NetworkIP)
+                    | Some(PopupKind::NetworkGateway)
+                    | Some(PopupKind::NetworkDNS)
                     | Some(PopupKind::DiskEncryptionPassword)
                     | Some(PopupKind::DiskEncryptionPasswordConfirm)
                     | Some(PopupKind::HostnameInput)
+                    | Some(PopupKind::AdditionalPackageInput)
                     | Some(PopupKind::RootPassword)
                     | Some(PopupKind::RootPasswordConfirm)
                     | Some(PopupKind::UserAddUsername)
+                    | Some(PopupKind::UserEditUsername)
                     | Some(PopupKind::UserAddPassword)
                     | Some(PopupKind::UserAddPasswordConfirm)
             ) =>
@@ -295,6 +643,19 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         }
                     }
                 }
+                Some(PopupKind::KernelSelect) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                        && let Some(name) = app.popup_items.get(global_idx)
+                    {
+                        if app.selected_kernels.contains(name) {
+                            app.selected_kernels.remove(name);
+                        } else {
+                            app.selected_kernels.insert(name.clone());
+                        }
+                    }
+                    return false;
+                }
                 Some(PopupKind::DesktopEnvSelect) => {
                     // If right-pane (packages) focused: toggle package for current env
                     if app.popup_packages_focus {
@@ -316,14 +677,50 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                     "xorg-xrandr",
                                     "xsel",
                                     "xterm",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
                                 ],
-                                "Bspwm" => vec!["bspwm", "dmenu", "rxvt-unicode", "sxhkd", "xdo"],
+                                "Bspwm" => vec![
+                                    "bspwm",
+                                    "dmenu",
+                                    "rxvt-unicode",
+                                    "sxhkd",
+                                    "xdo",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
                                 "Budgie" => vec![
                                     "arc-gtk-theme",
                                     "budgie",
                                     "mate-terminal",
                                     "nemo",
                                     "papirus-icon-theme",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
                                 ],
                                 "Cinnamon" => vec![
                                     "blueman",
@@ -337,11 +734,74 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                     "system-config-printer",
                                     "xdg-user-dirs-gtk",
                                     "xed",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
                                 ],
-                                "Cutefish" => vec!["cutefish", "noto-fonts"],
-                                "Deepin" => vec!["deepin", "deepin-editor", "deepin-terminal"],
-                                "Enlightenment" => vec!["enlightenment", "terminology"],
-                                "GNOME" => vec!["gnome", "gnome-tweaks"],
+                                "Cutefish" => vec![
+                                    "cutefish",
+                                    "noto-fonts",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
+                                "Deepin" => vec![
+                                    "deepin",
+                                    "deepin-editor",
+                                    "deepin-terminal",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
+                                "Enlightenment" => vec![
+                                    "enlightenment",
+                                    "terminology",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
+                                "GNOME" => vec![
+                                    "gnome",
+                                    "gnome-tweaks",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
                                 "Hyprland" => vec![
                                     "dolphin",
                                     "dunst",
@@ -352,8 +812,19 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                     "qt5-wayland",
                                     "qt6-wayland",
                                     "slurp",
+                                    "polkit",
                                     "wofi",
                                     "xdg-desktop-portal-hyprland",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
                                 ],
                                 "KDE Plasma" => vec![
                                     "ark",
@@ -362,6 +833,16 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                     "konsole",
                                     "plasma-meta",
                                     "plasma-workspace",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
                                 ],
                                 "Lxqt" => vec![
                                     "breeze-icons",
@@ -370,9 +851,44 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                     "slock",
                                     "ttf-freefont",
                                     "xdg-utils",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
                                 ],
-                                "Mate" => vec!["mate", "mate-extra"],
-                                "Qtile" => vec!["alacritty", "qtile"],
+                                "Mate" => vec![
+                                    "mate",
+                                    "mate-extra",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
+                                "Qtile" => vec![
+                                    "alacritty",
+                                    "qtile",
+                                    "htop",
+                                    "iwd",
+                                    "nano",
+                                    "openssh",
+                                    "smartmontools",
+                                    "vim",
+                                    "wget",
+                                    "wireless_tools",
+                                    "wpa_supplicant",
+                                    "xdg-utils",
+                                ],
                                 "Sway" => vec![
                                     "brightnessctl",
                                     "dmenu",
@@ -450,6 +966,145 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                             app.selected_login_manager = value;
                             app.login_manager_user_set = true;
                         }
+                    } else if app.popup_drivers_focus {
+                        // Toggle Graphic Drivers selection
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            (" Open Source Drivers ", false),
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        let idx = app
+                            .popup_drivers_selected_index
+                            .min(drivers_all.len().saturating_sub(1));
+                        if let Some((name, selectable)) = drivers_all.get(idx) {
+                            if *selectable {
+                                let key = name.to_string();
+                                if key == "nvidia-open-dkms" {
+                                    if app.selected_graphic_drivers.contains("nvidia-open-dkms") {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                    } else {
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.insert(key);
+                                        // Ensure Nvidia base drivers are selected
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                        // Remove conflicting nouveau pieces
+                                        app.selected_graphic_drivers.remove("xf86-video-nouveau");
+                                        app.selected_graphic_drivers.remove("vulkan-nouveau");
+                                    }
+                                } else if key == "nvidia-dkms" {
+                                    if app.selected_graphic_drivers.contains("nvidia-dkms") {
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.insert(key);
+                                        // Ensure Nvidia base drivers are selected
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                        // Remove conflicting nouveau pieces
+                                        app.selected_graphic_drivers.remove("xf86-video-nouveau");
+                                        app.selected_graphic_drivers.remove("vulkan-nouveau");
+                                    }
+                                } else if app.selected_graphic_drivers.contains(&key) {
+                                    app.selected_graphic_drivers.remove(&key);
+                                } else {
+                                    app.selected_graphic_drivers.insert(key.clone());
+                                    if key == "xf86-video-nouveau" || key == "vulkan-nouveau" {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.remove("dkms");
+                                        app.selected_graphic_drivers.remove("libva-nvidia-driver");
+                                    }
+                                }
+                            } else {
+                                let title = name.trim();
+                                if title == "Open Source Drivers" {
+                                    let oss = vec![
+                                        "intel-media-driver",
+                                        "libva-intel-driver",
+                                        "libva-mesa-driver",
+                                        "mesa",
+                                        "vulkan-intel",
+                                        "vulkan-nouveau",
+                                        "vulkan-radeon",
+                                        "xf86-video-amdgpu",
+                                        "xf86-video-ati",
+                                        "xf86-video-nouveau",
+                                        "xf86-video-vmware",
+                                        "xorg-server",
+                                        "xorg-xinit",
+                                    ];
+                                    let all_selected = oss
+                                        .iter()
+                                        .all(|k| app.selected_graphic_drivers.contains(*k));
+                                    if all_selected {
+                                        for k in oss {
+                                            app.selected_graphic_drivers.remove(k);
+                                        }
+                                    } else {
+                                        for k in oss {
+                                            app.selected_graphic_drivers.insert(k.to_string());
+                                        }
+                                        // Remove all Nvidia selections when enabling OSS block
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.remove("dkms");
+                                        app.selected_graphic_drivers.remove("libva-nvidia-driver");
+                                    }
+                                } else if title == "Nvidia Drivers" {
+                                    let need = vec!["dkms", "libva-nvidia-driver"];
+                                    let all_selected = need
+                                        .iter()
+                                        .all(|k| app.selected_graphic_drivers.contains(*k));
+                                    if all_selected {
+                                        for k in need {
+                                            app.selected_graphic_drivers.remove(k);
+                                        }
+                                        // also clear choose-one if prerequisites cleared
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        for k in need {
+                                            app.selected_graphic_drivers.insert(k.to_string());
+                                        }
+                                    }
+                                } else if title == "Choose One" {
+                                    let any_selected =
+                                        app.selected_graphic_drivers.contains("nvidia-open-dkms")
+                                            || app.selected_graphic_drivers.contains("nvidia-dkms");
+                                    if any_selected {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        // default to open driver, ensure prerequisites
+                                        app.selected_graphic_drivers
+                                            .insert("nvidia-open-dkms".into());
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                    }
+                                }
+                            }
+                        }
+                        return false;
                     } else if let Some(&global_idx) =
                         app.popup_visible_indices.get(app.popup_selected_visible)
                         && let Some(name) = app.popup_items.get(global_idx)
@@ -556,7 +1211,146 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     return false;
                 }
                 Some(PopupKind::XorgTypeSelect) => {
-                    if let Some(&global_idx) =
+                    if app.popup_drivers_focus {
+                        // Toggle Graphic Drivers selection in Xorg popup
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            (" Open Source Drivers ", false),
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        let idx = app
+                            .popup_drivers_selected_index
+                            .min(drivers_all.len().saturating_sub(1));
+                        if let Some((name, selectable)) = drivers_all.get(idx) {
+                            if *selectable {
+                                let key = name.to_string();
+                                if key == "nvidia-open-dkms" {
+                                    if app.selected_graphic_drivers.contains("nvidia-open-dkms") {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                    } else {
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.insert(key);
+                                        // Ensure Nvidia base drivers are selected
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                        // Remove conflicting nouveau pieces
+                                        app.selected_graphic_drivers.remove("xf86-video-nouveau");
+                                        app.selected_graphic_drivers.remove("vulkan-nouveau");
+                                    }
+                                } else if key == "nvidia-dkms" {
+                                    if app.selected_graphic_drivers.contains("nvidia-dkms") {
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.insert(key);
+                                        // Ensure Nvidia base drivers are selected
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                        // Remove conflicting nouveau pieces
+                                        app.selected_graphic_drivers.remove("xf86-video-nouveau");
+                                        app.selected_graphic_drivers.remove("vulkan-nouveau");
+                                    }
+                                } else if app.selected_graphic_drivers.contains(&key) {
+                                    app.selected_graphic_drivers.remove(&key);
+                                } else {
+                                    app.selected_graphic_drivers.insert(key.clone());
+                                    if key == "xf86-video-nouveau" || key == "vulkan-nouveau" {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.remove("dkms");
+                                        app.selected_graphic_drivers.remove("libva-nvidia-driver");
+                                    }
+                                }
+                            } else {
+                                let title = name.trim();
+                                if title == "Open Source Drivers" {
+                                    let oss = vec![
+                                        "intel-media-driver",
+                                        "libva-intel-driver",
+                                        "libva-mesa-driver",
+                                        "mesa",
+                                        "vulkan-intel",
+                                        "vulkan-nouveau",
+                                        "vulkan-radeon",
+                                        "xf86-video-amdgpu",
+                                        "xf86-video-ati",
+                                        "xf86-video-nouveau",
+                                        "xf86-video-vmware",
+                                        "xorg-server",
+                                        "xorg-xinit",
+                                    ];
+                                    let all_selected = oss
+                                        .iter()
+                                        .all(|k| app.selected_graphic_drivers.contains(*k));
+                                    if all_selected {
+                                        for k in oss {
+                                            app.selected_graphic_drivers.remove(k);
+                                        }
+                                    } else {
+                                        for k in oss {
+                                            app.selected_graphic_drivers.insert(k.to_string());
+                                        }
+                                        // Remove all Nvidia selections when enabling OSS block
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                        app.selected_graphic_drivers.remove("dkms");
+                                        app.selected_graphic_drivers.remove("libva-nvidia-driver");
+                                    }
+                                } else if title == "Nvidia Drivers" {
+                                    let need = vec!["dkms", "libva-nvidia-driver"];
+                                    let all_selected = need
+                                        .iter()
+                                        .all(|k| app.selected_graphic_drivers.contains(*k));
+                                    if all_selected {
+                                        for k in need {
+                                            app.selected_graphic_drivers.remove(k);
+                                        }
+                                        // also clear choose-one if prerequisites cleared
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        for k in need {
+                                            app.selected_graphic_drivers.insert(k.to_string());
+                                        }
+                                    }
+                                } else if title == "Choose One" {
+                                    let any_selected =
+                                        app.selected_graphic_drivers.contains("nvidia-open-dkms")
+                                            || app.selected_graphic_drivers.contains("nvidia-dkms");
+                                    if any_selected {
+                                        app.selected_graphic_drivers.remove("nvidia-open-dkms");
+                                        app.selected_graphic_drivers.remove("nvidia-dkms");
+                                    } else {
+                                        // default to open driver, ensure prerequisites
+                                        app.selected_graphic_drivers
+                                            .insert("nvidia-open-dkms".into());
+                                        app.selected_graphic_drivers.insert("dkms".into());
+                                        app.selected_graphic_drivers
+                                            .insert("libva-nvidia-driver".into());
+                                    }
+                                }
+                            }
+                        }
+                        return false;
+                    } else if let Some(&global_idx) =
                         app.popup_visible_indices.get(app.popup_selected_visible)
                         && let Some(name) = app.popup_items.get(global_idx)
                     {
@@ -618,6 +1412,36 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     let len = 6; // none, gdm, lightdm-gtk-greeter, lightdm-slick-greeter, ly, sddm
                     app.popup_login_selected_index =
                         (app.popup_login_selected_index + len - 1) % len;
+                } else if app.popup_drivers_focus {
+                    // Drivers list length (including headers)
+                    let drv_len = {
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            (" Open Source Drivers ", false),
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        drivers_all.len()
+                    };
+                    if drv_len > 0 {
+                        app.popup_drivers_selected_index =
+                            (app.popup_drivers_selected_index + drv_len - 1) % drv_len;
+                    }
                 } else if app.popup_packages_focus {
                     if let Some(&global_idx) =
                         app.popup_visible_indices.get(app.popup_selected_visible)
@@ -705,12 +1529,37 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                 "swaybg",
                                 "swayidle",
                                 "swaylock",
+                                "polkit",
                                 "waybar",
                                 "xorg-xwayland",
+                                "htop",
+                                "iwd",
+                                "nano",
+                                "openssh",
+                                "smartmontools",
+                                "vim",
+                                "wget",
+                                "wireless_tools",
+                                "wpa_supplicant",
+                                "xdg-utils",
                             ],
-                            "Xfce4" => {
-                                vec!["gvfs", "pavucontrol", "xarchiver", "xfce4", "xfce4-goodies"]
-                            }
+                            "Xfce4" => vec![
+                                "gvfs",
+                                "pavucontrol",
+                                "xarchiver",
+                                "xfce4",
+                                "xfce4-goodies",
+                                "htop",
+                                "iwd",
+                                "nano",
+                                "openssh",
+                                "smartmontools",
+                                "vim",
+                                "wget",
+                                "wireless_tools",
+                                "wpa_supplicant",
+                                "xdg-utils",
+                            ],
                             "i3-wm" => vec![
                                 "dmenu",
                                 "i3-wm",
@@ -721,6 +1570,16 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                 "lightdm-gtk-greeter",
                                 "xss-lock",
                                 "xterm",
+                                "htop",
+                                "iwd",
+                                "nano",
+                                "openssh",
+                                "smartmontools",
+                                "vim",
+                                "wget",
+                                "wireless_tools",
+                                "wpa_supplicant",
+                                "xdg-utils",
                             ],
                             _ => vec![],
                         };
@@ -762,7 +1621,36 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     super::screens::popup_move_up(app);
                 }
             } else if matches!(app.popup_kind, Some(PopupKind::XorgTypeSelect)) {
-                if app.popup_packages_focus {
+                if app.popup_drivers_focus {
+                    let drv_len = {
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            (" Open Source Drivers ", false),
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        drivers_all.len()
+                    };
+                    if drv_len > 0 {
+                        app.popup_drivers_selected_index =
+                            (app.popup_drivers_selected_index + drv_len - 1) % drv_len;
+                    }
+                } else if app.popup_packages_focus {
                     // Only one package currently; wrap safely
                     let pkgs_len = 1;
                     if pkgs_len > 0 {
@@ -782,6 +1670,36 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                 if app.popup_login_focus {
                     let len = 6;
                     app.popup_login_selected_index = (app.popup_login_selected_index + 1) % len;
+                } else if app.popup_drivers_focus {
+                    let drv_len = {
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            (" Open Source Drivers ", false),
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("libva-mesa-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        drivers_all.len()
+                    };
+                    if drv_len > 0 {
+                        app.popup_drivers_selected_index =
+                            (app.popup_drivers_selected_index + 1) % drv_len;
+                    }
                 } else if app.popup_packages_focus {
                     if let Some(&global_idx) =
                         app.popup_visible_indices.get(app.popup_selected_visible)
@@ -925,7 +1843,36 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     super::screens::popup_move_down(app);
                 }
             } else if matches!(app.popup_kind, Some(PopupKind::XorgTypeSelect)) {
-                if app.popup_packages_focus {
+                if app.popup_drivers_focus {
+                    let drv_len = {
+                        let drivers_all: Vec<(&str, bool)> = vec![
+                            ("intel-media-driver", true),
+                            ("libva-intel-driver", true),
+                            ("libva-mesa-driver", true),
+                            ("mesa", true),
+                            ("vulkan-intel", true),
+                            ("vulkan-nouveau", true),
+                            ("vulkan-radeon", true),
+                            ("xf86-video-amdgpu", true),
+                            ("xf86-video-ati", true),
+                            ("xf86-video-nouveau", true),
+                            ("xf86-video-vmware", true),
+                            ("xorg-server", true),
+                            ("xorg-xinit", true),
+                            (" Nvidia Drivers ", false),
+                            ("dkms", true),
+                            ("libva-nvidia-driver", true),
+                            (" Choose one ", false),
+                            ("nvidia-open-dkms", true),
+                            ("nvidia-dkms", true),
+                        ];
+                        drivers_all.len()
+                    };
+                    if drv_len > 0 {
+                        app.popup_drivers_selected_index =
+                            (app.popup_drivers_selected_index + 1) % drv_len;
+                    }
+                } else if app.popup_packages_focus {
                     let pkgs_len = 1;
                     if pkgs_len > 0 {
                         app.popup_packages_selected_index =
@@ -956,11 +1903,14 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
             }
             return false;
         }
-        // Xorg left/right focus switching mirrors Server behavior
+        // Xorg left/right focus switching: left list -> packages -> drivers -> right stays
         KeyCode::Left | KeyCode::Char('h')
             if matches!(app.popup_kind, Some(PopupKind::XorgTypeSelect)) =>
         {
-            if app.popup_packages_focus {
+            if app.popup_drivers_focus {
+                app.popup_drivers_focus = false;
+                app.popup_packages_focus = true;
+            } else if app.popup_packages_focus {
                 app.popup_packages_focus = false;
             }
             return false;
@@ -968,9 +1918,15 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
         KeyCode::Right | KeyCode::Char('l')
             if matches!(app.popup_kind, Some(PopupKind::XorgTypeSelect)) =>
         {
-            if !app.popup_packages_focus {
+            if !app.popup_packages_focus && !app.popup_drivers_focus {
                 app.popup_packages_focus = true;
                 app.popup_packages_selected_index = 0;
+            } else if app.popup_packages_focus {
+                app.popup_packages_focus = false;
+                app.popup_drivers_focus = true;
+                app.popup_drivers_selected_index = 0;
+            } else if app.popup_drivers_focus {
+                // stay on drivers
             }
             return false;
         }
@@ -978,6 +1934,9 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
             if matches!(app.popup_kind, Some(PopupKind::DesktopEnvSelect)) {
                 if app.popup_login_focus {
                     app.popup_login_focus = false;
+                    app.popup_drivers_focus = true;
+                } else if app.popup_drivers_focus {
+                    app.popup_drivers_focus = false;
                     app.popup_packages_focus = true;
                 } else if app.popup_packages_focus {
                     app.popup_packages_focus = false;
@@ -988,14 +1947,20 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
         }
         KeyCode::Right | KeyCode::Char('l') => {
             if matches!(app.popup_kind, Some(PopupKind::DesktopEnvSelect)) {
-                if !app.popup_packages_focus {
-                    app.popup_login_focus = false;
+                if !app.popup_packages_focus && !app.popup_drivers_focus && !app.popup_login_focus {
+                    // move into packages first
                     app.popup_packages_focus = true;
                     app.popup_packages_selected_index = 0;
-                } else {
+                } else if app.popup_packages_focus {
                     app.popup_packages_focus = false;
+                    app.popup_drivers_focus = true;
+                    app.popup_drivers_selected_index = 0;
+                } else if app.popup_drivers_focus {
+                    app.popup_drivers_focus = false;
                     app.popup_login_focus = true;
                     app.popup_login_selected_index = 0;
+                } else if app.popup_login_focus {
+                    // stay on login
                 }
                 return false;
             }

@@ -108,13 +108,19 @@ pub(crate) fn move_screen_up(app: &mut AppState) {
         Screen::Disks => move_disks_up(app),
         Screen::DiskEncryption => move_diskenc_up(app),
         Screen::Bootloader => move_bootloader_up(app),
+        Screen::Audio => move_audio_up(app),
+        Screen::Kernels => move_kernels_up(app),
+        Screen::NetworkConfiguration => move_network_up(app),
         Screen::Hostname => move_hostname_up(app),
         Screen::RootPassword => move_rootpass_up(app),
         Screen::UserAccount => move_user_up(app),
         Screen::SwapPartition => move_swap_up(app),
         Screen::UnifiedKernelImages => move_uki_up(app),
+        Screen::AutomaticTimeSync => move_ats_up(app),
         Screen::ExperienceMode => move_experience_up(app),
         Screen::SaveConfiguration => move_config_up(app),
+        Screen::AdditionalPackages => move_addpkgs_up(app),
+        Screen::Timezone => move_timezone_up(app),
         _ => {}
     }
 }
@@ -126,13 +132,19 @@ pub(crate) fn move_screen_down(app: &mut AppState) {
         Screen::Disks => move_disks_down(app),
         Screen::DiskEncryption => move_diskenc_down(app),
         Screen::Bootloader => move_bootloader_down(app),
+        Screen::Audio => move_audio_down(app),
+        Screen::Kernels => move_kernels_down(app),
+        Screen::NetworkConfiguration => move_network_down(app),
         Screen::Hostname => move_hostname_down(app),
         Screen::RootPassword => move_rootpass_down(app),
         Screen::UserAccount => move_user_down(app),
         Screen::SwapPartition => move_swap_down(app),
         Screen::UnifiedKernelImages => move_uki_down(app),
+        Screen::AutomaticTimeSync => move_ats_down(app),
         Screen::ExperienceMode => move_experience_down(app),
         Screen::SaveConfiguration => move_config_down(app),
+        Screen::AdditionalPackages => move_addpkgs_down(app),
+        Screen::Timezone => move_timezone_down(app),
         _ => {}
     }
 }
@@ -143,13 +155,19 @@ pub(crate) fn change_value(app: &mut AppState, next: bool) {
         Screen::Disks => change_disks_value(app, next),
         Screen::DiskEncryption => change_diskenc_value(app, next),
         Screen::Bootloader => change_bootloader_value(app, next),
+        Screen::Audio => change_audio_value(app, next),
+        Screen::Kernels => change_kernels_value(app, next),
+        Screen::NetworkConfiguration => change_network_value(app, next),
         Screen::Hostname => change_hostname_value(app, next),
         Screen::RootPassword => change_rootpass_value(app, next),
         Screen::UserAccount => change_user_value(app, next),
         Screen::SwapPartition => change_swap_value(app, next),
         Screen::UnifiedKernelImages => change_uki_value(app, next),
+        Screen::AutomaticTimeSync => change_ats_value(app, next),
         Screen::ExperienceMode => change_experience_value(app, next),
         Screen::SaveConfiguration => change_config_value(app, next),
+        Screen::AdditionalPackages => change_addpkgs_value(app, next),
+        Screen::Timezone => change_timezone_value(app, next),
         _ => {}
     }
 }
@@ -173,11 +191,17 @@ pub(crate) fn handle_enter(app: &mut AppState) {
         Screen::SwapPartition => handle_enter_swap(app),
         Screen::Bootloader => handle_enter_bootloader(app),
         Screen::UnifiedKernelImages => handle_enter_uki(app),
+        Screen::Audio => handle_enter_audio(app),
+        Screen::Kernels => handle_enter_kernels(app),
+        Screen::NetworkConfiguration => handle_enter_network(app),
         Screen::Hostname => handle_enter_hostname(app),
         Screen::RootPassword => handle_enter_rootpass(app),
         Screen::UserAccount => handle_enter_user(app),
         Screen::ExperienceMode => handle_enter_experience(app),
+        Screen::AutomaticTimeSync => handle_enter_ats(app),
         Screen::SaveConfiguration => handle_enter_config(app),
+        Screen::AdditionalPackages => handle_enter_addpkgs(app),
+        Screen::Timezone => handle_enter_timezone(app),
         _ => {
             // Other decision screens: Continue advances to next section
             if app.selected_index + 1 < app.menu_entries.len() {
@@ -198,6 +222,7 @@ fn handle_enter_config(app: &mut AppState) {
     match app.config_focus_index {
         0 => {
             app.save_config();
+            app.open_info_popup("Configuration saved.".into());
         }
         1 => match app.load_config() {
             Ok(()) => {
@@ -222,16 +247,7 @@ fn handle_enter_locales(app: &mut AppState) {
         app.open_locales_popup();
     } else if app.locales_focus_index == 3 {
         app.apply_locales_edit();
-        if app.selected_index + 1 < app.menu_entries.len() {
-            app.selected_index += 1;
-            app.list_state.select(Some(app.selected_index));
-            app.focus = Focus::Content;
-            if app.current_screen() == Screen::Locales {
-                app.start_locales_edit();
-            }
-        } else {
-            app.focus = Focus::Menu;
-        }
+        advance(app);
     }
 }
 
@@ -248,6 +264,9 @@ fn handle_enter_mirrors(app: &mut AppState) {
 
 fn advance(app: &mut AppState) {
     if app.selected_index + 1 < app.menu_entries.len() {
+        // Mark current section as processed before advancing
+        let screen = app.current_screen();
+        app.processed_sections.insert(screen);
         app.selected_index += 1;
         app.list_state.select(Some(app.selected_index));
         app.focus = Focus::Content;
@@ -255,6 +274,8 @@ fn advance(app: &mut AppState) {
             app.start_locales_edit();
         }
     } else {
+        let screen = app.current_screen();
+        app.processed_sections.insert(screen);
         app.focus = Focus::Menu;
     }
 }
@@ -315,11 +336,42 @@ fn handle_enter_uki(app: &mut AppState) {
         advance(app);
     }
 }
+fn handle_enter_ats(app: &mut AppState) {
+    match app.ats_focus_index {
+        0 => app.ats_enabled = true,
+        1 => app.ats_enabled = false,
+        2 => advance(app),
+        _ => {}
+    }
+}
+
+fn handle_enter_kernels(app: &mut AppState) {
+    match app.kernels_focus_index {
+        0 => app.open_kernels_popup(),
+        1 => advance(app),
+        _ => {}
+    }
+}
 
 fn handle_enter_hostname(app: &mut AppState) {
     if app.hostname_focus_index == 0 {
         app.open_hostname_input();
     } else if app.hostname_focus_index == 1 {
+        advance(app);
+    }
+}
+
+fn handle_enter_timezone(app: &mut AppState) {
+    if app.timezone_focus_index == 0 {
+        app.open_timezone_popup();
+    } else if app.timezone_focus_index == 1 {
+        advance(app);
+    }
+}
+fn handle_enter_addpkgs(app: &mut AppState) {
+    if app.addpkgs_focus_index == 0 {
+        app.open_additional_package_input();
+    } else if app.addpkgs_focus_index == 1 {
         advance(app);
     }
 }
@@ -336,7 +388,35 @@ fn handle_enter_rootpass(app: &mut AppState) {
 fn handle_enter_user(app: &mut AppState) {
     match app.user_focus_index {
         0 => app.start_add_user_flow(),
-        1 => advance(app),
+        1 => {
+            // Edit user: open selection popup if users present, else info
+            if app.users.is_empty() {
+                app.open_info_popup("No users to edit".into());
+            } else {
+                app.popup_kind = Some(crate::ui::app::PopupKind::UserSelectEdit);
+                app.popup_open = true;
+                app.popup_items = app.users.iter().map(|u| u.username.clone()).collect();
+                app.popup_visible_indices = (0..app.popup_items.len()).collect();
+                app.popup_selected_visible = 0;
+                app.popup_in_search = false;
+                app.popup_search_query.clear();
+            }
+        }
+        2 => {
+            // Delete user: open selection popup if users present, else info
+            if app.users.is_empty() {
+                app.open_info_popup("No users to delete".into());
+            } else {
+                app.popup_kind = Some(crate::ui::app::PopupKind::UserSelectDelete);
+                app.popup_open = true;
+                app.popup_items = app.users.iter().map(|u| u.username.clone()).collect();
+                app.popup_visible_indices = (0..app.popup_items.len()).collect();
+                app.popup_selected_visible = 0;
+                app.popup_in_search = false;
+                app.popup_search_query.clear();
+            }
+        }
+        3 => advance(app),
         _ => {}
     }
 }
@@ -500,6 +580,35 @@ pub(crate) fn change_uki_value(app: &mut AppState, _next: bool) {
         app.uki_enabled = !app.uki_enabled;
     }
 }
+pub(crate) fn move_ats_up(app: &mut AppState) {
+    if app.current_screen() != Screen::AutomaticTimeSync || app.focus != Focus::Content {
+        return;
+    }
+    if app.ats_focus_index == 0 {
+        app.ats_focus_index = 2;
+    } else {
+        app.ats_focus_index -= 1;
+    }
+}
+pub(crate) fn move_ats_down(app: &mut AppState) {
+    if app.current_screen() != Screen::AutomaticTimeSync || app.focus != Focus::Content {
+        return;
+    }
+    app.ats_focus_index = (app.ats_focus_index + 1) % 3;
+}
+pub(crate) fn change_ats_value(app: &mut AppState, next: bool) {
+    if app.current_screen() != Screen::AutomaticTimeSync || app.focus != Focus::Content {
+        return;
+    }
+    if app.ats_focus_index <= 1 {
+        if next {
+            app.ats_focus_index = (app.ats_focus_index + 1) % 2;
+        } else {
+            app.ats_focus_index = (app.ats_focus_index + 2 - 1) % 2;
+        }
+        app.ats_enabled = app.ats_focus_index == 0;
+    }
+}
 pub(crate) fn move_experience_up(app: &mut AppState) {
     if app.current_screen() != Screen::ExperienceMode || app.focus != Focus::Content {
         return;
@@ -548,6 +657,113 @@ pub(crate) fn change_bootloader_value(app: &mut AppState, _next: bool) {
         app.bootloader_index = app.bootloader_focus_index;
     }
 }
+
+pub(crate) fn move_kernels_up(app: &mut AppState) {
+    if app.current_screen() != Screen::Kernels || app.focus != Focus::Content {
+        return;
+    }
+    if app.kernels_focus_index == 0 {
+        app.kernels_focus_index = 1;
+    } else {
+        app.kernels_focus_index -= 1;
+    }
+}
+
+pub(crate) fn move_kernels_down(app: &mut AppState) {
+    if app.current_screen() != Screen::Kernels || app.focus != Focus::Content {
+        return;
+    }
+    app.kernels_focus_index = (app.kernels_focus_index + 1) % 2;
+}
+
+pub(crate) fn change_kernels_value(_app: &mut AppState, _next: bool) {}
+
+pub(crate) fn move_audio_up(app: &mut AppState) {
+    if app.current_screen() != Screen::Audio || app.focus != Focus::Content {
+        return;
+    }
+    if app.audio_focus_index == 0 {
+        app.audio_focus_index = 3;
+    } else {
+        app.audio_focus_index -= 1;
+    }
+}
+
+pub(crate) fn move_audio_down(app: &mut AppState) {
+    if app.current_screen() != Screen::Audio || app.focus != Focus::Content {
+        return;
+    }
+    app.audio_focus_index = (app.audio_focus_index + 1) % 4;
+}
+
+pub(crate) fn change_audio_value(app: &mut AppState, _next: bool) {
+    if app.current_screen() != Screen::Audio || app.focus != Focus::Content {
+        return;
+    }
+    if app.audio_focus_index < 3 {
+        app.audio_index = app.audio_focus_index;
+    }
+}
+
+fn handle_enter_audio(app: &mut AppState) {
+    if app.audio_focus_index < 3 {
+        app.audio_index = app.audio_focus_index;
+    } else {
+        advance(app);
+    }
+}
+
+pub(crate) fn move_network_up(app: &mut AppState) {
+    if app.current_screen() != Screen::NetworkConfiguration || app.focus != Focus::Content {
+        return;
+    }
+    if app.network_focus_index == 0 {
+        app.network_focus_index = 4;
+    } else {
+        app.network_focus_index -= 1;
+    }
+}
+
+pub(crate) fn move_network_down(app: &mut AppState) {
+    if app.current_screen() != Screen::NetworkConfiguration || app.focus != Focus::Content {
+        return;
+    }
+    app.network_focus_index = (app.network_focus_index + 1) % 5;
+}
+
+pub(crate) fn change_network_value(app: &mut AppState, _next: bool) {
+    if app.current_screen() != Screen::NetworkConfiguration || app.focus != Focus::Content {
+        return;
+    }
+    if app.network_focus_index < 3 {
+        let previous_mode = app.network_mode_index;
+        app.network_mode_index = app.network_focus_index;
+        // If leaving Manual mode (1) to Copy ISO (0) or NetworkManager (2), clear manual interfaces
+        if previous_mode == 1 && app.network_mode_index != 1 {
+            app.network_configs.clear();
+        }
+    }
+}
+
+fn handle_enter_network(app: &mut AppState) {
+    if app.network_focus_index < 3 {
+        let previous_mode = app.network_mode_index;
+        app.network_mode_index = app.network_focus_index;
+        // If leaving Manual mode (1) to Copy ISO (0) or NetworkManager (2), clear manual interfaces
+        if previous_mode == 1 && app.network_mode_index != 1 {
+            app.network_configs.clear();
+        }
+    } else if app.network_focus_index == 3 {
+        // Add interface (only in Manual)
+        if app.network_mode_index != 1 {
+            app.open_info_popup("Switch to Manual configuration to add interfaces".into());
+            return;
+        }
+        app.open_network_interfaces_popup();
+    } else {
+        advance(app);
+    }
+}
 pub(crate) fn move_hostname_up(app: &mut AppState) {
     if app.current_screen() != Screen::Hostname || app.focus != Focus::Content {
         return;
@@ -565,6 +781,57 @@ pub(crate) fn move_hostname_down(app: &mut AppState) {
     app.hostname_focus_index = (app.hostname_focus_index + 1) % 2;
 }
 pub(crate) fn change_hostname_value(_app: &mut AppState, _next: bool) {}
+pub(crate) fn move_timezone_up(app: &mut AppState) {
+    if app.current_screen() != Screen::Timezone || app.focus != Focus::Content {
+        return;
+    }
+    if app.timezone_focus_index == 0 {
+        app.timezone_focus_index = 1;
+    } else {
+        app.timezone_focus_index -= 1;
+    }
+}
+pub(crate) fn move_timezone_down(app: &mut AppState) {
+    if app.current_screen() != Screen::Timezone || app.focus != Focus::Content {
+        return;
+    }
+    app.timezone_focus_index = (app.timezone_focus_index + 1) % 2;
+}
+pub(crate) fn change_timezone_value(_app: &mut AppState, _next: bool) {}
+pub(crate) fn move_addpkgs_up(app: &mut AppState) {
+    if app.current_screen() != Screen::AdditionalPackages || app.focus != Focus::Content {
+        return;
+    }
+    // Move selection up within packages list (do not change focus index here)
+    if !app.additional_packages.is_empty() {
+        if app.addpkgs_selected_index == 0 {
+            app.addpkgs_selected_index = app.additional_packages.len() - 1;
+        } else {
+            app.addpkgs_selected_index -= 1;
+        }
+    }
+}
+pub(crate) fn move_addpkgs_down(app: &mut AppState) {
+    if app.current_screen() != Screen::AdditionalPackages || app.focus != Focus::Content {
+        return;
+    }
+    // Move selection down within packages list (do not change focus index here)
+    if !app.additional_packages.is_empty() {
+        app.addpkgs_selected_index =
+            (app.addpkgs_selected_index + 1) % app.additional_packages.len();
+    }
+}
+pub(crate) fn change_addpkgs_value(app: &mut AppState, next: bool) {
+    if app.current_screen() != Screen::AdditionalPackages || app.focus != Focus::Content {
+        return;
+    }
+    // Use left/right (h/l) to switch between Add package and Continue
+    if next {
+        app.addpkgs_focus_index = (app.addpkgs_focus_index + 1) % 2;
+    } else {
+        app.addpkgs_focus_index = (app.addpkgs_focus_index + 2 - 1) % 2;
+    }
+}
 pub(crate) fn move_rootpass_up(app: &mut AppState) {
     if app.current_screen() != Screen::RootPassword || app.focus != Focus::Content {
         return;
@@ -587,7 +854,7 @@ pub(crate) fn move_user_up(app: &mut AppState) {
         return;
     }
     if app.user_focus_index == 0 {
-        app.user_focus_index = 1;
+        app.user_focus_index = 3;
     } else {
         app.user_focus_index -= 1;
     }
@@ -596,7 +863,7 @@ pub(crate) fn move_user_down(app: &mut AppState) {
     if app.current_screen() != Screen::UserAccount || app.focus != Focus::Content {
         return;
     }
-    app.user_focus_index = (app.user_focus_index + 1) % 2;
+    app.user_focus_index = (app.user_focus_index + 1) % 4;
 }
 pub(crate) fn change_user_value(_app: &mut AppState, _next: bool) {}
 pub(crate) fn move_config_up(app: &mut AppState) {

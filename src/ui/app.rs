@@ -4,24 +4,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
 mod abort;
-mod additional_packages;
-mod audio;
-mod automatic_time_sync;
+pub mod additional_packages;
+pub mod audio;
+pub mod automatic_time_sync;
 pub mod bootloader;
 pub mod config;
 pub mod disk_encryption;
 pub mod disks;
 pub mod experience_mode;
 pub mod hostname;
-mod install;
-mod kernels;
+pub mod install;
+pub mod kernels;
 pub mod locales;
 pub mod mirrors;
-mod network_configuration;
+pub mod network_configuration;
 pub mod root_password;
 mod save_configuration;
 pub mod swap_partition;
-mod timezone;
+pub mod timezone;
 pub mod unified_kernel_images;
 pub mod user_account;
 
@@ -35,7 +35,7 @@ pub enum Focus {
     Content,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Screen {
     Overview,
     Locales,
@@ -84,12 +84,23 @@ pub enum PopupKind {
     UserAddPassword,
     UserAddPasswordConfirm,
     UserAddSudo,
+    UserSelectEdit,
+    UserSelectDelete,
+    UserEditUsername,
     DesktopEnvSelect,
     ServerTypeSelect,
     XorgTypeSelect,
     Info,
     AbortConfirm,
     MinimalClearConfirm,
+    KernelSelect,
+    TimezoneSelect,
+    AdditionalPackageInput,
+    NetworkInterfaces,
+    NetworkMode,
+    NetworkIP,
+    NetworkGateway,
+    NetworkDNS,
 }
 
 #[derive(Clone)]
@@ -113,6 +124,29 @@ pub enum RepoSignOption {
 }
 
 #[derive(Clone)]
+pub struct AdditionalPackage {
+    pub name: String,
+    pub repo: String,
+    pub version: String,
+    pub description: String,
+}
+
+#[derive(Clone)]
+pub enum NetworkConfigMode {
+    Dhcp,
+    Static,
+}
+
+#[derive(Clone)]
+pub struct NetworkInterfaceConfig {
+    pub interface: String,
+    pub mode: NetworkConfigMode,
+    pub ip_cidr: Option<String>,
+    pub gateway: Option<String>,
+    pub dns: Option<String>,
+}
+
+#[derive(Clone)]
 pub struct CustomRepo {
     pub name: String,
     pub url: String,
@@ -124,12 +158,27 @@ pub struct CustomRepo {
 pub struct UserAccount {
     pub username: String,
     pub password: String,
+    pub password_hash: Option<String>,
     pub is_sudo: bool,
 }
 
 // Config structs moved to app/config.rs
 
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct DiskPartitionSpec {
+    pub name: Option<String>,
+    pub role: Option<String>,
+    pub fs: Option<String>,
+    pub start: Option<String>,
+    pub size: Option<String>,
+    pub flags: Vec<String>,
+    pub mountpoint: Option<String>,
+    pub mount_options: Option<String>,
+    pub encrypt: Option<bool>,
+}
+
 pub struct AppState {
+    pub dry_run: bool,
     pub menu_entries: Vec<MenuEntry>,
     pub selected_index: usize,
     pub info_message: String,
@@ -147,6 +196,7 @@ pub struct AppState {
     pub locale_language_index: usize,
     pub locale_encoding_options: Vec<String>,
     pub locale_encoding_index: usize,
+    pub locale_language_to_encoding: std::collections::BTreeMap<String, String>,
     pub locales_loaded: bool,
 
     // Popup state
@@ -173,6 +223,18 @@ pub struct AppState {
     pub disks_mode_index: usize,  // selected mode index 0..=2
     pub disks_devices: Vec<disks::DiskDevice>,
     pub disks_selected_device: Option<String>,
+    // Cached details of the selected device (for partitioning/mounting)
+    pub disks_selected_device_model: Option<String>,
+    pub disks_selected_device_devtype: Option<String>,
+    pub disks_selected_device_size: Option<String>,
+    pub disks_selected_device_freespace: Option<String>,
+    pub disks_selected_device_sector_size: Option<String>,
+    pub disks_selected_device_read_only: Option<bool>,
+    // Extended disk configuration
+    pub disks_label: Option<String>,
+    pub disks_wipe: bool,
+    pub disks_align: Option<String>,
+    pub disks_partitions: Vec<DiskPartitionSpec>,
 
     // Mirrors & Repositories screen state
     pub mirrors_focus_index: usize, // 0..=3 items + 4 Continue
@@ -194,6 +256,7 @@ pub struct AppState {
     pub disk_encryption_type_index: usize, // 0: None, 1: LUKS
     pub disk_encryption_password: String,
     pub disk_encryption_password_confirm: String,
+    pub diskenc_reopen_after_info: bool,
     pub disk_encryption_selected_partition: Option<String>,
 
     // Swap Partition state
@@ -207,6 +270,27 @@ pub struct AppState {
     // Bootloader state
     pub bootloader_focus_index: usize, // 0: selector, 1: Continue
     pub bootloader_index: usize,       // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
+
+    // Kernels state
+    pub kernels_focus_index: usize, // 0: select, 1: Continue
+    pub selected_kernels: std::collections::BTreeSet<String>,
+
+    // Audio state
+    pub audio_focus_index: usize, // 0..=2 choices + 3 Continue
+    pub audio_index: usize,       // 0: None, 1: pipewire, 2: pulseaudio
+
+    // Network Configuration state
+    pub network_focus_index: usize, // 0..=2 choices + 3 Continue
+    pub network_mode_index: usize,  // 0: Copy ISO, 1: Manual, 2: NetworkManager
+    pub network_configs: Vec<NetworkInterfaceConfig>,
+    pub network_selected_interface: Option<String>,
+    pub network_draft_mode_static: bool,
+    pub network_draft_ip_cidr: String,
+    pub network_draft_gateway: String,
+    pub network_draft_dns: String,
+    pub network_reopen_after_info_ip: bool,
+    pub network_reopen_after_info_gateway: bool,
+    pub network_reopen_after_info_dns: bool,
 
     // Experience Mode state
     pub experience_focus_index: usize, // 0..=3 items + 4 Continue
@@ -225,6 +309,10 @@ pub struct AppState {
     // Desktop popup: focus and selection within packages list
     pub popup_packages_focus: bool,
     pub popup_packages_selected_index: usize,
+    // Graphic Drivers selection shared by Desktop/Xorg popups
+    pub selected_graphic_drivers: std::collections::BTreeSet<String>,
+    pub popup_drivers_focus: bool,
+    pub popup_drivers_selected_index: usize,
     // Desktop popup: globally selected login manager (None means no manager)
     pub selected_login_manager: Option<String>,
     pub login_manager_user_set: bool,
@@ -235,29 +323,54 @@ pub struct AppState {
     // Hostname state
     pub hostname_focus_index: usize, // 0 input, 1 Continue
     pub hostname_value: String,
+    pub hostname_reopen_after_info: bool,
+
+    // Timezone state
+    pub timezone_focus_index: usize, // 0: select, 1: Continue
+    pub timezone_value: String,
+
+    // Automatic Time Sync state
+    pub ats_focus_index: usize, // 0: Yes, 1: No, 2: Continue
+    pub ats_enabled: bool,
 
     // Root Password state
     pub rootpass_focus_index: usize, // 0 set, 1 confirm, 2 Continue
     pub root_password: String,
     pub root_password_confirm: String,
+    pub root_password_hash: Option<String>,
+    pub rootpass_reopen_after_info: bool,
 
     // User Account state
     pub user_focus_index: usize, // 0: Add user, 1: Continue
     pub users: Vec<UserAccount>,
+    pub selected_user_index: usize,
     pub draft_user_username: String,
     pub draft_user_password: String,
     pub draft_user_password_confirm: String,
     pub draft_user_is_sudo: bool,
+    pub username_reopen_after_info: bool,
+    pub userpass_reopen_after_info: bool,
+    pub useredit_reopen_after_info: bool,
 
     // Configuration screen state
     pub config_focus_index: usize, // 0: Save, 1: Load, 2: Continue
 
     // Load feedback
     pub last_load_missing_sections: Vec<String>,
+
+    // Additional Packages state
+    pub addpkgs_focus_index: usize, // 0: Add package input, 1: Continue
+    pub additional_packages: Vec<AdditionalPackage>,
+    pub addpkgs_selected_index: usize,
+    pub addpkgs_selected: std::collections::BTreeSet<usize>,
+    pub addpkgs_reopen_after_info: bool,
+
+    // Sections processed
+    pub processed_sections: BTreeSet<Screen>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(dry_run: bool) -> Self {
         let menu_entries = vec![
             MenuEntry {
                 label: "Overview".into(),
@@ -370,6 +483,7 @@ impl AppState {
         list_state.select(Some(0));
 
         let mut s = Self {
+            dry_run,
             menu_entries,
             selected_index: 0,
             info_message: String::new(),
@@ -386,6 +500,7 @@ impl AppState {
             locale_language_index: 0,
             locale_encoding_options: Vec::new(),
             locale_encoding_index: 0,
+            locale_language_to_encoding: std::collections::BTreeMap::new(),
             locales_loaded: false,
 
             popup_open: false,
@@ -408,13 +523,27 @@ impl AppState {
             disks_mode_index: 0,
             disks_devices: Vec::new(),
             disks_selected_device: None,
+            disks_selected_device_model: None,
+            disks_selected_device_devtype: None,
+            disks_selected_device_size: None,
+            disks_selected_device_freespace: None,
+            disks_selected_device_sector_size: None,
+            disks_selected_device_read_only: None,
+            disks_label: Some("gpt".into()),
+            disks_wipe: true,
+            disks_align: Some("1MiB".into()),
+            disks_partitions: Vec::new(),
 
             mirrors_focus_index: 0,
             mirrors_regions_options: Vec::new(),
             mirrors_regions_selected: BTreeSet::new(),
             mirrors_loaded: false,
             optional_repos_options: vec!["multilib".into(), "testing".into()],
-            optional_repos_selected: BTreeSet::new(),
+            optional_repos_selected: {
+                let mut s = BTreeSet::new();
+                s.insert(0);
+                s
+            },
             mirrors_custom_servers: Vec::new(),
             custom_input_buffer: String::new(),
             custom_repos: Vec::new(),
@@ -427,10 +556,11 @@ impl AppState {
             disk_encryption_type_index: 0,
             disk_encryption_password: String::new(),
             disk_encryption_password_confirm: String::new(),
+            diskenc_reopen_after_info: false,
             disk_encryption_selected_partition: None,
 
             swap_focus_index: 0,
-            swap_enabled: false,
+            swap_enabled: true,
 
             uki_focus_index: 0,
             uki_enabled: false,
@@ -438,9 +568,35 @@ impl AppState {
             bootloader_focus_index: 0,
             bootloader_index: 0,
 
+            kernels_focus_index: 0,
+            selected_kernels: {
+                let mut s = std::collections::BTreeSet::new();
+                s.insert("linux".into());
+                s
+            },
+
+            audio_focus_index: 0,
+            audio_index: 1,
+
+            network_focus_index: 0,
+            network_mode_index: 2,
+            network_configs: Vec::new(),
+            network_selected_interface: None,
+            network_draft_mode_static: false,
+            network_draft_ip_cidr: String::new(),
+            network_draft_gateway: String::new(),
+            network_draft_dns: String::new(),
+            network_reopen_after_info_ip: false,
+            network_reopen_after_info_gateway: false,
+            network_reopen_after_info_dns: false,
+
             experience_focus_index: 0,
             experience_mode_index: 0,
-            selected_desktop_envs: std::collections::BTreeSet::new(),
+            selected_desktop_envs: {
+                let mut s = std::collections::BTreeSet::new();
+                s.insert("KDE Plasma".into());
+                s
+            },
             selected_server_types: std::collections::BTreeSet::new(),
             selected_server_packages: std::collections::BTreeMap::new(),
             selected_xorg_types: std::collections::BTreeSet::new(),
@@ -448,30 +604,142 @@ impl AppState {
             selected_env_packages: std::collections::BTreeMap::new(),
             popup_packages_focus: false,
             popup_packages_selected_index: 0,
-            selected_login_manager: None,
+            selected_graphic_drivers: {
+                let mut s = std::collections::BTreeSet::new();
+                s.insert("intel-media-driver".into());
+                s.insert("libva-intel-driver".into());
+                s.insert("mesa".into());
+                s.insert("vulkan-intel".into());
+                s.insert("vulkan-nouveau".into());
+                s.insert("vulkan-radeon".into());
+                s.insert("xf86-video-amdgpu".into());
+                s.insert("xf86-video-ati".into());
+                s.insert("xf86-video-nouveau".into());
+                s.insert("xf86-video-vmware".into());
+                s.insert("xorg-server".into());
+                s.insert("xorg-xinit".into());
+                s
+            },
+            popup_drivers_focus: false,
+            popup_drivers_selected_index: 0,
+            selected_login_manager: Some("sddm".into()),
             login_manager_user_set: false,
             popup_login_focus: false,
             popup_login_selected_index: 0,
 
             hostname_focus_index: 0,
-            hostname_value: String::new(),
+            hostname_value: "Archlinux".into(),
+            hostname_reopen_after_info: false,
+
+            timezone_focus_index: 0,
+            timezone_value: "Europe/London".into(),
+
+            ats_focus_index: 0,
+            ats_enabled: true,
 
             rootpass_focus_index: 0,
             root_password: String::new(),
             root_password_confirm: String::new(),
+            root_password_hash: None,
+            rootpass_reopen_after_info: false,
 
             user_focus_index: 0,
             users: Vec::new(),
+            selected_user_index: 0,
             draft_user_username: String::new(),
             draft_user_password: String::new(),
             draft_user_password_confirm: String::new(),
             draft_user_is_sudo: false,
+            username_reopen_after_info: false,
+            userpass_reopen_after_info: false,
+            useredit_reopen_after_info: false,
 
             config_focus_index: 0,
 
             last_load_missing_sections: Vec::new(),
+
+            addpkgs_focus_index: 0,
+            additional_packages: Vec::new(),
+            addpkgs_selected_index: 0,
+            addpkgs_selected: std::collections::BTreeSet::new(),
+            addpkgs_reopen_after_info: false,
+
+            processed_sections: BTreeSet::new(),
         };
+        // Initialize dynamic option lists and apply startup defaults
+        let _ = s.load_locales_options();
+        // Keyboard: us
+        if let Some(idx) = s
+            .keyboard_layout_options
+            .iter()
+            .position(|k| k == "us")
+        {
+            s.keyboard_layout_index = idx;
+            s.draft_keyboard_layout_index = idx;
+        }
+        // Locale language: en_US.UTF-8
+        if let Some(idx) = s
+            .locale_language_options
+            .iter()
+            .position(|l| l == "en_US.UTF-8")
+        {
+            s.locale_language_index = idx;
+            s.draft_locale_language_index = idx;
+        }
+        // Encoding: UTF-8
+        if let Some(idx) = s
+            .locale_encoding_options
+            .iter()
+            .position(|e| e.eq_ignore_ascii_case("UTF-8"))
+        {
+            s.locale_encoding_index = idx;
+            s.draft_locale_encoding_index = idx;
+        }
+
+        let _ = s.load_mirrors_options();
+        if s.mirrors_regions_selected.is_empty() {
+            if let Some(idx) = s
+                .mirrors_regions_options
+                .iter()
+                .position(|c| c == "United States          US   186")
+                .or_else(|| {
+                    s.mirrors_regions_options
+                        .iter()
+                        .position(|c| c.contains("United States"))
+                })
+            {
+                s.mirrors_regions_selected.insert(idx);
+            }
+        }
+
         s.update_unified_kernel_images_visibility();
+        // Seed default Desktop Environment packages for preselected environments
+        if s.selected_desktop_envs.contains("KDE Plasma")
+            && !s.selected_env_packages.contains_key("KDE Plasma")
+        {
+            let defaults: Vec<&str> = vec![
+                "ark",
+                "dolphin",
+                "kate",
+                "konsole",
+                "plasma-meta",
+                "plasma-workspace",
+                // Common tools
+                "htop",
+                "iwd",
+                "nano",
+                "openssh",
+                "smartmontools",
+                "vim",
+                "wget",
+                "wireless_tools",
+                "wpa_supplicant",
+                "xdg-utils",
+            ];
+            let set: std::collections::BTreeSet<String> =
+                defaults.into_iter().map(|s| s.to_string()).collect();
+            s.selected_env_packages.insert("KDE Plasma".into(), set);
+        }
         s
     }
 
@@ -508,6 +776,72 @@ impl AppState {
                     } else {
                         self.locale_language_index = idx;
                     }
+                    // Auto-select encoding based on selected locale language
+                    let selected_lang = self
+                        .locale_language_options
+                        .get(if self.editing_locales {
+                            self.draft_locale_language_index
+                        } else {
+                            self.locale_language_index
+                        })
+                        .cloned();
+                    if let Some(lang) = selected_lang {
+                        let desired = self
+                            .locale_language_to_encoding
+                            .get(&lang)
+                            .cloned()
+                            .or_else(|| {
+                                // Heuristic: if language token includes UTF-8, prefer UTF-8
+                                if lang.to_uppercase().contains("UTF-8") {
+                                    Some("UTF-8".to_string())
+                                } else {
+                                    None
+                                }
+                            });
+                        if let Some(enc_name) = desired {
+                            // Exact match first
+                            if let Some(eidx) = self
+                                .locale_encoding_options
+                                .iter()
+                                .position(|e| e == &enc_name)
+                            {
+                                if self.editing_locales {
+                                    self.draft_locale_encoding_index = eidx;
+                                } else {
+                                    self.locale_encoding_index = eidx;
+                                }
+                            } else {
+                                // Fallbacks
+                                let upper = enc_name.to_uppercase();
+                                // If ISO hinted, pick first ISO available
+                                if upper.starts_with("ISO") {
+                                    if let Some(eidx) = self
+                                        .locale_encoding_options
+                                        .iter()
+                                        .position(|e| e.to_uppercase().starts_with("ISO"))
+                                    {
+                                        if self.editing_locales {
+                                            self.draft_locale_encoding_index = eidx;
+                                        } else {
+                                            self.locale_encoding_index = eidx;
+                                        }
+                                    }
+                                } else if upper.contains("UTF-8")
+                                    &&
+                                    let Some(eidx) = self
+                                        .locale_encoding_options
+                                        .iter()
+                                        .position(|e| e.to_uppercase() == "UTF-8")
+                                {
+                                    if self.editing_locales {
+                                        self.draft_locale_encoding_index = eidx;
+                                    } else {
+                                        self.locale_encoding_index = eidx;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 Some(PopupKind::LocaleEncoding) => {
                     if self.editing_locales {
@@ -519,6 +853,8 @@ impl AppState {
                 Some(PopupKind::MirrorsRegions) => { /* multi-select handled via spacebar; Enter closes */
                 }
                 Some(PopupKind::OptionalRepos) => { /* multi-select handled via spacebar; Enter closes */
+                }
+                Some(PopupKind::KernelSelect) => { /* multi-select handled via spacebar; Enter closes */
                 }
                 Some(PopupKind::MirrorsCustomServerInput) => { /* handled via Enter appending buffer; keep open */
                 }
@@ -545,6 +881,7 @@ impl AppState {
                 | Some(PopupKind::ServerTypeSelect)
                 | Some(PopupKind::XorgTypeSelect)
                 | Some(PopupKind::MinimalClearConfirm) => { /* handled in input flow */ }
+                Some(_) => { /* unhandled popup: ignore selection */ }
                 None => {}
             }
         }
@@ -627,6 +964,12 @@ impl AppState {
         self.popup_open = true;
     }
 
+    pub fn is_ascii_only(input: &str) -> bool { input.is_ascii() }
+
+    pub fn is_ascii_lowercase_only(input: &str) -> bool {
+        input.chars().all(|c| c.is_ascii_lowercase())
+    }
+
     pub fn open_hostname_input(&mut self) {
         self.popup_kind = Some(PopupKind::HostnameInput);
         self.custom_input_buffer.clear();
@@ -671,6 +1014,21 @@ impl AppState {
         self.popup_search_query.clear();
     }
 
+    pub fn open_kernels_popup(&mut self) {
+        self.popup_kind = Some(PopupKind::KernelSelect);
+        self.popup_open = true;
+        self.popup_items = vec![
+            "linux".into(),
+            "linux-hardened".into(),
+            "linux-lts".into(),
+            "linux-zen".into(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+    }
+
     pub fn open_user_sudo_select(&mut self) {
         self.popup_kind = Some(PopupKind::UserAddSudo);
         self.popup_open = true;
@@ -696,6 +1054,8 @@ impl AppState {
         self.popup_open = true;
         self.popup_packages_focus = false;
         self.popup_packages_selected_index = 0;
+        self.popup_drivers_focus = false;
+        self.popup_drivers_selected_index = 0;
         self.popup_login_focus = false;
         self.popup_login_selected_index = 0;
         self.popup_items = vec![
@@ -754,6 +1114,8 @@ impl AppState {
         // Reset pane focus to left when opening
         self.popup_packages_focus = false;
         self.popup_packages_selected_index = 0;
+        self.popup_drivers_focus = false;
+        self.popup_drivers_selected_index = 0;
     }
 
     pub fn start_add_user_flow(&mut self) {

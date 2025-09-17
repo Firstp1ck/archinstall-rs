@@ -28,16 +28,42 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             // When command line is open, handle only command keys
             _ if app.cmdline_open => return handle_cmdline_keys(app, key.code),
             // Vim motions for menu and decision navigation
-            KeyCode::Up | KeyCode::Char('k') => {
+            KeyCode::Up => {
                 if app.focus == Focus::Menu {
                     move_menu_up(app);
+                } else {
+                    // In Additional Packages screen, Up moves selection within packages
+                    if app.current_screen() == Screen::AdditionalPackages {
+                        super::screens::move_addpkgs_up(app);
+                    } else {
+                        move_screen_up(app);
+                    }
+                }
+            }
+            KeyCode::Down => {
+                if app.focus == Focus::Menu {
+                    move_menu_down(app);
+                } else if app.current_screen() == Screen::AdditionalPackages {
+                    super::screens::move_addpkgs_down(app);
+                } else {
+                    move_screen_down(app);
+                }
+            }
+            KeyCode::Char('k') => {
+                if app.focus == Focus::Menu {
+                    move_menu_up(app);
+                } else if app.current_screen() == Screen::AdditionalPackages {
+                    // In Additional Packages screen, j/k switch between Add package and Continue
+                    super::screens::change_value(app, false);
                 } else {
                     move_screen_up(app);
                 }
             }
-            KeyCode::Down | KeyCode::Char('j') => {
+            KeyCode::Char('j') => {
                 if app.focus == Focus::Menu {
                     move_menu_down(app);
+                } else if app.current_screen() == Screen::AdditionalPackages {
+                    super::screens::change_value(app, true);
                 } else {
                     move_screen_down(app);
                 }
@@ -51,6 +77,47 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             // Vim motions inside decision menu
             KeyCode::Left | KeyCode::Char('h') => change_value(app, false),
             KeyCode::Right | KeyCode::Char('l') => change_value(app, true),
+            KeyCode::Char(' ') => {
+                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
+                    && !app.additional_packages.is_empty()
+                {
+                    let i = app
+                        .addpkgs_selected_index
+                        .min(app.additional_packages.len() - 1);
+                    if app.addpkgs_selected.contains(&i) {
+                        app.addpkgs_selected.remove(&i);
+                    } else {
+                        app.addpkgs_selected.insert(i);
+                    }
+                }
+            }
+            KeyCode::Backspace | KeyCode::Delete => {
+                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
+                    && !app.additional_packages.is_empty()
+                {
+                    if app.addpkgs_selected.is_empty() {
+                        // delete current
+                        if app.addpkgs_selected_index < app.additional_packages.len() {
+                            app.additional_packages.remove(app.addpkgs_selected_index);
+                        }
+                    } else {
+                        // delete all checked (highest index first)
+                        let mut to_delete: Vec<usize> =
+                            app.addpkgs_selected.iter().copied().collect();
+                        to_delete.sort_by(|a, b| b.cmp(a));
+                        for idx in to_delete {
+                            if idx < app.additional_packages.len() {
+                                app.additional_packages.remove(idx);
+                            }
+                        }
+                        app.addpkgs_selected.clear();
+                    }
+                    if app.addpkgs_selected_index >= app.additional_packages.len() {
+                        app.addpkgs_selected_index =
+                            app.additional_packages.len().saturating_sub(1);
+                    }
+                }
+            }
             // Open command line (Locales)
             KeyCode::Char(':') => {
                 if app.focus == Focus::Content {
