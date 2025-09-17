@@ -48,9 +48,9 @@ pub struct ConfigDisks {
     pub selected_device_sector_size: Option<String>,
     pub selected_device_read_only: Option<bool>,
     // Extended disk configuration for explicit partitioning
-    pub label: Option<String>,          // "gpt" | "msdos"
-    pub wipe: Option<bool>,             // wipe the disk before partitioning
-    pub align: Option<String>,          // e.g. "1MiB"
+    pub label: Option<String>, // "gpt" | "msdos"
+    pub wipe: Option<bool>,    // wipe the disk before partitioning
+    pub align: Option<String>, // e.g. "1MiB"
     pub partitions: Vec<ConfigPartition>,
 }
 
@@ -58,11 +58,11 @@ pub struct ConfigDisks {
 #[serde(default)]
 pub struct ConfigPartition {
     pub name: Option<String>,
-    pub role: Option<String>,          // e.g. efi, bios_boot, root, swap, home, var, ...
-    pub fs: Option<String>,            // vfat, ext4, btrfs, xfs, swap, ...
-    pub start: Option<String>,         // e.g. 1MiB, 513MiB
-    pub size: Option<String>,          // e.g. 512MiB, 8GiB, 100%
-    pub flags: Vec<String>,            // esp, boot, legacy_boot, ...
+    pub role: Option<String>, // e.g. efi, bios_boot, root, swap, home, var, ...
+    pub fs: Option<String>,   // vfat, ext4, btrfs, xfs, swap, ...
+    pub start: Option<String>, // e.g. 1MiB, 513MiB
+    pub size: Option<String>, // e.g. 512MiB, 8GiB, 100%
+    pub flags: Vec<String>,   // esp, boot, legacy_boot, ...
     pub mountpoint: Option<String>,
     pub mount_options: Option<String>,
     pub encrypt: Option<bool>,

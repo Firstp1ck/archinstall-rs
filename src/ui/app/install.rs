@@ -10,6 +10,174 @@ impl AppState {
     pub fn init_install(&mut self) {
         // placeholder
     }
+
+    pub fn start_install(&mut self) {
+        // Prechecks
+        let target = match &self.disks_selected_device {
+            Some(p) => p.clone(),
+            None => {
+                self.open_info_popup("No target disk selected.".into());
+                return;
+            }
+        };
+
+        // Check for mounted partitions on target (lsblk -J -o NAME,PATH,MOUNTPOINT)
+        if self.disk_has_mounted_partitions(&target) {
+            self.open_info_popup(format!(
+                "Device {} has mounted partitions. Unmount before proceeding.",
+                target
+            ));
+            return;
+        }
+
+        // If free space is low and wipe not explicitly requested, ask confirmation
+        if !self.disks_wipe && self.disk_freespace_low(&target) {
+            self.popup_kind = Some(super::PopupKind::WipeConfirm);
+            self.popup_open = true;
+            self.popup_items = vec!["Yes, wipe the device".into(), "No, cancel".into()];
+            self.popup_visible_indices = (0..self.popup_items.len()).collect();
+            self.popup_selected_visible = 1; // default to No
+            self.popup_in_search = false;
+            self.popup_search_query.clear();
+            return;
+        }
+
+        // Build and optionally execute plan
+        let plan = self.build_partition_plan(&target);
+        if self.dry_run {
+            // Show commands in info popup (truncate length if needed)
+            let body = plan.join("\n");
+            self.open_info_popup(body);
+            return;
+        }
+        self.execute_plan(plan);
+    }
+
+    fn disk_has_mounted_partitions(&self, dev: &str) -> bool {
+        let output = std::process::Command::new("lsblk")
+            .args(["-J", "-o", "PATH,MOUNTPOINT"])
+            .output();
+        if let Ok(out) = output
+            && out.status.success()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout)
+            && let Some(arr) = json.get("blockdevices").and_then(|v| v.as_array())
+        {
+            for d in arr {
+                let path = d.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                if !path.starts_with(dev) {
+                    continue;
+                }
+                // root entry may not mount, check children
+                if let Some(children) = d.get("children").and_then(|v| v.as_array()) {
+                    for ch in children {
+                        let p = ch.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                        let mp = ch.get("mountpoint").and_then(|v| v.as_str()).unwrap_or("");
+                        if p.starts_with(dev) && !mp.is_empty() {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn disk_freespace_low(&self, dev: &str) -> bool {
+        // Use cached freespace from device list; fallback to lsblk bytes
+        if let Some(found) = self.disks_devices.iter().find(|d| d.path == dev) {
+            // Interpret freespace string; treat non-empty and not "-" as potentially low
+            if !found.freespace.is_empty() && found.freespace != "-" {
+                // Heuristic: consider low if freespace < 2 GiB
+                let s = found.freespace.to_lowercase();
+                let is_low = s.ends_with(" mib") || s.ends_with(" kib") || s.ends_with(" b");
+                return is_low;
+            }
+        }
+        false
+    }
+
+    fn is_uefi(&self) -> bool {
+        std::path::Path::new("/sys/firmware/efi").exists()
+    }
+
+    fn build_partition_plan(&self, dev: &str) -> Vec<String> {
+        let mut cmds: Vec<String> = Vec::new();
+        let label = self.disks_label.clone().unwrap_or_else(|| "gpt".into());
+        // Wipe if requested
+        if self.disks_wipe {
+            cmds.push(format!("wipefs -a {}", dev));
+        }
+
+        // parted common options
+        let align = self.disks_align.clone().unwrap_or_else(|| "1MiB".into());
+        cmds.push(format!("parted -s {} mklabel {}", dev, label));
+
+        let mut next_start = align.clone();
+        if self.is_uefi() && self.bootloader_index != 1 {
+            // ESP 512MiB
+            cmds.push(format!(
+                "parted -s {} mkpart ESP fat32 {} 513MiB",
+                dev, next_start
+            ));
+            cmds.push(format!("parted -s {} set 1 esp on", dev));
+            cmds.push(format!("mkfs.vfat -F32 {}1", dev));
+            next_start = "513MiB".into();
+        } else {
+            // BIOS boot 1MiB
+            cmds.push(format!(
+                "parted -s {} mkpart biosboot {} 2MiB",
+                dev, next_start
+            ));
+            cmds.push(format!("parted -s {} set 1 bios_grub on", dev));
+            next_start = "2MiB".into();
+        }
+
+        if self.swap_enabled {
+            // 4GiB swap
+            cmds.push(format!(
+                "parted -s {} mkpart swap linux-swap {} 4098MiB",
+                dev, next_start
+            ));
+            cmds.push(format!("mkswap {}2", dev));
+            next_start = "4098MiB".into();
+        }
+
+        // Root (rest)
+        cmds.push(format!(
+            "parted -s {} mkpart root btrfs {} 100%",
+            dev, next_start
+        ));
+        let luks = self.disk_encryption_type_index == 1;
+        if luks {
+            // cryptsetup on root
+            cmds.push(format!("cryptsetup luksFormat {}3", dev));
+            cmds.push(format!("cryptsetup open {}3 cryptroot", dev));
+            cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
+        } else {
+            cmds.push(format!("mkfs.btrfs -f {}3", dev));
+        }
+        cmds
+    }
+
+    fn execute_plan(&mut self, cmds: Vec<String>) {
+        for c in cmds {
+            // Never print encryption password
+            let mut parts = c.split_whitespace();
+            let bin = parts.next().unwrap_or("");
+            let args: Vec<&str> = parts.collect();
+            let status = std::process::Command::new(bin).args(args).status();
+            if let Ok(st) = status {
+                if !st.success() {
+                    self.open_info_popup(format!("Command failed: {}", c));
+                    return;
+                }
+            } else {
+                self.open_info_popup(format!("Failed to run: {}", c));
+                return;
+            }
+        }
+        self.open_info_popup("Partitioning completed.".into());
+    }
 }
 
 pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
@@ -54,7 +222,10 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             items.push(format!("Optional repos: {}", names.join(", ")));
         }
         if !app.mirrors_custom_servers.is_empty() {
-            items.push(format!("Custom servers: {}", app.mirrors_custom_servers.len()));
+            items.push(format!(
+                "Custom servers: {}",
+                app.mirrors_custom_servers.len()
+            ));
         }
         if !app.custom_repos.is_empty() {
             items.push(format!("Custom repos: {}", app.custom_repos.len()));
@@ -82,7 +253,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     // Disk Encryption
     {
         let mut items: Vec<String> = Vec::new();
-        let enc = if app.disk_encryption_type_index == 1 { "LUKS" } else { "None" };
+        let enc = if app.disk_encryption_type_index == 1 {
+            "LUKS"
+        } else {
+            "None"
+        };
         items.push(format!("Type: {}", enc));
         if let Some(p) = &app.disk_encryption_selected_partition {
             items.push(format!("Partition: {}", p));
@@ -94,7 +269,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     // Swap
     let swap_items = vec![format!(
         "{}",
-        if app.swap_enabled { "Enabled" } else { "Disabled" }
+        if app.swap_enabled {
+            "Enabled"
+        } else {
+            "Disabled"
+        }
     )];
     push_section_lines(&mut sections, "Swap", &swap_items);
 
@@ -114,7 +293,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     if app.bootloader_index != 1 {
         let uki_items = vec![format!(
             "{}",
-            if app.uki_enabled { "Enabled" } else { "Disabled" }
+            if app.uki_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
         )];
         push_section_lines(&mut sections, "Unified Kernel Images", &uki_items);
     }
@@ -150,8 +333,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         match app.experience_mode_index {
             2 => {
                 if !app.selected_server_types.is_empty() {
-                    let mut names: Vec<&str> =
-                        app.selected_server_types.iter().map(|s| s.as_str()).collect();
+                    let mut names: Vec<&str> = app
+                        .selected_server_types
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect();
                     names.sort_unstable();
                     items.push(format!("Servers: {}", names.join(", ")));
                 }
@@ -166,8 +352,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             }
             _ => {
                 if !app.selected_desktop_envs.is_empty() {
-                    let mut names: Vec<&str> =
-                        app.selected_desktop_envs.iter().map(|s| s.as_str()).collect();
+                    let mut names: Vec<&str> = app
+                        .selected_desktop_envs
+                        .iter()
+                        .map(|s| s.as_str())
+                        .collect();
                     names.sort_unstable();
                     items.push(format!("Desktops: {}", names.join(", ")));
                 }
@@ -179,7 +368,9 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 .clone()
                 .unwrap_or_else(|| "none".into())
         } else {
-            app.selected_login_manager.clone().unwrap_or_else(|| "none".into())
+            app.selected_login_manager
+                .clone()
+                .unwrap_or_else(|| "none".into())
         };
         items.push(format!("Login Manager: {}", lm));
         let exp_items = items;
@@ -213,7 +404,12 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 };
                 pkgs.sort_unstable();
                 let joined = pkgs.join(", ");
-                exp_pkg_sec.push(Line::from(format!("- {} ({}): {}", env, pkgs.len(), joined)));
+                exp_pkg_sec.push(Line::from(format!(
+                    "- {} ({}): {}",
+                    env,
+                    pkgs.len(),
+                    joined
+                )));
             }
             exp_pkg_sec.push(Line::from(""));
         }
@@ -227,31 +423,34 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 .collect();
             servers.sort_unstable();
             for server in servers {
-                let mut pkgs: Vec<String> = if let Some(set) = app.selected_server_packages.get(server) {
-                    set.iter().cloned().collect()
-                } else {
-                    server_default_packages(server)
-                        .into_iter()
-                        .map(|s| s.to_string())
-                        .collect()
-                };
+                let mut pkgs: Vec<String> =
+                    if let Some(set) = app.selected_server_packages.get(server) {
+                        set.iter().cloned().collect()
+                    } else {
+                        server_default_packages(server)
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect()
+                    };
                 pkgs.sort_unstable();
                 let joined = pkgs.join(", ");
-                exp_pkg_sec.push(Line::from(format!("- {} ({}): {}", server, pkgs.len(), joined)));
+                exp_pkg_sec.push(Line::from(format!(
+                    "- {} ({}): {}",
+                    server,
+                    pkgs.len(),
+                    joined
+                )));
             }
             exp_pkg_sec.push(Line::from(""));
         }
 
         // Xorg types
         if !app.selected_xorg_types.is_empty() {
-            let mut xorgs: Vec<&str> = app
-                .selected_xorg_types
-                .iter()
-                .map(|s| s.as_str())
-                .collect();
+            let mut xorgs: Vec<&str> = app.selected_xorg_types.iter().map(|s| s.as_str()).collect();
             xorgs.sort_unstable();
             for xorg in xorgs {
-                let mut pkgs: Vec<String> = if let Some(set) = app.selected_xorg_packages.get(xorg) {
+                let mut pkgs: Vec<String> = if let Some(set) = app.selected_xorg_packages.get(xorg)
+                {
                     set.iter().cloned().collect()
                 } else {
                     xorg_default_packages(xorg)
@@ -261,11 +460,18 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 };
                 pkgs.sort_unstable();
                 let joined = pkgs.join(", ");
-                exp_pkg_sec.push(Line::from(format!("- {} ({}): {}", xorg, pkgs.len(), joined)));
+                exp_pkg_sec.push(Line::from(format!(
+                    "- {} ({}): {}",
+                    xorg,
+                    pkgs.len(),
+                    joined
+                )));
             }
             exp_pkg_sec.push(Line::from(""));
         }
-        if !exp_pkg_sec.is_empty() { sections.push(exp_pkg_sec); }
+        if !exp_pkg_sec.is_empty() {
+            sections.push(exp_pkg_sec);
+        }
     }
 
     // Graphic Drivers
@@ -321,7 +527,9 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         let show_limit = 12usize;
         for (name, desc) in entries.into_iter().take(show_limit) {
             let mut line = format!("{} — {}", name, desc);
-            if line.len() > max_line { line.truncate(max_line); }
+            if line.len() > max_line {
+                line.truncate(max_line);
+            }
             apkg_sec.push(Line::from(format!("  - {}", line)));
         }
         if count > show_limit {
@@ -333,7 +541,9 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
 
     // Install button
     let button_style = match app.focus {
-        Focus::Content => Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        Focus::Content => Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
         _ => Style::default(),
     };
     sections.push(vec![Line::from(Span::styled("[ Install ]", button_style))]);

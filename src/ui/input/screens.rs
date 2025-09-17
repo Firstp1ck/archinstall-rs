@@ -187,6 +187,9 @@ pub(crate) fn handle_enter(app: &mut AppState) {
         Screen::MirrorsRepos => handle_enter_mirrors(app),
         Screen::Disks => handle_enter_disks(app),
         Screen::DiskEncryption => handle_enter_diskenc(app),
+        Screen::Install => {
+            app.start_install();
+        }
         Screen::Abort => app.open_abort_confirm_popup(),
         Screen::SwapPartition => handle_enter_swap(app),
         Screen::Bootloader => handle_enter_bootloader(app),

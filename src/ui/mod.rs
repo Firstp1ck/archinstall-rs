@@ -1,4 +1,6 @@
 pub mod app;
+pub mod common;
+pub mod core;
 mod input;
 mod render;
 

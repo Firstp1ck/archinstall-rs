@@ -103,7 +103,9 @@ impl AppState {
     pub fn open_network_interfaces_popup(&mut self) {
         // Read interfaces via `ip -o link` and filter out lo
         let mut items: Vec<String> = Vec::new();
-        if let Ok(out) = std::process::Command::new("ip").args(["-o", "link"]).output()
+        if let Ok(out) = std::process::Command::new("ip")
+            .args(["-o", "link"])
+            .output()
             && out.status.success()
         {
             let text = String::from_utf8_lossy(&out.stdout);

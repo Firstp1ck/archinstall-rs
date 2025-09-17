@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use super::{AppState, PopupKind, Screen};
+use super::{AppState, CustomRepo, PopupKind, RepoSignOption, RepoSignature, Screen};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -100,6 +100,29 @@ impl AppState {
             .min(self.popup_items.len().saturating_sub(1));
         self.popup_in_search = false;
         self.popup_search_query.clear();
+    }
+
+    pub fn finalize_custom_repo(&mut self) {
+        let sig = match self.draft_repo_sig_index {
+            0 => RepoSignature::Never,
+            1 => RepoSignature::Optional,
+            _ => RepoSignature::Required,
+        };
+        let sign_option = if self.draft_repo_sig_index == 0 {
+            None
+        } else {
+            Some(match self.draft_repo_signopt_index {
+                0 => RepoSignOption::TrustedOnly,
+                _ => RepoSignOption::TrustedAll,
+            })
+        };
+        self.custom_repos.push(CustomRepo {
+            name: self.draft_repo_name.clone(),
+            url: self.draft_repo_url.clone(),
+            signature: sig,
+            sign_option,
+        });
+        self.close_popup();
     }
 }
 

@@ -1,8 +1,28 @@
 # 🦀 archinstall-rs
 
+> ⚠️ DO NOT USE! Still under Development!
+
 A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux written in Rust. This project aims to simplify the Arch Linux installation process while maintaining the flexibility and control that Arch users expect.
 
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
+
+## Current Status
+
+- Implemented
+  - TUI scaffolding and navigation
+  - Config save/load (TOML)
+  - Disk selection and plan preview (infobox)
+  - Best-effort partitioning plan (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
+  - Partitioning execution via parted/mkfs/cryptsetup with safety checks:
+    - Abort if target has mounted partitions
+    - Wipe confirmation if device appears already partitioned (low free space)
+  - Dry-run mode: shows command plan only, performs no changes (`--dry-run`)
+
+- Not yet
+  - Manual partitioning editor and explicit partition list execution
+  - Mounting filesystems and continuing installation (pacstrap, fstab, etc.)
+  - LVM/RAID and advanced btrfs subvolume layouts
+  - Full installation progress view/log viewer
 
 ## ✨ Features
 
@@ -246,30 +266,41 @@ archinstall-rs/
 │   └── ui/
 │       ├── mod.rs           # UI module root
 │       ├── app.rs           # Application state and logic
-│       ├── render.rs        # Rendering logic
-│       ├── input.rs         # Input handling
-│       └── app/             # Individual installation sections
+│       ├── render/          # Rendering modules
+│       │   ├── mod.rs
+│       │   ├── sections.rs
+│       │   ├── popup.rs
+│       │   └── cmdline.rs
+│       ├── input/           # Input handling
+│       │   ├── mod.rs
+│       │   ├── screens.rs
+│       │   ├── popup.rs
+│       │   ├── top.rs
+│       │   └── cmdline.rs
+│       └── app/             # Installation sections
+│           ├── abort.rs
+│           ├── additional_packages.rs
+│           ├── audio.rs
+│           ├── automatic_time_sync.rs
+│           ├── bootloader.rs
 │           ├── config.rs
+│           ├── disk_encryption.rs
 │           ├── disks.rs
+│           ├── experience_mode.rs
+│           ├── hostname.rs
+│           ├── install.rs
+│           ├── kernels.rs
 │           ├── locales.rs
 │           ├── mirrors.rs
-│           ├── disk_encryption.rs
-│           ├── swap_partition.rs
-│           ├── bootloader.rs
-│           ├── unified_kernel_images.rs
-│           ├── hostname.rs
-│           ├── root_password.rs
-│           ├── user_account.rs
-│           ├── experience_mode.rs
-│           ├── audio.rs
-│           ├── kernels.rs
 │           ├── network_configuration.rs
-│           ├── additional_packages.rs
-│           ├── timezone.rs
-│           ├── automatic_time_sync.rs
+│           ├── root_password.rs
 │           ├── save_configuration.rs
-│           ├── install.rs
-│           └── abort.rs
+│           ├── swap_partition.rs
+│           ├── timezone.rs
+│           ├── unified_kernel_images.rs
+│           └── user_account.rs
+├── Documents/
+├── Images/
 ├── archinstall-rs.config.toml  # Example configuration
 ├── Cargo.toml                   # Rust dependencies
 └── README.md                    # This file
@@ -308,11 +339,30 @@ cargo clippy
 
 ### Adding New Features
 
-1. Create a new module in `src/ui/app/`
-2. Define the UI components and state
-3. Add the section to the main menu in `app.rs`
-4. Update the configuration structure if needed
-5. Add tests for the new functionality
+1. Create a screen module
+   - Add a new file under `src/ui/app/` (e.g., `src/ui/app/my_feature.rs`).
+   - Expose a draw function like `pub fn draw_my_feature(frame: &mut Frame, app: &mut AppState, area: Rect)`.
+
+2. Register the screen in `src/ui/app.rs`
+   - Add a variant to the `Screen` enum (e.g., `Screen::MyFeature`).
+   - Add a `MenuEntry { label, content, screen: Screen::MyFeature }` in `AppState::new()` to show it in the left menu.
+   - Add any per-screen state fields to `AppState` (focus indices, selections, etc.).
+
+3. Wire rendering in `src/ui/render/sections.rs`
+   - Extend the `match app.current_screen()` to call your `draw_my_feature(...)` when `Screen::MyFeature` is active.
+   - Optionally add an Info-box summary for the new screen above the content (inside the Info block section).
+
+4. Wire input in `src/ui/input/screens.rs`
+   - Implement functions for navigation and actions: `move_my_feature_up/down`, `change_my_feature_value`, `handle_enter_my_feature`.
+   - Extend the top-level delegates (`move_screen_up/down`, `change_value`, `handle_enter`) to call your functions when `Screen::MyFeature` is active.
+   - If the screen uses popups, add a `PopupKind::...` in `src/ui/app.rs`, add open functions on `AppState`, and handle selections in `apply_popup_selection`.
+
+5. Persist configuration (optional) in `src/ui/app/config.rs`
+   - Add fields to `AppConfig` if you need to save/load state for the new screen.
+   - Update `build_config()` to write, and `load_config()` to read these fields.
+
+6. Finalize
+   - Add tests and documentation as needed.
 
 ## 🚦 Roadmap
 

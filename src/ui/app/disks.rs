@@ -183,17 +183,9 @@ impl AppState {
                 self.disks_devices = devices;
                 // Default disk selection preference: /dev/sda, fallback /dev/sdb
                 if self.disks_selected_device.is_none() {
-                    if self
-                        .disks_devices
-                        .iter()
-                        .any(|d| d.path == "/dev/sda")
-                    {
+                    if self.disks_devices.iter().any(|d| d.path == "/dev/sda") {
                         self.disks_selected_device = Some("/dev/sda".into());
-                    } else if self
-                        .disks_devices
-                        .iter()
-                        .any(|d| d.path == "/dev/sdb")
-                    {
+                    } else if self.disks_devices.iter().any(|d| d.path == "/dev/sdb") {
                         self.disks_selected_device = Some("/dev/sdb".into());
                     }
                 }

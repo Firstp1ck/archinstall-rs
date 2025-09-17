@@ -78,7 +78,8 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             KeyCode::Left | KeyCode::Char('h') => change_value(app, false),
             KeyCode::Right | KeyCode::Char('l') => change_value(app, true),
             KeyCode::Char(' ') => {
-                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
+                if app.focus == Focus::Content
+                    && app.current_screen() == Screen::AdditionalPackages
                     && !app.additional_packages.is_empty()
                 {
                     let i = app
@@ -92,7 +93,8 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                 }
             }
             KeyCode::Backspace | KeyCode::Delete => {
-                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
+                if app.focus == Focus::Content
+                    && app.current_screen() == Screen::AdditionalPackages
                     && !app.additional_packages.is_empty()
                 {
                     if app.addpkgs_selected.is_empty() {

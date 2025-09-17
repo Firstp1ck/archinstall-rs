@@ -174,9 +174,16 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         // Partition plan preview
         if app.disks_mode_index == 1 && !app.disks_partitions.is_empty() {
             // Manual: show explicit partitions from config
-            if let Some(label) = &app.disks_label { info_lines.push(Line::from(format!("Label: {}", label))); }
-            info_lines.push(Line::from(format!("Wipe: {}", if app.disks_wipe { "Yes" } else { "No" })));
-            if let Some(align) = &app.disks_align { info_lines.push(Line::from(format!("Align: {}", align))); }
+            if let Some(label) = &app.disks_label {
+                info_lines.push(Line::from(format!("Label: {}", label)));
+            }
+            info_lines.push(Line::from(format!(
+                "Wipe: {}",
+                if app.disks_wipe { "Yes" } else { "No" }
+            )));
+            if let Some(align) = &app.disks_align {
+                info_lines.push(Line::from(format!("Align: {}", align)));
+            }
             info_lines.push(Line::from("Partitions:"));
             for p in &app.disks_partitions {
                 let name = p.name.clone().unwrap_or_default();
@@ -184,36 +191,75 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
                 let fs = p.fs.clone().unwrap_or_default();
                 let start = p.start.clone().unwrap_or_default();
                 let size = p.size.clone().unwrap_or_default();
-                let flags = if p.flags.is_empty() { String::new() } else { p.flags.join(",") };
+                let flags = if p.flags.is_empty() {
+                    String::new()
+                } else {
+                    p.flags.join(",")
+                };
                 let mp = p.mountpoint.clone().unwrap_or_default();
-                let enc = if p.encrypt.unwrap_or(false) { " enc" } else { "" };
+                let enc = if p.encrypt.unwrap_or(false) {
+                    " enc"
+                } else {
+                    ""
+                };
                 let mut line = String::new();
-                if !name.is_empty() { line.push_str(&format!("{} ", name)); }
-                if !role.is_empty() { line.push_str(&format!("({}) ", role)); }
-                if !fs.is_empty() { line.push_str(&format!("{} ", fs)); }
-                if !start.is_empty() || !size.is_empty() { line.push_str(&format!("[{}..{}] ", start, size)); }
-                if !flags.is_empty() { line.push_str(&format!("flags:{} ", flags)); }
-                if !mp.is_empty() { line.push_str(&format!("-> {} ", mp)); }
+                if !name.is_empty() {
+                    line.push_str(&format!("{} ", name));
+                }
+                if !role.is_empty() {
+                    line.push_str(&format!("({}) ", role));
+                }
+                if !fs.is_empty() {
+                    line.push_str(&format!("{} ", fs));
+                }
+                if !start.is_empty() || !size.is_empty() {
+                    line.push_str(&format!("[{}..{}] ", start, size));
+                }
+                if !flags.is_empty() {
+                    line.push_str(&format!("flags:{} ", flags));
+                }
+                if !mp.is_empty() {
+                    line.push_str(&format!("-> {} ", mp));
+                }
                 line.push_str(enc);
-                if line.is_empty() { line = "(empty)".into(); }
+                if line.is_empty() {
+                    line = "(empty)".into();
+                }
                 info_lines.push(Line::from(format!("- {}", line.trim())));
             }
         } else if app.disks_mode_index == 0 {
             // Best-effort: show derived plan summary
             // Heuristics: UEFI vs BIOS via /sys/firmware/efi (not executed here), show template
-            let bl = match app.bootloader_index { 1 => "GRUB", 0 => "systemd-boot", 2 => "efistub", _ => "other" };
+            let bl = match app.bootloader_index {
+                1 => "GRUB",
+                0 => "systemd-boot",
+                2 => "efistub",
+                _ => "other",
+            };
             info_lines.push(Line::from(format!("Bootloader: {}", bl)));
             // Basic recommended layout summary
             info_lines.push(Line::from("Planned layout:"));
             if bl == "GRUB" {
                 info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
-                if app.swap_enabled { info_lines.push(Line::from("- swap: 4GiB")); }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                if app.swap_enabled {
+                    info_lines.push(Line::from("- swap: 4GiB"));
+                }
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
             } else {
                 info_lines.push(Line::from("- gpt: 512MiB EFI (vfat, esp) -> /boot"));
-                if app.swap_enabled { info_lines.push(Line::from("- swap: 4GiB")); }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                if app.swap_enabled {
+                    info_lines.push(Line::from("- swap: 4GiB"));
+                }
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
             }
         }

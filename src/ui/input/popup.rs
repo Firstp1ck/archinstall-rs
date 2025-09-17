@@ -75,13 +75,14 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         if app.network_draft_mode_static {
                             app.open_network_ip_input();
                         } else if let Some(iface) = app.network_selected_interface.clone() {
-                            app.network_configs.push(crate::ui::app::NetworkInterfaceConfig {
-                                interface: iface,
-                                mode: crate::ui::app::NetworkConfigMode::Dhcp,
-                                ip_cidr: None,
-                                gateway: None,
-                                dns: None,
-                            });
+                            app.network_configs
+                                .push(crate::ui::app::NetworkInterfaceConfig {
+                                    interface: iface,
+                                    mode: crate::ui::app::NetworkConfigMode::Dhcp,
+                                    ip_cidr: None,
+                                    gateway: None,
+                                    dns: None,
+                                });
                             // Ensure DHCP client package is added for installation
                             let has_dhcp = app
                                 .additional_packages
@@ -133,9 +134,13 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         let octets: Vec<&str> = ip.split('.').collect();
                         let ip_ok = octets.len() == 4
                             && octets.iter().all(|o| {
-                                if o.is_empty() { return false; }
+                                if o.is_empty() {
+                                    return false;
+                                }
                                 // forbid leading plus/minus, only digits
-                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
+                                if !o.chars().all(|c| c.is_ascii_digit()) {
+                                    return false;
+                                }
                                 if let Ok(n) = o.parse::<u8>() {
                                     n >= 1
                                 } else {
@@ -164,9 +169,17 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         let octets: Vec<&str> = val.split('.').collect();
                         octets.len() == 4
                             && octets.iter().all(|o| {
-                                if o.is_empty() { return false; }
-                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
-                                if let Ok(n) = o.parse::<u8>() { n >= 1 } else { false }
+                                if o.is_empty() {
+                                    return false;
+                                }
+                                if !o.chars().all(|c| c.is_ascii_digit()) {
+                                    return false;
+                                }
+                                if let Ok(n) = o.parse::<u8>() {
+                                    n >= 1
+                                } else {
+                                    false
+                                }
                             })
                     };
                     if !valid {
@@ -189,9 +202,17 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         let octets: Vec<&str> = val.split('.').collect();
                         octets.len() == 4
                             && octets.iter().all(|o| {
-                                if o.is_empty() { return false; }
-                                if !o.chars().all(|c| c.is_ascii_digit()) { return false; }
-                                if let Ok(n) = o.parse::<u8>() { n >= 1 } else { false }
+                                if o.is_empty() {
+                                    return false;
+                                }
+                                if !o.chars().all(|c| c.is_ascii_digit()) {
+                                    return false;
+                                }
+                                if let Ok(n) = o.parse::<u8>() {
+                                    n >= 1
+                                } else {
+                                    false
+                                }
                             })
                     };
                     if !valid {
@@ -201,21 +222,22 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                         app.network_draft_dns = val;
                         app.close_popup();
                         if let Some(iface) = app.network_selected_interface.clone() {
-                            app.network_configs.push(crate::ui::app::NetworkInterfaceConfig {
-                                interface: iface,
-                                mode: crate::ui::app::NetworkConfigMode::Static,
-                                ip_cidr: Some(app.network_draft_ip_cidr.clone()),
-                                gateway: if app.network_draft_gateway.is_empty() {
-                                    None
-                                } else {
-                                    Some(app.network_draft_gateway.clone())
-                                },
-                                dns: if app.network_draft_dns.is_empty() {
-                                    None
-                                } else {
-                                    Some(app.network_draft_dns.clone())
-                                },
-                            });
+                            app.network_configs
+                                .push(crate::ui::app::NetworkInterfaceConfig {
+                                    interface: iface,
+                                    mode: crate::ui::app::NetworkConfigMode::Static,
+                                    ip_cidr: Some(app.network_draft_ip_cidr.clone()),
+                                    gateway: if app.network_draft_gateway.is_empty() {
+                                        None
+                                    } else {
+                                        Some(app.network_draft_gateway.clone())
+                                    },
+                                    dns: if app.network_draft_dns.is_empty() {
+                                        None
+                                    } else {
+                                        Some(app.network_draft_dns.clone())
+                                    },
+                                });
                             app.open_info_popup("Interface added with Static IP".into());
                         }
                     }
@@ -466,9 +488,12 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                                 app.disks_selected_device_model = Some(model_col.to_string());
                                 app.disks_selected_device_devtype = Some(devtype_col.to_string());
                                 app.disks_selected_device_size = Some(size_col.to_string());
-                                app.disks_selected_device_freespace = Some(freespace_col.to_string());
-                                app.disks_selected_device_sector_size = Some(sector_size_col.to_string());
-                                app.disks_selected_device_read_only = Some(read_only_col.eq_ignore_ascii_case("true"));
+                                app.disks_selected_device_freespace =
+                                    Some(freespace_col.to_string());
+                                app.disks_selected_device_sector_size =
+                                    Some(sector_size_col.to_string());
+                                app.disks_selected_device_read_only =
+                                    Some(read_only_col.eq_ignore_ascii_case("true"));
                             }
                         }
                     }
@@ -530,16 +555,27 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                 Some(PopupKind::MinimalClearConfirm) => {
                     if let Some(&global_idx) =
                         app.popup_visible_indices.get(app.popup_selected_visible)
-                        && global_idx == 0
                     {
-                        // Yes: set Minimal and clear selections
-                        app.experience_mode_index = 1;
-                        app.selected_desktop_envs.clear();
-                        app.selected_env_packages.clear();
-                        app.selected_login_manager = None;
-                        app.login_manager_user_set = false;
+                        if global_idx == 0 {
+                            // Yes: set Minimal and clear selections
+                            app.experience_mode_index = 1;
+                            app.selected_desktop_envs.clear();
+                            app.selected_env_packages.clear();
+                            app.selected_login_manager = None;
+                            app.login_manager_user_set = false;
+                        }
+                        app.close_popup();
                     }
-                    app.close_popup();
+                }
+                Some(PopupKind::WipeConfirm) => {
+                    if let Some(&global_idx) =
+                        app.popup_visible_indices.get(app.popup_selected_visible)
+                    {
+                        let yes = global_idx == 0;
+                        app.close_popup();
+                        // Store decision in a temp flag and proceed
+                        app.pending_wipe_confirm = Some(yes);
+                    }
                 }
                 Some(PopupKind::DesktopEnvSelect) => {
                     // For DE/WM popup, Enter just closes; selection is toggled with Space
