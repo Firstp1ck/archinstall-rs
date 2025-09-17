@@ -57,20 +57,7 @@ pub fn draw_user_account(frame: &mut ratatui::Frame, app: &mut AppState, area: R
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled("[ Continue ]", continue_style)));
 
-    // Existing users summary inline under options
-    if !app.users.is_empty() {
-        lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Users:",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )));
-        for u in &app.users {
-            let sudo = if u.is_sudo { "sudo" } else { "user" };
-            lines.push(Line::from(format!("- {} ({})", u.username, sudo)));
-        }
-    }
+    // Users summary moved to the Info box
 
     let content = Paragraph::new(lines)
         .block(

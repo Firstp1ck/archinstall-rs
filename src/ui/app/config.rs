@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{AppState, CustomRepo, RepoSignOption, RepoSignature, UserAccount};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -64,6 +65,33 @@ pub struct ConfigBootloader {
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default)]
+pub struct ConfigSystem {
+    pub hostname: String,
+    pub root_password_hash: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigUnifiedKernelImages {
+    pub enabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ConfigExperience {
+    pub mode: String, // "Desktop" | "Minimal" | "Server" | "Xorg"
+    pub desktop_envs: Vec<String>,
+    pub server_types: Vec<String>,
+    pub xorg_types: Vec<String>,
+    pub desktop_env_packages: BTreeMap<String, Vec<String>>, // env -> packages
+    pub server_packages: BTreeMap<String, Vec<String>>,      // type -> packages
+    pub xorg_packages: BTreeMap<String, Vec<String>>,        // type -> packages
+    pub login_manager: Option<String>,
+    pub login_manager_user_set: bool,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct AppConfig {
     pub locales: ConfigLocales,
     pub mirrors: ConfigMirrors,
@@ -71,6 +99,9 @@ pub struct AppConfig {
     pub disk_encryption: ConfigDiskEncryption,
     pub swap: ConfigSwap,
     pub bootloader: ConfigBootloader,
+    pub system: ConfigSystem,
+    pub unified_kernel_images: ConfigUnifiedKernelImages,
+    pub experience: ConfigExperience,
     pub users: Vec<ConfigUser>,
 }
 
@@ -156,6 +187,80 @@ impl AppState {
                 _ => "limine".into(),
             },
         };
+        let system = ConfigSystem {
+            hostname: self.hostname_value.clone(),
+            root_password_hash: if !self.root_password.is_empty()
+                && !self.root_password_confirm.is_empty()
+                && self.root_password == self.root_password_confirm
+            {
+                let mut hasher = Sha256::new();
+                hasher.update(self.root_password.as_bytes());
+                let result = hasher.finalize();
+                Some(format!("{:x}", result))
+            } else {
+                None
+            },
+        };
+        let unified_kernel_images = ConfigUnifiedKernelImages {
+            enabled: self.uki_enabled,
+        };
+
+        let experience_mode = match self.experience_mode_index {
+            0 => "Desktop",
+            1 => "Minimal",
+            2 => "Server",
+            3 => "Xorg",
+            _ => "Desktop",
+        }
+        .to_string();
+
+        let map_set_to_vec_filtered =
+            |m: &std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+             allowed: &std::collections::BTreeSet<String>| {
+                let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
+                for (k, set) in m.iter() {
+                    if !allowed.contains(k) {
+                        continue;
+                    }
+                    let mut v: Vec<String> = set.iter().cloned().collect();
+                    v.sort();
+                    out.insert(k.clone(), v);
+                }
+                out
+            };
+
+        let experience = ConfigExperience {
+            mode: experience_mode,
+            desktop_envs: {
+                let mut v: Vec<String> = self.selected_desktop_envs.iter().cloned().collect();
+                v.sort();
+                v
+            },
+            server_types: {
+                let mut v: Vec<String> = self.selected_server_types.iter().cloned().collect();
+                v.sort();
+                v
+            },
+            xorg_types: {
+                let mut v: Vec<String> = self.selected_xorg_types.iter().cloned().collect();
+                v.sort();
+                v
+            },
+            desktop_env_packages: map_set_to_vec_filtered(
+                &self.selected_env_packages,
+                &self.selected_desktop_envs,
+            ),
+            server_packages: map_set_to_vec_filtered(
+                &self.selected_server_packages,
+                &self.selected_server_types,
+            ),
+            xorg_packages: map_set_to_vec_filtered(
+                &self.selected_xorg_packages,
+                &self.selected_xorg_types,
+            ),
+            login_manager: self.selected_login_manager.clone(),
+            login_manager_user_set: self.login_manager_user_set,
+        };
         let users: Vec<ConfigUser> = self
             .users
             .iter()
@@ -177,6 +282,9 @@ impl AppState {
             disk_encryption,
             swap,
             bootloader,
+            system,
+            unified_kernel_images,
+            experience,
             users,
         }
     }
@@ -342,6 +450,51 @@ impl AppState {
             "limine" => 3,
             _ => 0, // systemd-boot default
         };
+        // System (hostname and root password hash)
+        self.hostname_value = cfg.system.hostname;
+        if self.hostname_value.is_empty() {
+            self.last_load_missing_sections
+                .push("System: hostname".into());
+        }
+        // Note: do not set root password from hash; require re-entry
+        if cfg.system.root_password_hash.is_none() {
+            self.last_load_missing_sections
+                .push("System: root_password_hash".into());
+        }
+
+        // Unified Kernel Images
+        self.uki_enabled = cfg.unified_kernel_images.enabled;
+
+        // Experience Mode and selections
+        self.experience_mode_index = match cfg.experience.mode.as_str() {
+            "Minimal" => 1,
+            "Server" => 2,
+            "Xorg" => 3,
+            _ => 0, // Desktop
+        };
+        self.selected_desktop_envs = cfg.experience.desktop_envs.into_iter().collect();
+        self.selected_server_types = cfg.experience.server_types.into_iter().collect();
+        self.selected_xorg_types = cfg.experience.xorg_types.into_iter().collect();
+        let vec_map_to_set = |m: BTreeMap<String, Vec<String>>| -> std::collections::BTreeMap<
+            String,
+            std::collections::BTreeSet<String>,
+        > {
+            let mut out: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+                std::collections::BTreeMap::new();
+            for (k, v) in m.into_iter() {
+                let mut set = std::collections::BTreeSet::new();
+                for item in v.into_iter() {
+                    set.insert(item);
+                }
+                out.insert(k, set);
+            }
+            out
+        };
+        self.selected_env_packages = vec_map_to_set(cfg.experience.desktop_env_packages);
+        self.selected_server_packages = vec_map_to_set(cfg.experience.server_packages);
+        self.selected_xorg_packages = vec_map_to_set(cfg.experience.xorg_packages);
+        self.selected_login_manager = cfg.experience.login_manager;
+        self.login_manager_user_set = cfg.experience.login_manager_user_set;
         // Users
         self.users = cfg
             .users

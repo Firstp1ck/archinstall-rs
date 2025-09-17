@@ -11,7 +11,7 @@ pub mod bootloader;
 pub mod config;
 pub mod disk_encryption;
 pub mod disks;
-mod experience_mode;
+pub mod experience_mode;
 pub mod hostname;
 mod install;
 mod kernels;
@@ -22,7 +22,7 @@ pub mod root_password;
 mod save_configuration;
 pub mod swap_partition;
 mod timezone;
-mod unified_kernel_images;
+pub mod unified_kernel_images;
 pub mod user_account;
 
 pub const LEFT_MENU_WIDTH: u16 = 30;
@@ -84,8 +84,12 @@ pub enum PopupKind {
     UserAddPassword,
     UserAddPasswordConfirm,
     UserAddSudo,
+    DesktopEnvSelect,
+    ServerTypeSelect,
+    XorgTypeSelect,
     Info,
     AbortConfirm,
+    MinimalClearConfirm,
 }
 
 #[derive(Clone)]
@@ -196,9 +200,37 @@ pub struct AppState {
     pub swap_focus_index: usize, // 0: toggle, 1: Continue
     pub swap_enabled: bool,
 
+    // Unified Kernel Images state
+    pub uki_focus_index: usize, // 0: toggle, 1: Continue
+    pub uki_enabled: bool,
+
     // Bootloader state
     pub bootloader_focus_index: usize, // 0: selector, 1: Continue
     pub bootloader_index: usize,       // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
+
+    // Experience Mode state
+    pub experience_focus_index: usize, // 0..=3 items + 4 Continue
+    pub experience_mode_index: usize,  // 0: Desktop, 1: Minimal, 2: Server, 3: Xorg
+    pub selected_desktop_envs: std::collections::BTreeSet<String>,
+    pub selected_server_types: std::collections::BTreeSet<String>,
+    pub selected_server_packages:
+        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    // Xorg popup: selected types and packages (mirrors Server structure)
+    pub selected_xorg_types: std::collections::BTreeSet<String>,
+    pub selected_xorg_packages:
+        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    // Desktop popup: selected packages per environment
+    pub selected_env_packages:
+        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    // Desktop popup: focus and selection within packages list
+    pub popup_packages_focus: bool,
+    pub popup_packages_selected_index: usize,
+    // Desktop popup: globally selected login manager (None means no manager)
+    pub selected_login_manager: Option<String>,
+    pub login_manager_user_set: bool,
+    // Desktop popup: focus and selection within login managers list
+    pub popup_login_focus: bool,
+    pub popup_login_selected_index: usize,
 
     // Hostname state
     pub hostname_focus_index: usize, // 0 input, 1 Continue
@@ -400,8 +432,26 @@ impl AppState {
             swap_focus_index: 0,
             swap_enabled: false,
 
+            uki_focus_index: 0,
+            uki_enabled: false,
+
             bootloader_focus_index: 0,
             bootloader_index: 0,
+
+            experience_focus_index: 0,
+            experience_mode_index: 0,
+            selected_desktop_envs: std::collections::BTreeSet::new(),
+            selected_server_types: std::collections::BTreeSet::new(),
+            selected_server_packages: std::collections::BTreeMap::new(),
+            selected_xorg_types: std::collections::BTreeSet::new(),
+            selected_xorg_packages: std::collections::BTreeMap::new(),
+            selected_env_packages: std::collections::BTreeMap::new(),
+            popup_packages_focus: false,
+            popup_packages_selected_index: 0,
+            selected_login_manager: None,
+            login_manager_user_set: false,
+            popup_login_focus: false,
+            popup_login_selected_index: 0,
 
             hostname_focus_index: 0,
             hostname_value: String::new(),
@@ -490,7 +540,11 @@ impl AppState {
                 | Some(PopupKind::UserAddUsername)
                 | Some(PopupKind::UserAddPassword)
                 | Some(PopupKind::UserAddPasswordConfirm)
-                | Some(PopupKind::UserAddSudo) => { /* handled in input flow */ }
+                | Some(PopupKind::UserAddSudo)
+                | Some(PopupKind::DesktopEnvSelect)
+                | Some(PopupKind::ServerTypeSelect)
+                | Some(PopupKind::XorgTypeSelect)
+                | Some(PopupKind::MinimalClearConfirm) => { /* handled in input flow */ }
                 None => {}
             }
         }
@@ -625,6 +679,81 @@ impl AppState {
         self.popup_selected_visible = 0;
         self.popup_in_search = false;
         self.popup_search_query.clear();
+    }
+
+    pub fn open_minimal_clear_confirm(&mut self) {
+        self.popup_kind = Some(PopupKind::MinimalClearConfirm);
+        self.popup_open = true;
+        self.popup_items = vec!["Yes".into(), "No".into()];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+    }
+
+    pub fn open_desktop_environment_popup(&mut self) {
+        self.popup_kind = Some(PopupKind::DesktopEnvSelect);
+        self.popup_open = true;
+        self.popup_packages_focus = false;
+        self.popup_packages_selected_index = 0;
+        self.popup_login_focus = false;
+        self.popup_login_selected_index = 0;
+        self.popup_items = vec![
+            "Awesome".into(),
+            "Bspwm".into(),
+            "Budgie".into(),
+            "Cinnamon".into(),
+            "Cutefish".into(),
+            "Deepin".into(),
+            "Enlightenment".into(),
+            "GNOME".into(),
+            "Hyprland".into(),
+            "KDE Plasma".into(),
+            "Lxqt".into(),
+            "Mate".into(),
+            "Qtile".into(),
+            "Sway".into(),
+            "Xfce4".into(),
+            "i3-wm".into(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+    }
+
+    pub fn open_server_type_popup(&mut self) {
+        self.popup_kind = Some(PopupKind::ServerTypeSelect);
+        self.popup_open = true;
+        self.popup_items = vec![
+            "Cockpit".into(),
+            "Docker".into(),
+            "Lighttpd".into(),
+            "Mariadb".into(),
+            "Nginx".into(),
+            "Postgresql".into(),
+            "Tomcat".into(),
+            "httpd".into(),
+            "sshd".into(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+    }
+
+    pub fn open_xorg_type_popup(&mut self) {
+        self.popup_kind = Some(PopupKind::XorgTypeSelect);
+        self.popup_open = true;
+        // Single Xorg type for now
+        self.popup_items = vec!["Xorg".into()];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        // Reset pane focus to left when opening
+        self.popup_packages_focus = false;
+        self.popup_packages_selected_index = 0;
     }
 
     pub fn start_add_user_flow(&mut self) {
