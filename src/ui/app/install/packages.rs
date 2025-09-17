@@ -1,0 +1,125 @@
+// Default packages for Experience Mode when selection sets are not present
+pub fn env_default_packages(env: &str) -> Vec<&'static str> {
+    match env {
+        "Awesome" => vec![
+            "alacritty",
+            "awesome",
+            "feh",
+            "gnu-free-fonts",
+            "slock",
+            "terminus-font",
+            "ttf-liberation",
+            "xorg-server",
+            "xorg-xinit",
+            "xorg-xrandr",
+            "xsel",
+            "xterm",
+        ],
+        "Bspwm" => vec!["bspwm", "dmenu", "rxvt-unicode", "sxhkd", "xdo"],
+        "Budgie" => vec![
+            "arc-gtk-theme",
+            "budgie",
+            "mate-terminal",
+            "nemo",
+            "papirus-icon-theme",
+        ],
+        "Cinnamon" => vec![
+            "blueman",
+            "blue-utils",
+            "cinnamon",
+            "engrampa",
+            "gnome-keyring",
+            "gnome-screenshot",
+            "gnome-terminal",
+            "gvfs-smb",
+            "system-config-printer",
+            "xdg-user-dirs-gtk",
+            "xed",
+        ],
+        "Cutefish" => vec!["cutefish", "noto-fonts"],
+        "Deepin" => vec!["deepin", "deepin-editor", "deepin-terminal"],
+        "Enlightenment" => vec!["enlightenment", "terminology"],
+        "GNOME" => vec!["gnome", "gnome-tweaks"],
+        "Hyprland" => vec![
+            "dolphin",
+            "dunst",
+            "grim",
+            "hyprland",
+            "kitty",
+            "polkit-kde-agent",
+            "qt5-wayland",
+            "qt6-wayland",
+            "slurp",
+            "wofi",
+            "xdg-desktop-portal-hyprland",
+        ],
+        "KDE Plasma" => vec![
+            "ark",
+            "dolphin",
+            "kate",
+            "konsole",
+            "plasma-meta",
+            "plasma-workspace",
+        ],
+        "Lxqt" => vec![
+            "breeze-icons",
+            "leafpad",
+            "oxygen-icons",
+            "slock",
+            "ttf-freefont",
+            "xdg-utils",
+        ],
+        "Mate" => vec!["mate", "mate-extra"],
+        "Qtile" => vec!["alacritty", "qtile"],
+        "Sway" => vec![
+            "brightnessctl",
+            "dmenu",
+            "foot",
+            "grim",
+            "pavucontrol",
+            "slurp",
+            "sway",
+            "swaybg",
+            "swayidle",
+            "swaylock",
+            "waybar",
+            "xorg-xwayland",
+        ],
+        "Xfce4" => vec!["gvfs", "pavucontrol", "xarchiver", "xfce4", "xfce4-goodies"],
+        "i3-wm" => vec![
+            "dmenu",
+            "i3-wm",
+            "i3blocks",
+            "i3lock",
+            "i3status",
+            "lightdm",
+            "lightdm-gtk-greeter",
+            "xss-lock",
+            "xterm",
+        ],
+        _ => Vec::new(),
+    }
+}
+
+pub fn server_default_packages(server: &str) -> Vec<&'static str> {
+    match server {
+        "Cockpit" => vec!["cockpit", "packagekit", "udisk2"],
+        "Docker" => vec!["docker"],
+        "Lighttpd" => vec!["lighttpd"],
+        "Mariadb" => vec!["mariadb"],
+        "Nginx" => vec!["nginx"],
+        "Postgresql" => vec!["postgresql"],
+        "Tomcat" => vec!["tomcat10"],
+        "httpd" => vec!["apache"],
+        "sshd" => vec!["openssh"],
+        _ => Vec::new(),
+    }
+}
+
+pub fn xorg_default_packages(xorg: &str) -> Vec<&'static str> {
+    match xorg {
+        "Xorg" => vec!["xorg-server"],
+        _ => Vec::new(),
+    }
+}
+
