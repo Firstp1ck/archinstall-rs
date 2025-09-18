@@ -653,22 +653,33 @@ impl AppState {
         let info_open = self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info));
         if info_open {
             let body = self.install_log.join("\n");
-            if self.popup_items.is_empty() { self.popup_items.push(body); } else { self.popup_items[0] = body; }
+            if self.popup_items.is_empty() {
+                self.popup_items.push(body);
+            } else {
+                self.popup_items[0] = body;
+            }
         }
     }
 
     pub fn drain_install_logs(&mut self) {
-        let Some(rx) = self.install_log_rx.take() else { return; };
+        let Some(rx) = self.install_log_rx.take() else {
+            return;
+        };
         let mut drained: Vec<String> = Vec::new();
         let mut disconnected = false;
         loop {
             match rx.try_recv() {
                 Ok(line) => drained.push(line),
                 Err(TryRecvError::Empty) => break,
-                Err(TryRecvError::Disconnected) => { disconnected = true; break; }
+                Err(TryRecvError::Disconnected) => {
+                    disconnected = true;
+                    break;
+                }
             }
         }
-        for line in drained { self.append_install_log_line(line); }
+        for line in drained {
+            self.append_install_log_line(line);
+        }
         if disconnected {
             self.install_running = false;
             self.install_log_rx = None;

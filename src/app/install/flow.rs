@@ -16,7 +16,9 @@ impl AppState {
     }
 
     pub fn start_install_flow(&mut self) {
-        let Some(target) = self.select_target_and_run_prechecks() else { return; };
+        let Some(target) = self.select_target_and_run_prechecks() else {
+            return;
+        };
         let sections = self.build_install_sections(&target);
         if self.dry_run {
             let mut body_lines: Vec<String> = Vec::new();
@@ -53,7 +55,10 @@ impl AppState {
                 send(&tx, format!("::section_start::{}", title));
                 send(&tx, format!("=== {} ===", title));
                 for c in cmds {
-                    send(&tx, format!("$ {}", crate::common::utils::redact_command_for_logging(&c)));
+                    send(
+                        &tx,
+                        format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
+                    );
                     let cmdline = format!("{} 2>&1", c);
                     let mut child = match Command::new("bash")
                         .arg("-lc")
@@ -139,9 +144,13 @@ impl AppState {
     fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<String>)> {
         let mut sections: Vec<(String, Vec<String>)> = Vec::new();
         let locales = self.build_locales_plan();
-        if !locales.is_empty() { sections.push(("Locales".into(), locales)); }
+        if !locales.is_empty() {
+            sections.push(("Locales".into(), locales));
+        }
         let mirrors = self.build_mirrors_plan();
-        if !mirrors.is_empty() { sections.push(("Mirrors & Repos".into(), mirrors)); }
+        if !mirrors.is_empty() {
+            sections.push(("Mirrors & Repos".into(), mirrors));
+        }
         sections.push((
             "Partitioning".into(),
             PartitioningService::build_plan(self, target).commands,
@@ -290,7 +299,8 @@ impl AppState {
             // Use reflector to fetch and sort HTTPS mirrors for selected regions
             // Prefer the latest mirrors and sort by rate
             // Add --verbose so users can see detailed output during installation
-            let mut reflector_cmd = String::from("reflector --verbose --protocol https --latest 20 --sort rate ");
+            let mut reflector_cmd =
+                String::from("reflector --verbose --protocol https --latest 20 --sort rate ");
             reflector_cmd.push_str(&country_args.join(" "));
             if has_custom_servers {
                 // Save to tmp then append after custom servers
@@ -299,13 +309,17 @@ impl AppState {
                 refl_host.push_str(" --save /etc/pacman.d/mirrorlist.ai.tmp");
                 cmds.push(refl_host);
                 cmds.push("cat /etc/pacman.d/mirrorlist.ai.tmp >> /etc/pacman.d/mirrorlist".into());
-                cmds.push("cat /etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist".into());
+                cmds.push(
+                    "cat /etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist".into(),
+                );
                 cmds.push("rm -f /etc/pacman.d/mirrorlist.ai.tmp".into());
             } else {
                 // Save directly on host, then copy to target
                 reflector_cmd.push_str(" --save /etc/pacman.d/mirrorlist");
                 cmds.push(reflector_cmd);
-                cmds.push("install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist".into());
+                cmds.push(
+                    "install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist".into(),
+                );
             }
         } else if !has_custom_servers {
             // Neither regions nor custom servers selected: best effort copy from ISO host

@@ -85,8 +85,18 @@ impl PartitioningService {
                 .status();
             match status {
                 Ok(st) if st.success() => {}
-                Ok(_) => return Err(format!("Command failed: {}", crate::common::utils::redact_command_for_logging(&c))),
-                Err(_) => return Err(format!("Failed to run: {}", crate::common::utils::redact_command_for_logging(&c))),
+                Ok(_) => {
+                    return Err(format!(
+                        "Command failed: {}",
+                        crate::common::utils::redact_command_for_logging(&c)
+                    ));
+                }
+                Err(_) => {
+                    return Err(format!(
+                        "Failed to run: {}",
+                        crate::common::utils::redact_command_for_logging(&c)
+                    ));
+                }
             }
         }
         Ok(())

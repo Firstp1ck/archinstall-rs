@@ -7,20 +7,20 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                 if app.mirrors_regions_selected.contains(&global_idx) {
                     app.mirrors_regions_selected.remove(&global_idx);
                 } else {
-					// If the only selected region is the default United States, and the user
-					// selects a different region for the first time, remove the default.
-					if app.mirrors_regions_selected.len() == 1 {
-						if let Some(&only_idx) = app.mirrors_regions_selected.iter().next()
-							&& only_idx != global_idx
-							&& app
-								.mirrors_regions_options
-								.get(only_idx)
-								.map(|s| s.contains("United States"))
-								.unwrap_or(false)
-						{
-							app.mirrors_regions_selected.remove(&only_idx);
-						}
-					}
+                    // If the only selected region is the default United States, and the user
+                    // selects a different region for the first time, remove the default.
+                    if app.mirrors_regions_selected.len() == 1 {
+                        if let Some(&only_idx) = app.mirrors_regions_selected.iter().next()
+                            && only_idx != global_idx
+                            && app
+                                .mirrors_regions_options
+                                .get(only_idx)
+                                .map(|s| s.contains("United States"))
+                                .unwrap_or(false)
+                        {
+                            app.mirrors_regions_selected.remove(&only_idx);
+                        }
+                    }
                     app.mirrors_regions_selected.insert(global_idx);
                 }
             }

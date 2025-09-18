@@ -8,10 +8,10 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
 use crate::app::AppState;
+use crate::common::utils::redact_command_for_logging;
 use crate::input::handle_event;
 use crate::render::draw;
 use std::process::Command;
-use crate::common::utils::redact_command_for_logging;
 
 pub fn run(dry_run: bool) -> io::Result<()> {
     enable_raw_mode()?;
@@ -112,7 +112,10 @@ fn run_loop(
                 let mut answer = String::new();
                 io::stdin().read_line(&mut answer)?;
                 let ans = answer.trim();
-                if ans.is_empty() || ans.eq_ignore_ascii_case("y") || ans.eq_ignore_ascii_case("yes") {
+                if ans.is_empty()
+                    || ans.eq_ignore_ascii_case("y")
+                    || ans.eq_ignore_ascii_case("yes")
+                {
                     let _ = Command::new("bash").arg("-lc").arg("reboot").status();
                 }
             }

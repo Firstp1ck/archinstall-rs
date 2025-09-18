@@ -254,13 +254,19 @@ impl SystemService {
             if !final_pkgs.is_empty() {
                 let joined = final_pkgs.join(" ");
                 // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
-                cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
+                cmds.push(format!(
+                    "pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )",
+                    joined, joined
+                ));
             }
         } else {
             // In non-dry-run mode, skip pre-validation to reduce TUI lag; let pacstrap handle errors
             if !packages.is_empty() {
                 let joined = packages.join(" ");
-                cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
+                cmds.push(format!(
+                    "pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )",
+                    joined, joined
+                ));
             }
         }
 

@@ -19,7 +19,11 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text:
         .constraints([Constraint::Min(3)])
         .split(popup_rect);
 
-    let body = if app.popup_items.is_empty() { String::new() } else { app.popup_items[0].clone() };
+    let body = if app.popup_items.is_empty() {
+        String::new()
+    } else {
+        app.popup_items[0].clone()
+    };
     let mut lines: Vec<Line> = Vec::new();
     if body.is_empty() {
         lines.push(Line::from(""));

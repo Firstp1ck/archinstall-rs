@@ -17,15 +17,13 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         let mut left_lines: Vec<Line> = Vec::new();
         left_lines.push(Line::from(Span::styled(
             "Overall Progress",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
         left_lines.push(Line::from(""));
         for (idx, title) in app.install_section_titles.iter().enumerate() {
-            let is_done = app
-                .install_section_done
-                .get(idx)
-                .copied()
-                .unwrap_or(false);
+            let is_done = app.install_section_done.get(idx).copied().unwrap_or(false);
             let is_current = app.install_current_section == Some(idx) && !is_done;
             let marker = if is_done {
                 "[x]"
@@ -48,16 +46,22 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 Span::styled(title.clone(), style),
             ]));
         }
-        let left_block = Block::default().borders(Borders::ALL).title(if app.install_running {
-            " Installation in progress "
-        } else {
-            " Installation status "
-        });
-        let left_par = Paragraph::new(left_lines).block(left_block).wrap(Wrap { trim: false });
+        let left_block = Block::default()
+            .borders(Borders::ALL)
+            .title(if app.install_running {
+                " Installation in progress "
+            } else {
+                " Installation status "
+            });
+        let left_par = Paragraph::new(left_lines)
+            .block(left_block)
+            .wrap(Wrap { trim: false });
         frame.render_widget(left_par, cols[0]);
 
         // Right: live command output
-        let right_block = Block::default().borders(Borders::ALL).title(" Command output ");
+        let right_block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Command output ");
         let inner_right = right_block.inner(cols[1]);
         frame.render_widget(right_block, cols[1]);
         let max_visible = inner_right.height.saturating_sub(1) as usize;
