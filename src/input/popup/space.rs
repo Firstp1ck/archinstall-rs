@@ -356,7 +356,6 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                     ("xf86-video-amdgpu", true),
                     ("xf86-video-ati", true),
                     ("xf86-video-nouveau", true),
-                    ("xf86-video-vmware", true),
                     ("xorg-server", true),
                     ("xorg-xinit", true),
                     (" Nvidia Drivers ", false),
@@ -421,7 +420,6 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                                 "xf86-video-amdgpu",
                                 "xf86-video-ati",
                                 "xf86-video-nouveau",
-                                "xf86-video-vmware",
                                 "xorg-server",
                                 "xorg-xinit",
                             ];
@@ -712,7 +710,6 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                     ("xf86-video-amdgpu", true),
                     ("xf86-video-ati", true),
                     ("xf86-video-nouveau", true),
-                    ("xf86-video-vmware", true),
                     ("xorg-server", true),
                     ("xorg-xinit", true),
                     (" Nvidia Drivers ", false),
@@ -777,7 +774,6 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                                 "xf86-video-amdgpu",
                                 "xf86-video-ati",
                                 "xf86-video-nouveau",
-                                "xf86-video-vmware",
                                 "xorg-server",
                                 "xorg-xinit",
                             ];

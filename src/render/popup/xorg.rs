@@ -115,7 +115,6 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             ("xf86-video-amdgpu", true),
             ("xf86-video-ati", true),
             ("xf86-video-nouveau", true),
-            ("xf86-video-vmware", true),
             ("xorg-server", true),
             ("xorg-xinit", true),
             (" Nvidia Drivers ", false),

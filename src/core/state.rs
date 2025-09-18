@@ -469,7 +469,6 @@ impl AppState {
                 s.insert("xf86-video-amdgpu".into());
                 s.insert("xf86-video-ati".into());
                 s.insert("xf86-video-nouveau".into());
-                s.insert("xf86-video-vmware".into());
                 s.insert("xorg-server".into());
                 s.insert("xorg-xinit".into());
                 s

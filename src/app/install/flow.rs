@@ -215,7 +215,8 @@ impl AppState {
         if has_regions {
             // Use reflector to fetch and sort HTTPS mirrors for selected regions
             // Prefer the latest mirrors and sort by rate
-            let mut reflector_cmd = String::from("reflector --protocol https --latest 20 --sort rate ");
+            // Add --verbose so users can see detailed output during installation
+            let mut reflector_cmd = String::from("reflector --verbose --protocol https --latest 20 --sort rate ");
             reflector_cmd.push_str(&country_args.join(" "));
             if has_custom_servers {
                 // Save to tmp then append after custom servers
