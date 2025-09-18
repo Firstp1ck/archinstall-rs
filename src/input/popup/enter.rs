@@ -324,6 +324,58 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             }
             app.custom_input_buffer.clear();
         }
+        Some(PopupKind::AdditionalPackageGroupSelect) => {
+            if app.popup_packages_focus {
+                // Continue or Confirm depending on last group
+                let is_last_group = if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                    gi + 1 == app.popup_items.len()
+                } else { false };
+                if is_last_group {
+                    // Move set into accumulated and apply once
+                    app.addpkgs_group_accum_selected
+                        .extend(app.addpkgs_group_pkg_selected.iter().cloned());
+                    app.addpkgs_group_pkg_selected.clear();
+                    // Apply accumulated
+                    let to_apply: Vec<String> = app
+                        .addpkgs_group_accum_selected
+                        .iter()
+                        .cloned()
+                        .collect();
+                    app.addpkgs_group_pkg_selected = to_apply.iter().cloned().collect();
+                    app.apply_additional_package_group_selection(true);
+                    app.addpkgs_group_accum_selected.clear();
+                    // Close after confirm
+                    app.close_popup();
+                } else {
+                    // Accumulate current selections and move to next group
+                    app.addpkgs_group_accum_selected
+                        .extend(app.addpkgs_group_pkg_selected.iter().cloned());
+                    // Apply immediately so Info box reflects intermediate selections
+                    let to_apply: Vec<String> = app
+                        .addpkgs_group_pkg_selected
+                        .iter()
+                        .cloned()
+                        .collect();
+                    app.addpkgs_group_pkg_selected = to_apply.iter().cloned().collect();
+                    app.apply_additional_package_group_selection(false);
+                    if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+                        && let Some(_name) = app.popup_items.get(gi)
+                    {
+                        // Move selection to next visible index
+                        let next_vis = (app.popup_selected_visible + 1)
+                            % app.popup_visible_indices.len();
+                        app.popup_selected_visible = next_vis;
+                        app.addpkgs_group_pkg_selected.clear();
+                        app.addpkgs_group_pkg_index = 0;
+                    }
+                }
+            } else {
+                // Enter from left pane goes into the right pane selection
+                app.popup_packages_focus = true;
+                app.addpkgs_group_pkg_index = 0;
+            }
+        }
+        Some(PopupKind::AdditionalPackageGroupPackages) => {}
         Some(PopupKind::MirrorsRegions) => {
             app.close_popup();
         }

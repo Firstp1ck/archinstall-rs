@@ -1,0 +1,38 @@
+use crate::core::state::AppState;
+
+#[derive(Clone, Debug)]
+pub struct MountPlan {
+    pub commands: Vec<String>,
+}
+
+impl MountPlan {
+    pub fn new(commands: Vec<String>) -> Self {
+        Self { commands }
+    }
+}
+
+pub struct MountingService;
+
+impl MountingService {
+    pub fn build_plan(state: &AppState, device: &str) -> MountPlan {
+        let mut cmds: Vec<String> = Vec::new();
+        // TODO: Handle btrfs subvolumes and custom mount layout (v0.2.0+ / README Roadmap).
+        let luks = state.disk_encryption_type_index == 1;
+        cmds.push("mkdir -p /mnt".into());
+        if luks {
+            cmds.push("mount /dev/mapper/cryptroot /mnt".into());
+        } else {
+            cmds.push(format!("mount {}3 /mnt", device));
+        }
+        if state.is_uefi() && state.bootloader_index != 1 {
+            cmds.push("mkdir -p /mnt/boot".into());
+            cmds.push(format!("mount -t vfat {}1 /mnt/boot", device));
+        }
+        if state.swap_enabled {
+            cmds.push(format!("swapon {}2", device));
+        }
+        MountPlan::new(cmds)
+    }
+}
+
+

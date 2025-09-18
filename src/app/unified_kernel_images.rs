@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 impl AppState {
     #[allow(dead_code)]
     pub fn init_unified_kernel_images(&mut self) {
-        // nothing to initialize for now
+        // TODO(v0.2.0): Implement UKI generation plan and mkinitcpio/systemd-boot integration.
     }
 
     pub fn update_unified_kernel_images_visibility(&mut self) {

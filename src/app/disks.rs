@@ -34,6 +34,7 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     ];
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
+    // TODO(v0.2.0): Implement Manual Partitioning editor and Pre-mounted flow.
     for (label, idx) in options {
         let is_focused_line = app.disks_focus_index == idx;
         let is_active_line = is_focused_line && matches!(app.focus, super::Focus::Content);

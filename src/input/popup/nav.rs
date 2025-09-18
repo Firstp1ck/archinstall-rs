@@ -4,6 +4,12 @@ use crate::app::{AppState, PopupKind};
 use super::super::screens;
 
 pub(crate) fn handle_nav_up(app: &mut AppState) -> bool {
+    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+        if app.popup_packages_focus {
+            handle_group_packages_up(app);
+            return false;
+        }
+    }
     if matches!(app.popup_kind, Some(PopupKind::DesktopEnvSelect)) {
         if app.popup_login_focus {
             let len = 6;
@@ -222,6 +228,12 @@ pub(crate) fn handle_nav_up(app: &mut AppState) -> bool {
 }
 
 pub(crate) fn handle_nav_down(app: &mut AppState) -> bool {
+    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+        if app.popup_packages_focus {
+            handle_group_packages_down(app);
+            return false;
+        }
+    }
     if matches!(app.popup_kind, Some(PopupKind::DesktopEnvSelect)) {
         if app.popup_login_focus {
             let len = 6;
@@ -435,4 +447,33 @@ pub(crate) fn handle_nav_down(app: &mut AppState) -> bool {
         screens::popup_move_down(app);
     }
     false
+}
+
+// Extend navigation for AdditionalPackageGroupSelect packages list
+fn handle_group_packages_up(app: &mut AppState) {
+    if app.popup_packages_focus {
+        if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+            && let Some(group) = app.popup_items.get(gi)
+        {
+            let pkgs = crate::app::AppState::group_packages_for(group);
+            let len = pkgs.len();
+            if len > 0 {
+                app.addpkgs_group_pkg_index = (app.addpkgs_group_pkg_index + len - 1) % len;
+            }
+        }
+    }
+}
+
+fn handle_group_packages_down(app: &mut AppState) {
+    if app.popup_packages_focus {
+        if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+            && let Some(group) = app.popup_items.get(gi)
+        {
+            let pkgs = crate::app::AppState::group_packages_for(group);
+            let len = pkgs.len();
+            if len > 0 {
+                app.addpkgs_group_pkg_index = (app.addpkgs_group_pkg_index + 1) % len;
+            }
+        }
+    }
 }

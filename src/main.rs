@@ -27,6 +27,7 @@ fn main() -> std::io::Result<()> {
         }
     }
     let dry_run = std::env::args().any(|arg| arg == "--dry-run" || arg == "--dry");
+    // TODO(v0.5.0): Parse config path and unattended flags to run non-interactively.
     runner::run(dry_run)
 }
 

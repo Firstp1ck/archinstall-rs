@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 impl AppState {
     #[allow(dead_code)]
     pub fn init_root_password(&mut self) {
-        // placeholder
+        // TODO: Implement validation and state handling for root password input.
     }
 }
 

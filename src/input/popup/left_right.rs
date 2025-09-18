@@ -28,6 +28,12 @@ pub(crate) fn handle_left(app: &mut AppState) -> bool {
         }
         return false;
     }
+    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+        if app.popup_packages_focus {
+            app.popup_packages_focus = false;
+        }
+        return false;
+    }
     false
 }
 
@@ -66,6 +72,13 @@ pub(crate) fn handle_right(app: &mut AppState) -> bool {
             app.popup_login_selected_index = 0;
         } else if app.popup_login_focus {
             // stay on login
+        }
+        return false;
+    }
+    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+        if !app.popup_packages_focus {
+            app.popup_packages_focus = true;
+            app.addpkgs_group_pkg_index = 0;
         }
         return false;
     }

@@ -18,6 +18,7 @@ pub fn run(dry_run: bool) -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    // TODO(v0.5.0): Add unattended/automation mode that bypasses TUI and executes a config.
     let res = run_loop(&mut terminal, dry_run);
 
     disable_raw_mode()?;

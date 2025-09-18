@@ -95,6 +95,8 @@ impl AppState {
                 Some(PopupKind::MirrorsRegions) => {}
                 Some(PopupKind::OptionalRepos) => {}
                 Some(PopupKind::KernelSelect) => {}
+                Some(PopupKind::AdditionalPackageGroupSelect)
+                | Some(PopupKind::AdditionalPackageGroupPackages) => {}
                 Some(PopupKind::MirrorsCustomServerInput) => {}
                 Some(PopupKind::MirrorsCustomRepoName)
                 | Some(PopupKind::MirrorsCustomRepoUrl)

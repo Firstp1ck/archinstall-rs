@@ -1,0 +1,55 @@
+use crate::core::state::AppState;
+
+#[derive(Clone, Debug)]
+pub struct FstabPlan {
+    pub commands: Vec<String>,
+}
+
+impl FstabPlan {
+    pub fn new(commands: Vec<String>) -> Self {
+        Self { commands }
+    }
+}
+
+pub struct FstabService;
+
+impl FstabService {
+    pub fn build_checks_and_fstab(state: &AppState, device: &str) -> FstabPlan {
+        let mut cmds: Vec<String> = Vec::new();
+        // TODO: Add fstab tuning for btrfs subvolumes and mount options (v0.2.0+).
+
+        // Basic device partition paths
+        let p1 = format!("{}1", device);
+        let p2 = format!("{}2", device);
+        let p3 = format!("{}3", device);
+
+        // Check filesystems created
+        if state.is_uefi() && state.bootloader_index != 1 {
+            cmds.push(format!("blkid {} | grep -q 'TYPE=\"vfat\"' || echo 'WARN: ESP vfat not found on {}'", p1, p1));
+        }
+        if state.swap_enabled {
+            cmds.push(format!("blkid {} | grep -q 'TYPE=\"swap\"' || echo 'WARN: swap not found on {}'", p2, p2));
+        }
+        if state.disk_encryption_type_index == 1 {
+            cmds.push("blkid /dev/mapper/cryptroot | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on cryptroot'".into());
+        } else {
+            cmds.push(format!("blkid {} | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on {}'", p3, p3));
+        }
+
+        // Check mounts
+        cmds.push("mountpoint -q /mnt || echo 'ERROR: /mnt is not mounted'".into());
+        if state.is_uefi() && state.bootloader_index != 1 {
+            cmds.push("mountpoint -q /mnt/boot || echo 'ERROR: /mnt/boot is not mounted'".into());
+        }
+        if state.swap_enabled {
+            cmds.push("swapon --noheadings --raw | grep -q '^' || echo 'ERROR: swap not active'".into());
+        }
+
+        // Generate fstab
+        cmds.push("genfstab -U /mnt >> /mnt/etc/fstab".into());
+
+        FstabPlan::new(cmds)
+    }
+}
+
+

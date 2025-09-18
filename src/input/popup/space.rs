@@ -502,6 +502,145 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                 }
             }
         }
+        Some(PopupKind::AdditionalPackageGroupPackages) => {
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible)
+                && let Some(name) = app.popup_items.get(global_idx)
+            {
+                if app.addpkgs_group_pkg_selected.contains(name) {
+                    app.addpkgs_group_pkg_selected.remove(name);
+                } else {
+                    app.addpkgs_group_pkg_selected.insert(name.clone());
+                }
+            }
+            return false;
+        }
+        Some(PopupKind::AdditionalPackageGroupSelect) => {
+            if !app.popup_packages_focus {
+                return false;
+            }
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+                && let Some(group) = app.popup_items.get(gi)
+            {
+                let pkgs = crate::app::AppState::group_packages_for(group);
+                let idx = app
+                    .addpkgs_group_pkg_index
+                    .min(pkgs.len().saturating_sub(1));
+                if let Some(name) = pkgs.get(idx) {
+                    let name = name.to_string();
+                    // If package is already in Additional packages list, toggle removal immediately
+                    if let Some(pos) = app
+                        .additional_packages
+                        .iter()
+                        .position(|p| p.name.eq_ignore_ascii_case(&name))
+                    {
+                        app.additional_packages.remove(pos);
+                        // Also clear any pending selection flags for this package
+                        app.addpkgs_group_pkg_selected.remove(&name);
+                        app.addpkgs_group_accum_selected.remove(&name);
+                        return false;
+                    }
+                    // If package conflicts with another section, treat it as pre-selected
+                    // and allow deselect to remove from install list AND other sections
+                    if app.check_additional_pkg_conflicts(&name).is_some() {
+                        // Determine current selected state (either in additional or via sections or in this group state)
+                        let mut currently_selected = app
+                            .additional_packages
+                            .iter()
+                            .any(|p| p.name.eq_ignore_ascii_case(&name));
+                        if !currently_selected {
+                            for env in app.selected_desktop_envs.iter() {
+                                if let Some(set) = app.selected_env_packages.get(env) {
+                                    if set.contains(&name) {
+                                        currently_selected = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if !currently_selected {
+                            for srv in app.selected_server_types.iter() {
+                                if let Some(set) = app.selected_server_packages.get(srv) {
+                                    if set.contains(&name) {
+                                        currently_selected = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if !currently_selected {
+                            for xorg in app.selected_xorg_types.iter() {
+                                if let Some(set) = app.selected_xorg_packages.get(xorg) {
+                                    if set.contains(&name) {
+                                        currently_selected = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if currently_selected {
+                            // Deselect: remove from additional list and from all active section sets
+                            if let Some(pos) = app
+                                .additional_packages
+                                .iter()
+                                .position(|p| p.name.eq_ignore_ascii_case(&name))
+                            {
+                                app.additional_packages.remove(pos);
+                            }
+                            for env in app.selected_desktop_envs.clone().iter() {
+                                if let Some(set) = app.selected_env_packages.get_mut(env) {
+                                    set.remove(&name);
+                                }
+                            }
+                            for srv in app.selected_server_types.clone().iter() {
+                                if let Some(set) = app.selected_server_packages.get_mut(srv) {
+                                    set.remove(&name);
+                                }
+                            }
+                            for xorg in app.selected_xorg_types.clone().iter() {
+                                if let Some(set) = app.selected_xorg_packages.get_mut(xorg) {
+                                    set.remove(&name);
+                                }
+                            }
+                            app.addpkgs_group_pkg_selected.remove(&name);
+                            app.addpkgs_group_accum_selected.remove(&name);
+                        } else {
+                            // Select: add to additional list minimally and mark selected here
+                            app.additional_packages.push(crate::app::AdditionalPackage {
+                                name: name.clone(),
+                                repo: String::new(),
+                                version: String::new(),
+                                description: String::from(
+                                    "Already selected in another section (group override)",
+                                ),
+                            });
+                            app.addpkgs_group_pkg_selected.insert(name.clone());
+                        }
+                        return false;
+                    }
+                    // Otherwise toggle selection for adding
+                    if app.addpkgs_group_pkg_selected.contains(&name) {
+                        app.addpkgs_group_pkg_selected.remove(&name);
+                        app.addpkgs_group_accum_selected.remove(&name);
+                    } else {
+                        app.addpkgs_group_pkg_selected.insert(name);
+                        app.addpkgs_group_accum_selected
+                            .extend(app.addpkgs_group_pkg_selected.iter().cloned());
+                    }
+                    // persist per group live as user toggles
+                    if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+                        && let Some(group) = app.popup_items.get(gi)
+                    {
+                        let entry = app
+                            .addpkgs_group_selected
+                            .entry(group.clone())
+                            .or_default();
+                        *entry = app.addpkgs_group_pkg_selected.clone();
+                    }
+                }
+            }
+            return false;
+        }
         Some(PopupKind::ServerTypeSelect) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible)
                 && let Some(name) = app.popup_items.get(global_idx)

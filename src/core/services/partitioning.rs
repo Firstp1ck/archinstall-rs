@@ -15,64 +15,71 @@ pub struct PartitioningService;
 
 impl PartitioningService {
     pub fn build_plan(state: &AppState, device: &str) -> PartitionPlan {
-        let mut cmds: Vec<String> = Vec::new();
+        let mut part_cmds: Vec<String> = Vec::new();
+        // TODO(v0.2.0): Support Manual Partitioning editor and executing explicit partition list.
+        // TODO(v0.4.0): Add LVM/RAID support and advanced btrfs subvolume layouts.
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
-            cmds.push(format!("wipefs -a {}", device));
+            part_cmds.push(format!("wipefs -a {}", device));
         }
 
         let align = state.disks_align.clone().unwrap_or_else(|| "1MiB".into());
-        cmds.push(format!("parted -s {} mklabel {}", device, label));
+        part_cmds.push(format!("parted -s {} mklabel {}", device, label));
 
         let mut next_start = align.clone();
         if state.is_uefi() && state.bootloader_index != 1 {
-            cmds.push(format!(
-                "parted -s {} mkpart ESP fat32 {} 513MiB",
+            part_cmds.push(format!(
+                "parted -s {} mkpart ESP fat32 {} 1025MiB",
                 device, next_start
             ));
-            cmds.push(format!("parted -s {} set 1 esp on", device));
-            cmds.push(format!("mkfs.vfat -F32 {}1", device));
-            next_start = "513MiB".into();
+            part_cmds.push(format!("parted -s {} set 1 esp on", device));
+            part_cmds.push(format!("mkfs.vfat -F32 {}1", device));
+            next_start = "1025MiB".into();
         } else {
-            cmds.push(format!(
+            part_cmds.push(format!(
                 "parted -s {} mkpart biosboot {} 2MiB",
                 device, next_start
             ));
-            cmds.push(format!("parted -s {} set 1 bios_grub on", device));
+            part_cmds.push(format!("parted -s {} set 1 bios_grub on", device));
             next_start = "2MiB".into();
         }
 
         if state.swap_enabled {
-            cmds.push(format!(
-                "parted -s {} mkpart swap linux-swap {} 4098MiB",
-                device, next_start
+            let swap_end = if state.is_uefi() && state.bootloader_index != 1 {
+                "5121MiB"
+            } else {
+                "4098MiB"
+            };
+            part_cmds.push(format!(
+                "parted -s {} mkpart swap linux-swap {} {}",
+                device, next_start, swap_end
             ));
-            cmds.push(format!("mkswap {}2", device));
-            next_start = "4098MiB".into();
+            part_cmds.push(format!("mkswap {}2", device));
+            next_start = swap_end.into();
         }
 
-        cmds.push(format!(
+        part_cmds.push(format!(
             "parted -s {} mkpart root btrfs {} 100%",
             device, next_start
         ));
         let luks = state.disk_encryption_type_index == 1;
         if luks {
-            cmds.push(format!("cryptsetup luksFormat {}3", device));
-            cmds.push(format!("cryptsetup open {}3 cryptroot", device));
-            cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
+            part_cmds.push(format!("cryptsetup luksFormat {}3", device));
+            part_cmds.push(format!("cryptsetup open {}3 cryptroot", device));
+            part_cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
         } else {
-            cmds.push(format!("mkfs.btrfs -f {}3", device));
+            part_cmds.push(format!("mkfs.btrfs -f {}3", device));
         }
 
-        PartitionPlan::new(cmds)
+        PartitionPlan::new(part_cmds)
     }
 
     pub fn execute_plan(plan: PartitionPlan) -> Result<(), String> {
         for c in plan.commands {
-            let mut parts = c.split_whitespace();
-            let bin = parts.next().unwrap_or("");
-            let args: Vec<&str> = parts.collect();
-            let status = std::process::Command::new(bin).args(args).status();
+            let status = std::process::Command::new("bash")
+                .arg("-lc")
+                .arg(&c)
+                .status();
             match status {
                 Ok(st) if st.success() => {}
                 Ok(_) => return Err(format!("Command failed: {}", c)),

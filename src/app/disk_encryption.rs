@@ -10,7 +10,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 impl AppState {
     #[allow(dead_code)]
     pub fn init_disk_encryption(&mut self) {
-        // placeholder
+        // TODO: Implement encryption password prompts and partition selection UX.
     }
 
     pub fn open_disk_encryption_type_popup(&mut self) {

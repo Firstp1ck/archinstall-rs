@@ -194,6 +194,15 @@ pub struct AppState {
     pub addpkgs_selected_index: usize,
     pub addpkgs_selected: std::collections::BTreeSet<usize>,
     pub addpkgs_reopen_after_info: bool,
+    // Additional Packages: groups
+    pub addpkgs_groups_focus: bool, // focus within groups vs main
+    pub addpkgs_group_names: Vec<String>,
+    pub addpkgs_group_index: usize,
+    pub addpkgs_group_pkg_index: usize,
+    pub addpkgs_group_pkg_selected: std::collections::BTreeSet<String>,
+    pub addpkgs_group_accum_selected: std::collections::BTreeSet<String>,
+    // Persistent selections per group across popup sessions
+    pub addpkgs_group_selected: std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
 
     // Sections processed
     pub processed_sections: BTreeSet<Screen>,
@@ -496,6 +505,19 @@ impl AppState {
             addpkgs_selected_index: 0,
             addpkgs_selected: std::collections::BTreeSet::new(),
             addpkgs_reopen_after_info: false,
+            addpkgs_groups_focus: false,
+            addpkgs_group_names: vec![
+                "Terminals".into(),
+                "Shells".into(),
+                "Browsers".into(),
+                "Text Editors".into(),
+                "dotfile Management".into(),
+            ],
+            addpkgs_group_index: 0,
+            addpkgs_group_pkg_index: 0,
+            addpkgs_group_pkg_selected: std::collections::BTreeSet::new(),
+            addpkgs_group_accum_selected: std::collections::BTreeSet::new(),
+            addpkgs_group_selected: std::collections::BTreeMap::new(),
 
             processed_sections: BTreeSet::new(),
 

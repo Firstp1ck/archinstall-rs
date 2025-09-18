@@ -3,7 +3,7 @@ use super::AppState;
 impl AppState {
     #[allow(dead_code)]
     pub fn init_abort(&mut self) {
-        // placeholder
+        // TODO: Implement abort confirmation flow integration if additional cleanup is needed.
     }
 
     pub fn open_abort_confirm_popup(&mut self) {

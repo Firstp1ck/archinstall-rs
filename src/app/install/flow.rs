@@ -1,6 +1,10 @@
 use crate::app::{AppState, PopupKind};
 use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::partitioning::PartitionPlan;
+use crate::core::services::mounting::MountingService;
+use crate::core::services::system::SystemService;
+use crate::core::services::fstab::FstabService;
+use crate::core::services::sysconfig::SysConfigService;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -50,16 +54,30 @@ impl AppState {
         let mut plan: Vec<String> = Vec::new();
         plan.extend(self.build_locales_plan());
         plan.extend(self.build_mirrors_plan());
-        plan.extend(PartitioningService::build_plan(self, target).commands);
-        plan.extend(self.build_bootloader_plan());
-        plan.extend(self.build_uki_plan());
-        plan.extend(self.build_system_plan());
-        plan.extend(self.build_users_plan());
-        plan.extend(self.build_experience_plan());
-        plan.extend(self.build_graphics_plan());
-        plan.extend(self.build_kernels_plan());
-        plan.extend(self.build_network_plan());
-        plan.extend(self.build_additional_packages_plan());
+        // Partitioning step
+        let part_cmds = PartitioningService::build_plan(self, target).commands;
+        plan.extend(part_cmds);
+        // Mounting step
+        let mount_cmds = MountingService::build_plan(self, target).commands;
+        plan.extend(mount_cmds);
+        // System pre-install step: adjust pacman.conf for optional repos
+        let sys_pre = SystemService::build_pre_install_plan(self).commands;
+        plan.extend(sys_pre);
+        // System installation: pacstrap base and selected packages
+        let pacstrap = SystemService::build_pacstrap_plan(self).commands;
+        plan.extend(pacstrap);
+        // fstab and checks
+        let fstab_cmds = FstabService::build_checks_and_fstab(self, target).commands;
+        plan.extend(fstab_cmds);
+        // System configuration inside chroot
+        let syscfg_cmds = SysConfigService::build_plan(self).commands;
+        plan.extend(syscfg_cmds);
+        // Bootloader setup
+        let boot_cmds = crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands;
+        plan.extend(boot_cmds);
+        // User setup: create users, passwords, sudoers, DM, hyprland config
+        let user_cmds = crate::core::services::usersetup::UserSetupService::build_plan(self).commands;
+        plan.extend(user_cmds);
         plan
     }
 
@@ -120,38 +138,87 @@ impl AppState {
     }
 
     fn build_locales_plan(&self) -> Vec<String> {
+        // TODO(v0.2.0): Implement locales pre-install steps as needed.
         Vec::new()
     }
     fn build_mirrors_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_bootloader_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_uki_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_system_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_users_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_experience_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_graphics_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_kernels_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_network_plan(&self) -> Vec<String> {
-        Vec::new()
-    }
-    fn build_additional_packages_plan(&self) -> Vec<String> {
-        Vec::new()
+        let mut cmds: Vec<String> = Vec::new();
+
+        // Ensure target mirrorlist directory exists
+        cmds.push("install -d /mnt/etc/pacman.d".into());
+
+        // Collect selected regions (as shown to user) and try to extract country codes (2-letter)
+        let mut country_args: Vec<String> = Vec::new();
+        for &idx in self.mirrors_regions_selected.iter() {
+            if let Some(line) = self.mirrors_regions_options.get(idx) {
+                // Try to find a 2-letter uppercase token (country code)
+                let mut code: Option<String> = None;
+                for tok in line.split_whitespace() {
+                    if tok.len() == 2 && tok.chars().all(|c| c.is_ascii_uppercase()) {
+                        code = Some(tok.to_string());
+                        break;
+                    }
+                }
+                if let Some(c) = code {
+                    country_args.push(format!("-c \"{}\"", c));
+                } else {
+                    // Fallback: use the line up to the first double space as the country name
+                    let name = line
+                        .split("  ")
+                        .next()
+                        .unwrap_or(line)
+                        .trim()
+                        .to_string();
+                    if !name.is_empty() {
+                        country_args.push(format!("-c \"{}\"", name.replace('"', "\\\"")));
+                    }
+                }
+            }
+        }
+
+        let has_regions = !country_args.is_empty();
+        let has_custom_servers = !self.mirrors_custom_servers.is_empty();
+
+        // If the user added custom servers, place them at the top of mirrorlist
+        if has_custom_servers {
+            // Write custom servers header
+            let mut printf_cmd = String::from("printf '%s\\n' ");
+            let mut first = true;
+            for url in &self.mirrors_custom_servers {
+                let mut line = String::from("Server = ");
+                line.push_str(url);
+                // Simple quote escape for rare cases
+                let safe = line.replace('\'', "'\\''");
+                if !first { printf_cmd.push(' '); }
+                first = false;
+                printf_cmd.push_str(&format!("'{}'", safe));
+            }
+            printf_cmd.push_str(" > /mnt/etc/pacman.d/mirrorlist");
+            cmds.push(printf_cmd);
+        }
+
+        if has_regions {
+            // Use reflector to fetch and sort HTTPS mirrors for selected regions
+            let mut reflector_cmd = String::from(
+                "reflector --protocol https --sort rate ",
+            );
+            reflector_cmd.push_str(&country_args.join(" "));
+            if has_custom_servers {
+                // Save to tmp then append after custom servers
+                reflector_cmd.push_str(" --save /mnt/etc/pacman.d/mirrorlist.ai.tmp");
+                cmds.push(reflector_cmd);
+                cmds.push("cat /mnt/etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist".into());
+                cmds.push("rm -f /mnt/etc/pacman.d/mirrorlist.ai.tmp".into());
+            } else {
+                // Save directly
+                reflector_cmd.push_str(" --save /mnt/etc/pacman.d/mirrorlist");
+                cmds.push(reflector_cmd);
+            }
+        } else if !has_custom_servers {
+            // Neither regions nor custom servers selected: best effort copy from ISO
+            cmds.push("test -f /mnt/etc/pacman.d/mirrorlist || install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist".into());
+        }
+
+        cmds
     }
 }
-
-// (no free-function entry; use AppState::start_install instead)

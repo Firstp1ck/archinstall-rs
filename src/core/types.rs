@@ -73,6 +73,9 @@ pub enum PopupKind {
     NetworkGateway,
     NetworkDNS,
     WipeConfirm,
+    // Additional Packages: groups
+    AdditionalPackageGroupSelect,
+    AdditionalPackageGroupPackages,
 }
 
 #[derive(Clone)]

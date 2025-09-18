@@ -176,7 +176,7 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
             } else {
-                info_lines.push(Line::from("- gpt: 512MiB EFI (vfat, esp) -> /boot"));
+                info_lines.push(Line::from("- gpt: 1024MiB EFI (vfat, esp) -> /boot"));
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }

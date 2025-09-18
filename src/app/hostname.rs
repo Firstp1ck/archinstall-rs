@@ -7,7 +7,7 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 impl AppState {
     #[allow(dead_code)]
     pub fn init_hostname(&mut self) {
-        // placeholder
+        // TODO: Implement hostname input dialog and validation rules.
     }
 }
 

@@ -28,6 +28,8 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text:
     let prompt_text = match app.popup_kind {
         Some(PopupKind::HostnameInput) => "Enter hostname:",
         Some(PopupKind::AdditionalPackageInput) => "Enter package name:",
+        Some(PopupKind::AdditionalPackageGroupSelect) => "Enter to choose",
+        Some(PopupKind::AdditionalPackageGroupPackages) => "Space to toggle, Enter to apply",
         Some(PopupKind::RootPassword) => "Type root password:",
         Some(PopupKind::RootPasswordConfirm) => "Re-type root password:",
         Some(PopupKind::UserAddUsername) => "Enter username:",

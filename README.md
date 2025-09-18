@@ -17,11 +17,22 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
     - Abort if target has mounted partitions
     - Wipe confirmation if device appears already partitioned (low free space)
   - Dry-run mode: shows command plan only, performs no changes (`--dry-run`)
+  - Mirror configuration: regions via `reflector`, custom servers, optional/custom repos persisted to pacman.conf
+  - Mounting and system installation:
+    - Mount filesystems and enable swap
+    - pacstrap base and selected packages
+    - genfstab generation
+    - System configuration (locale, timezone, hostname, keymap)
+    - NetworkManager/systemd-timesyncd enablement (based on selection)
+    - Root and user setup (passwords, sudoers, login manager)
+  - Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
 
 - Not yet
   - Manual partitioning editor and explicit partition list execution
-  - Mounting filesystems and continuing installation (pacstrap, fstab, etc.)
   - LVM/RAID and advanced btrfs subvolume layouts
+  - Unified Kernel Images generation
+  - EFISTUB and Limine bootloaders
+  - AUR helper installation
   - Full installation progress view/log viewer
 
 ## ✨ Features
@@ -430,17 +441,38 @@ cargo clippy
 
 ## 🚦 Roadmap
 
-- [ ] **v0.2.0** - Manual Partitioning
+- [ ] **v0.1.0** - MVP Installer
+  - [x] TUI scaffolding and navigation
+  - [x] Configuration save/load (TOML)
+  - [x] Disk selection and partitioning plan preview (Info popup)
+  - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
+  - [x] Partitioning execution via parted/mkfs/cryptsetup with safety checks
+    - [x] Abort if target has mounted partitions
+    - [x] Wipe confirmation if device appears already partitioned
+  - [x] Dry-run mode shows full command plan without changes
+  - [x] Mirror configuration (regions via reflector, custom servers, optional/custom repos persisted)
+  - [x] Mount filesystems, enable swap, pacstrap base and selected packages
+  - [x] Generate fstab
+  - [x] Basic system configuration (locale, timezone, hostname, keymap)
+  - [x] Enable networking/time sync (NetworkManager/systemd-timesyncd as selected)
+  - [x] Root/user setup (passwords, sudoers, optional login manager)
+  - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
+  - [ ] Installation progress view and log viewer
+
+- [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
   - [ ] Advanced partition editor
   - [ ] Custom mount points
   - [ ] RAID configuration
   - [ ] LVM support
+  - [ ] Unified Kernel Images generation
+  - [ ] EFISTUB and Limine bootloaders
 
 - [ ] **v0.3.0** - Enhanced User Experience
   - [ ] Installation progress visualization
   - [ ] Log viewer
   - [ ] Help system with contextual information
   - [ ] Multi-language UI support
+  - [ ] AUR helper integration
 
 - [ ] **v0.4.0** - Advanced Features
   - [ ] Profile system (Desktop, Server, Minimal)

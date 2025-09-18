@@ -68,6 +68,8 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::OptionalRepos) => " Optional repositories (space to toggle) ",
         Some(PopupKind::HostnameInput) => " Enter Hostname ",
         Some(PopupKind::AdditionalPackageInput) => " Add package (Enter to add) ",
+        Some(PopupKind::AdditionalPackageGroupSelect) => " Select package group ",
+        Some(PopupKind::AdditionalPackageGroupPackages) => " Select group packages ",
         Some(PopupKind::RootPassword) => " Enter Root Password ",
         Some(PopupKind::RootPasswordConfirm) => " Confirm Root Password ",
         Some(PopupKind::NetworkInterfaces) => " Select interface ",

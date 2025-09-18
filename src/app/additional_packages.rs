@@ -19,6 +19,142 @@ impl AppState {
         self.popup_in_search = false;
         self.popup_search_query.clear();
     }
+    pub fn open_additional_package_group_select(&mut self) {
+        self.popup_kind = Some(super::PopupKind::AdditionalPackageGroupSelect);
+        self.popup_open = true;
+        self.popup_items = self.addpkgs_group_names.clone();
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        self.addpkgs_group_pkg_selected.clear();
+        self.popup_packages_focus = false;
+        self.addpkgs_group_pkg_index = 0;
+    }
+    pub fn open_additional_package_group_packages(&mut self, group_name: &str) {
+        self.popup_kind = Some(super::PopupKind::AdditionalPackageGroupPackages);
+        self.popup_open = true;
+        let group_list = Self::group_packages_for(group_name);
+        self.popup_items = group_list
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect();
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        // restore persisted selection for this group
+        self.addpkgs_group_pkg_selected = self
+            .addpkgs_group_selected
+            .get(group_name)
+            .cloned()
+            .unwrap_or_default();
+        self.popup_packages_focus = true;
+        self.addpkgs_group_pkg_index = 0;
+        if let Some(idx) = self
+            .addpkgs_group_names
+            .iter()
+            .position(|n| n == group_name)
+        {
+            self.addpkgs_group_index = idx;
+        }
+    }
+    pub(crate) fn group_packages_for(group_name: &str) -> Vec<&'static str> {
+        match group_name {
+            "Terminals" => vec![
+                "alacritty",
+                "kitty",
+                "foot",
+                "konsole",
+                "gnome-terminal",
+                "xterm",
+                "wezterm",
+                "tilix",
+            ],
+            "Shells" => vec!["fish", "zsh", "nushell", "dash", "tcsh"],
+            "Browsers" => vec!["firefox", "chromium", "qutebrowser", "epiphany"],
+            "Test Editors" | "Text Editors" => vec![
+                "nano",
+                "vim",
+                "neovim",
+                "micro",
+                "helix",
+                "gedit",
+                "kate",
+                "mousepad",
+            ],
+            "dotfile Management" => vec!["stow", "chezmoi", "yadm"],
+            _ => Vec::new(),
+        }
+    }
+    pub fn apply_additional_package_group_selection(&mut self, show_info: bool) {
+        let mut added = 0usize;
+        let mut added_names: Vec<String> = Vec::new();
+        let mut skipped = 0usize;
+        let mut already = 0usize;
+        for name in self.addpkgs_group_pkg_selected.clone().into_iter() {
+            if self
+                .additional_packages
+                .iter()
+                .any(|p| p.name.eq_ignore_ascii_case(&name))
+            {
+                already += 1;
+                continue;
+            }
+            if let Some(reason) = self.check_additional_pkg_conflicts(&name) {
+                let _ = reason; // ignore but count as skipped
+                skipped += 1;
+                continue;
+            }
+            if let Some((repo, pkg_name, version, description)) = self.validate_package(&name) {
+                self.additional_packages.push(crate::app::AdditionalPackage {
+                    name: pkg_name,
+                    repo,
+                    version,
+                    description,
+                });
+                added += 1;
+                added_names.push(name);
+            } else {
+                // Fallback: add with minimal metadata so it appears in Info box
+                self.additional_packages.push(crate::app::AdditionalPackage {
+                    name: name.clone(),
+                    repo: String::new(),
+                    version: String::new(),
+                    description: String::from("Selected from package groups"),
+                });
+                added += 1;
+                added_names.push(name);
+            }
+        }
+        // persist selection for this group name
+        if let Some(name) = self.addpkgs_group_names.get(self.addpkgs_group_index).cloned() {
+            self.addpkgs_group_selected
+                .insert(name, self.addpkgs_group_pkg_selected.clone());
+        }
+        self.addpkgs_group_pkg_selected.clear();
+        if show_info && (added > 0 || skipped > 0 || already > 0) {
+            let mut msg = String::new();
+            if added > 0 {
+                msg.push_str("Added packages:\n");
+                for n in added_names {
+                    msg.push_str("- ");
+                    msg.push_str(&n);
+                    msg.push('\n');
+                }
+            }
+            if skipped > 0 {
+                msg.push_str(&format!("Skipped: {}\n", skipped));
+            }
+            if already > 0 {
+                msg.push_str(&format!("Already present: {}\n", already));
+            }
+            if msg.is_empty() {
+                msg.push_str("No changes");
+            }
+            self.open_info_popup(msg);
+        }
+    }
     /// Validate a package by querying pacman. On success, returns parsed (repo, name, version, description)
     pub fn validate_package(&self, name: &str) -> Option<(String, String, String, String)> {
         if name.trim().is_empty() {
@@ -64,20 +200,26 @@ impl AppState {
         if matches!(n, "linux" | "linux-hardened" | "linux-lts" | "linux-zen") {
             return Some("already covered by Kernels selection".into());
         }
-        // Experience Mode: Desktop, Server, Xorg packages
-        for (_env, set) in self.selected_env_packages.iter() {
-            if set.contains(n) {
-                return Some("already included in Desktop Environment packages".into());
+        // Experience Mode: Desktop, Server, Xorg packages (only consider active selections)
+        for env in self.selected_desktop_envs.iter() {
+            if let Some(set) = self.selected_env_packages.get(env) {
+                if set.contains(n) {
+                    return Some("already included in Desktop Environment packages".into());
+                }
             }
         }
-        for (_srv, set) in self.selected_server_packages.iter() {
-            if set.contains(n) {
-                return Some("already included in Server packages".into());
+        for srv in self.selected_server_types.iter() {
+            if let Some(set) = self.selected_server_packages.get(srv) {
+                if set.contains(n) {
+                    return Some("already included in Server packages".into());
+                }
             }
         }
-        for (_xorg, set) in self.selected_xorg_packages.iter() {
-            if set.contains(n) {
-                return Some("already included in Xorg packages".into());
+        for xorg in self.selected_xorg_types.iter() {
+            if let Some(set) = self.selected_xorg_packages.get(xorg) {
+                if set.contains(n) {
+                    return Some("already included in Xorg packages".into());
+                }
             }
         }
         // Graphic drivers
@@ -158,6 +300,34 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
         Span::raw("  (press Enter)"),
     ]));
 
+    // Field 1: Select package groups
+    let is_focus_1 = app.addpkgs_focus_index == 1 && matches!(app.focus, super::Focus::Content);
+    let bullet_style_1 = if is_focus_1 {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    let label_style_1 = if is_focus_1 {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    lines.push(Line::from(vec![
+        Span::styled(
+            format!(
+                "{} ",
+                if app.addpkgs_focus_index == 1 { "▶" } else { " " }
+            ),
+            bullet_style_1,
+        ),
+        Span::styled("Select package groups".to_string(), label_style_1),
+        Span::raw("  (press Enter)"),
+    ]));
+
     // Show current list (selectable)
     if app.additional_packages.is_empty() {
         lines.push(Line::from("  Current: none"));
@@ -195,8 +365,8 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
     }
 
     // Continue
-    let is_focus_1 = app.addpkgs_focus_index == 1 && matches!(app.focus, super::Focus::Content);
-    let continue_style = if is_focus_1 {
+    let is_focus_2 = app.addpkgs_focus_index == 2 && matches!(app.focus, super::Focus::Content);
+    let continue_style = if is_focus_2 {
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD)
