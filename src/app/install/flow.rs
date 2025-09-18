@@ -1,4 +1,5 @@
 use crate::app::{AppState, PopupKind};
+use crate::common::utils::redact_command_for_logging;
 use crate::core::services::fstab::FstabService;
 use crate::core::services::mounting::MountingService;
 use crate::core::services::partitioning::PartitioningService;
@@ -17,7 +18,9 @@ impl AppState {
             let mut body_lines: Vec<String> = Vec::new();
             for (title, cmds) in sections {
                 body_lines.push(format!("=== {} ===", title));
-                for c in cmds { body_lines.push(c); }
+                for c in cmds {
+                    body_lines.push(redact_command_for_logging(&c));
+                }
                 body_lines.push(String::new());
             }
             self.open_info_popup(body_lines.join("\n"));

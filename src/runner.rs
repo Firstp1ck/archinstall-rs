@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, Event};
@@ -11,6 +11,7 @@ use crate::app::AppState;
 use crate::input::handle_event;
 use crate::render::draw;
 use std::process::Command;
+use crate::common::utils::redact_command_for_logging;
 
 pub fn run(dry_run: bool) -> io::Result<()> {
     enable_raw_mode()?;
@@ -78,7 +79,7 @@ fn run_loop(
             'outer: for (title, cmds) in sections {
                 println!("=== {} ===", title);
                 for c in cmds {
-                    println!("$ {}", &c);
+                    println!("$ {}", redact_command_for_logging(&c));
                     let status = Command::new("bash").arg("-lc").arg(&c).status();
                     match status {
                         Ok(st) if st.success() => {}
@@ -86,13 +87,17 @@ fn run_loop(
                             any_error = Some(format!(
                                 "Command failed (exit {}): {}",
                                 st.code().unwrap_or(-1),
-                                c
+                                redact_command_for_logging(&c)
                             ));
                             eprintln!("{}", any_error.as_ref().unwrap());
                             break 'outer;
                         }
                         Err(e) => {
-                            any_error = Some(format!("Failed to run: {} ({})", c, e));
+                            any_error = Some(format!(
+                                "Failed to run: {} ({})",
+                                redact_command_for_logging(&c),
+                                e
+                            ));
                             eprintln!("{}", any_error.as_ref().unwrap());
                             break 'outer;
                         }
@@ -102,6 +107,14 @@ fn run_loop(
             }
             if any_error.is_none() {
                 println!("Installation completed.");
+                print!("Do you want to reboot now? [Y/n] ");
+                io::stdout().flush()?;
+                let mut answer = String::new();
+                io::stdin().read_line(&mut answer)?;
+                let ans = answer.trim();
+                if ans.is_empty() || ans.eq_ignore_ascii_case("y") || ans.eq_ignore_ascii_case("yes") {
+                    let _ = Command::new("bash").arg("-lc").arg("reboot").status();
+                }
             }
         }
     }

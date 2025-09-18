@@ -88,13 +88,26 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - Minimum 512MB RAM (1GB+ recommended)
 - Minimum 2GB disk space (20GB+ recommended for comfortable usage)
 
+## VM Setup
+
+- Press 'e' in Boot-Menu and input the following:
+
+```bash
+linux /arch/boot/x86_64/vmlinuz-linux archisobasedir=arch cow_spacesize=8G
+```
+
 ## 🚀 Installation
+
+```bash
+# Set keyboard layout to Swiss German
+loadkeys de_CH-latin1
+```
 
 ### From Source
 
 ```bash
 # Install dependencies
-pacman -Syu rustup git gcc base-devel
+pacman -Sy rustup git gcc base-devel
 ```
 
 ```bash

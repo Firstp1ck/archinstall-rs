@@ -228,32 +228,40 @@ impl SystemService {
         // Convert to vec for validation
         let packages: Vec<String> = package_set.into_iter().collect();
 
-        // Validate packages; collect only those resolvable
-        let mut final_pkgs: Vec<String> = Vec::new();
-        for p in packages {
-            if let Some((_repo, name, _ver, _desc)) = state.validate_package(&p) {
-                final_pkgs.push(name);
-            } else {
-                missing.push(p);
+        if state.dry_run {
+            // Validate packages in dry-run to show accurate preview and missing ones
+            let mut final_pkgs: Vec<String> = Vec::new();
+            for p in packages {
+                if let Some((_repo, name, _ver, _desc)) = state.validate_package(&p) {
+                    final_pkgs.push(name);
+                } else {
+                    missing.push(p);
+                }
             }
-        }
 
-        if !missing.is_empty() {
-            let mut echo = String::from("echo 'Missing packages (skipped):");
-            for m in &missing {
-                echo.push(' ');
-                echo.push('"');
-                echo.push_str(m);
-                echo.push('"');
+            if !missing.is_empty() {
+                let mut echo = String::from("echo 'Missing packages (skipped):");
+                for m in &missing {
+                    echo.push(' ');
+                    echo.push('"');
+                    echo.push_str(m);
+                    echo.push('"');
+                }
+                echo.push('\'');
+                cmds.push(echo);
             }
-            echo.push('\'');
-            cmds.push(echo);
-        }
 
-        if !final_pkgs.is_empty() {
-            let joined = final_pkgs.join(" ");
-            // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
-            cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
+            if !final_pkgs.is_empty() {
+                let joined = final_pkgs.join(" ");
+                // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
+                cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
+            }
+        } else {
+            // In non-dry-run mode, skip pre-validation to reduce TUI lag; let pacstrap handle errors
+            if !packages.is_empty() {
+                let joined = packages.join(" ");
+                cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
+            }
         }
 
         SystemPlan::new(cmds)
