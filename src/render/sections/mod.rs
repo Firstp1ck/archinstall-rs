@@ -18,18 +18,28 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     } else {
         Constraint::Length(LEFT_MENU_WIDTH)
     };
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            left_constraint,
-            Constraint::Min(10),
-            Constraint::Length(KEYBINDS_WIDTH),
-        ])
-        .split(size);
+    // During install process, hide keybinds pane to maximize content area
+    let hide_keybinds = app.install_running;
+    let chunks = if hide_keybinds {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([left_constraint, Constraint::Min(10)])
+            .split(size)
+    } else {
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([left_constraint, Constraint::Min(10), Constraint::Length(KEYBINDS_WIDTH)])
+            .split(size)
+    };
 
     let left_menu_rect = chunks[0];
     let right_rect = chunks[1];
-    let keybinds_rect = chunks[2];
+    let keybinds_rect = if hide_keybinds {
+        // dummy rect; will not be rendered
+        Rect::new(0, 0, 0, 0)
+    } else {
+        chunks[2]
+    };
 
     // On ExperienceMode, split Info and Decision content evenly
     // On Install, hide Info and give full height to Decision content
@@ -59,6 +69,8 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     if app.current_screen() != Screen::Install {
         info::draw_info(frame, app, infobox_rect);
     }
-    keybinds::draw_keybinds(frame, keybinds_rect);
+    if !hide_keybinds {
+        keybinds::draw_keybinds(frame, keybinds_rect);
+    }
     content::draw_content(frame, app, content_rect);
 }

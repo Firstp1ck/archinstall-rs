@@ -10,7 +10,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     if app.install_running || !app.install_section_titles.is_empty() {
         let cols = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(36), Constraint::Min(10)])
+            .constraints([Constraint::Length(28), Constraint::Min(10)])
             .split(area);
 
         // Left: overall progress by sections
