@@ -63,18 +63,15 @@ impl UserSetupService {
         ));
 
         // Enable selected login manager if set
-        if let Some(lm) = state.selected_login_manager.clone() {
-            if !lm.is_empty() && lm != "none" {
-                cmds.push(chroot_cmd(&format!("systemctl enable {}", lm)));
-            }
+        if let Some(lm) = state.selected_login_manager.clone()
+            && !lm.is_empty()
+            && lm != "none"
+        {
+            cmds.push(chroot_cmd(&format!("systemctl enable {}", lm)));
         }
 
         // Hyprland keyboard layout configuration for each created user
-        if state
-            .selected_desktop_envs
-            .iter()
-            .any(|e| e == "Hyprland")
-        {
+        if state.selected_desktop_envs.iter().any(|e| e == "Hyprland") {
             let keymap_src = state
                 .keyboard_layout_options
                 .get(state.keyboard_layout_index)
@@ -116,5 +113,3 @@ impl UserSetupService {
         UserSetupPlan::new(cmds)
     }
 }
-
-

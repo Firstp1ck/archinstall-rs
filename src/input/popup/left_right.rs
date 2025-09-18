@@ -28,7 +28,10 @@ pub(crate) fn handle_left(app: &mut AppState) -> bool {
         }
         return false;
     }
-    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+    if matches!(
+        app.popup_kind,
+        Some(PopupKind::AdditionalPackageGroupSelect)
+    ) {
         if app.popup_packages_focus {
             app.popup_packages_focus = false;
         }
@@ -75,7 +78,10 @@ pub(crate) fn handle_right(app: &mut AppState) -> bool {
         }
         return false;
     }
-    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+    if matches!(
+        app.popup_kind,
+        Some(PopupKind::AdditionalPackageGroupSelect)
+    ) {
         if !app.popup_packages_focus {
             app.popup_packages_focus = true;
             app.addpkgs_group_pkg_index = 0;

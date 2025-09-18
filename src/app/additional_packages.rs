@@ -35,10 +35,7 @@ impl AppState {
         self.popup_kind = Some(super::PopupKind::AdditionalPackageGroupPackages);
         self.popup_open = true;
         let group_list = Self::group_packages_for(group_name);
-        self.popup_items = group_list
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect();
+        self.popup_items = group_list.into_iter().map(|s| s.to_string()).collect();
         self.popup_visible_indices = (0..self.popup_items.len()).collect();
         self.popup_selected_visible = 0;
         self.popup_in_search = false;
@@ -74,14 +71,7 @@ impl AppState {
             "Shells" => vec!["fish", "zsh", "nushell", "dash", "tcsh"],
             "Browsers" => vec!["firefox", "chromium", "qutebrowser", "epiphany"],
             "Test Editors" | "Text Editors" => vec![
-                "nano",
-                "vim",
-                "neovim",
-                "micro",
-                "helix",
-                "gedit",
-                "kate",
-                "mousepad",
+                "nano", "vim", "neovim", "micro", "helix", "gedit", "kate", "mousepad",
             ],
             "dotfile Management" => vec!["stow", "chezmoi", "yadm"],
             _ => Vec::new(),
@@ -107,28 +97,34 @@ impl AppState {
                 continue;
             }
             if let Some((repo, pkg_name, version, description)) = self.validate_package(&name) {
-                self.additional_packages.push(crate::app::AdditionalPackage {
-                    name: pkg_name,
-                    repo,
-                    version,
-                    description,
-                });
+                self.additional_packages
+                    .push(crate::app::AdditionalPackage {
+                        name: pkg_name,
+                        repo,
+                        version,
+                        description,
+                    });
                 added += 1;
                 added_names.push(name);
             } else {
                 // Fallback: add with minimal metadata so it appears in Info box
-                self.additional_packages.push(crate::app::AdditionalPackage {
-                    name: name.clone(),
-                    repo: String::new(),
-                    version: String::new(),
-                    description: String::from("Selected from package groups"),
-                });
+                self.additional_packages
+                    .push(crate::app::AdditionalPackage {
+                        name: name.clone(),
+                        repo: String::new(),
+                        version: String::new(),
+                        description: String::from("Selected from package groups"),
+                    });
                 added += 1;
                 added_names.push(name);
             }
         }
         // persist selection for this group name
-        if let Some(name) = self.addpkgs_group_names.get(self.addpkgs_group_index).cloned() {
+        if let Some(name) = self
+            .addpkgs_group_names
+            .get(self.addpkgs_group_index)
+            .cloned()
+        {
             self.addpkgs_group_selected
                 .insert(name, self.addpkgs_group_pkg_selected.clone());
         }
@@ -202,24 +198,24 @@ impl AppState {
         }
         // Experience Mode: Desktop, Server, Xorg packages (only consider active selections)
         for env in self.selected_desktop_envs.iter() {
-            if let Some(set) = self.selected_env_packages.get(env) {
-                if set.contains(n) {
-                    return Some("already included in Desktop Environment packages".into());
-                }
+            if let Some(set) = self.selected_env_packages.get(env)
+                && set.contains(n)
+            {
+                return Some("already included in Desktop Environment packages".into());
             }
         }
         for srv in self.selected_server_types.iter() {
-            if let Some(set) = self.selected_server_packages.get(srv) {
-                if set.contains(n) {
-                    return Some("already included in Server packages".into());
-                }
+            if let Some(set) = self.selected_server_packages.get(srv)
+                && set.contains(n)
+            {
+                return Some("already included in Server packages".into());
             }
         }
         for xorg in self.selected_xorg_types.iter() {
-            if let Some(set) = self.selected_xorg_packages.get(xorg) {
-                if set.contains(n) {
-                    return Some("already included in Xorg packages".into());
-                }
+            if let Some(set) = self.selected_xorg_packages.get(xorg)
+                && set.contains(n)
+            {
+                return Some("already included in Xorg packages".into());
             }
         }
         // Graphic drivers
@@ -320,7 +316,11 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
         Span::styled(
             format!(
                 "{} ",
-                if app.addpkgs_focus_index == 1 { "▶" } else { " " }
+                if app.addpkgs_focus_index == 1 {
+                    "▶"
+                } else {
+                    " "
+                }
             ),
             bullet_style_1,
         ),

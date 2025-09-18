@@ -37,7 +37,10 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
     }
 
     // Special two-pane layout for AdditionalPackageGroupSelect to show packages side-by-side
-    if matches!(app.popup_kind, Some(PopupKind::AdditionalPackageGroupSelect)) {
+    if matches!(
+        app.popup_kind,
+        Some(PopupKind::AdditionalPackageGroupSelect)
+    ) {
         let cols = ratatui::layout::Layout::default()
             .direction(ratatui::layout::Direction::Horizontal)
             .constraints([
@@ -70,7 +73,8 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
         frame.render_stateful_widget(list_left, cols[0], &mut state_left);
 
         // Right: packages for hovered group
-        let selected_group = if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+        let selected_group = if let Some(&gi) =
+            app.popup_visible_indices.get(app.popup_selected_visible)
             && let Some(name) = app.popup_items.get(gi)
         {
             name.clone()
@@ -119,19 +123,20 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             Color::White
         };
         // Add footer line with Continue/Confirm info
-        let is_last_group = if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
-            gi + 1 == app.popup_items.len()
+        let is_last_group =
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                gi + 1 == app.popup_items.len()
+            } else {
+                false
+            };
+        let footer_title = if is_last_group {
+            " Confirm (Enter)  "
         } else {
-            false
+            " Continue (Enter) "
         };
-        let footer_title = if is_last_group { " Confirm (Enter)  " } else { " Continue (Enter) " };
 
         let list_right = List::new(pkg_items)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(right_title),
-            )
+            .block(Block::default().borders(Borders::ALL).title(right_title))
             .highlight_style(
                 Style::default()
                     .fg(right_highlight)

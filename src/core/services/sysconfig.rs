@@ -111,10 +111,7 @@ impl SysConfigService {
                 cmds.push(chroot_cmd(cmd));
             } else {
                 let pw_escaped = state.root_password.replace('"', "\\\"");
-                let cmd = format!(
-                    "echo \"root:{}\" | chpasswd",
-                    pw_escaped
-                );
+                let cmd = format!("echo \"root:{}\" | chpasswd", pw_escaped);
                 cmds.push(chroot_cmd(&cmd));
             }
         }
@@ -122,5 +119,3 @@ impl SysConfigService {
         SysConfigPlan::new(cmds)
     }
 }
-
-

@@ -202,7 +202,8 @@ pub struct AppState {
     pub addpkgs_group_pkg_selected: std::collections::BTreeSet<String>,
     pub addpkgs_group_accum_selected: std::collections::BTreeSet<String>,
     // Persistent selections per group across popup sessions
-    pub addpkgs_group_selected: std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    pub addpkgs_group_selected:
+        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
 
     // Sections processed
     pub processed_sections: BTreeSet<Screen>,

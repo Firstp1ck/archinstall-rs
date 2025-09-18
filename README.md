@@ -6,34 +6,58 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
 
-## Current Status
+## 🚦 Roadmap
 
-- Implemented
-  - TUI scaffolding and navigation
-  - Config save/load (TOML)
-  - Disk selection and plan preview (infobox)
-  - Best-effort partitioning plan (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
-  - Partitioning execution via parted/mkfs/cryptsetup with safety checks:
-    - Abort if target has mounted partitions
-    - Wipe confirmation if device appears already partitioned (low free space)
-  - Dry-run mode: shows command plan only, performs no changes (`--dry-run`)
-  - Mirror configuration: regions via `reflector`, custom servers, optional/custom repos persisted to pacman.conf
-  - Mounting and system installation:
-    - Mount filesystems and enable swap
-    - pacstrap base and selected packages
-    - genfstab generation
-    - System configuration (locale, timezone, hostname, keymap)
-    - NetworkManager/systemd-timesyncd enablement (based on selection)
-    - Root and user setup (passwords, sudoers, login manager)
-  - Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
+- [ ] **v0.1.0** - MVP Installer
+  - [x] TUI scaffolding and navigation
+  - [x] Configuration save/load (TOML)
+  - [x] Disk selection and partitioning plan preview (Info popup)
+  - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
+  - [x] Partitioning execution via parted/mkfs/cryptsetup with safety checks
+    - [x] Abort if target has mounted partitions
+    - [x] Wipe confirmation if device appears already partitioned
+  - [x] Dry-run mode shows full command plan without changes
+  - [x] Mirror configuration (regions via reflector, custom servers, optional/custom repos persisted)
+  - [x] Mount filesystems, enable swap, pacstrap base and selected packages
+  - [x] Generate fstab
+  - [x] Basic system configuration (locale, timezone, hostname, keymap)
+  - [x] Enable networking/time sync (NetworkManager/systemd-timesyncd as selected)
+  - [x] Root/user setup (passwords, sudoers, optional login manager)
+  - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
+  - [ ] Installation progress view and log viewer
 
-- Not yet
-  - Manual partitioning editor and explicit partition list execution
-  - LVM/RAID and advanced btrfs subvolume layouts
-  - Unified Kernel Images generation
-  - EFISTUB and Limine bootloaders
-  - AUR helper installation
-  - Full installation progress view/log viewer
+- [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
+  - [ ] Advanced partition editor
+  - [ ] Custom mount points
+  - [ ] RAID configuration
+  - [ ] LVM support
+  - [ ] Unified Kernel Images generation
+  - [ ] EFISTUB and Limine bootloaders
+
+- [ ] **v0.3.0** - Enhanced User Experience
+  - [ ] Installation progress visualization
+  - [ ] Log viewer
+  - [ ] Help system with contextual information
+  - [ ] Multi-language UI support
+  - [ ] AUR helper integration
+
+- [ ] **v0.4.0** - Advanced Features
+  - [ ] Profile system (Desktop, Server, Minimal)
+  - [ ] Post-installation script support
+  - [ ] Configuration validation
+  - [ ] Network installation support
+
+- [ ] **v0.5.0** - Automation
+  - [ ] Unattended installation mode
+  - [ ] Configuration templates
+  - [ ] Cloud-init support
+  - [ ] Ansible playbook generation
+
+- [ ] **v1.0.0** - Production Ready
+  - [ ] Comprehensive testing suite
+  - [ ] Complete documentation
+  - [ ] Stable API
+  - [ ] Official Arch Linux repository inclusion
 
 ## ✨ Features
 
@@ -414,83 +438,38 @@ cargo clippy
 
 ### Adding New Features
 
-1. Create a screen module
-   - Add a new file under `src/ui/app/` (e.g., `src/ui/app/my_feature.rs`).
-   - Expose a draw function like `pub fn draw_my_feature(frame: &mut Frame, app: &mut AppState, area: Rect)`.
+1. Define the screen
+   - Add a new variant to `Screen` in `src/core/types.rs` (e.g., `Screen::MyFeature`).
+   - If you need a popup, add a `PopupKind::MyFeature...` variant here as well.
 
-2. Register the screen in `src/ui/app.rs`
-   - Add a variant to the `Screen` enum (e.g., `Screen::MyFeature`).
-   - Add a `MenuEntry { label, content, screen: Screen::MyFeature }` in `AppState::new()` to show it in the left menu.
-   - Add any per-screen state fields to `AppState` (focus indices, selections, etc.).
+2. Register it in the menu and state
+   - In `src/core/state.rs`, add a `MenuEntry { label, content, screen: Screen::MyFeature }` in `AppState::new()` so it appears in the left menu.
+   - Add any per-screen state fields to `AppState` (focus indices, selections, buffers, etc.).
 
-3. Wire rendering in `src/ui/render/sections.rs`
-   - Extend the `match app.current_screen()` to call your `draw_my_feature(...)` when `Screen::MyFeature` is active.
-   - Optionally add an Info-box summary for the new screen above the content (inside the Info block section).
+3. Implement the screen renderer
+   - Create `src/app/my_feature.rs` with `pub fn draw_my_feature(frame: &mut Frame, app: &mut AppState, area: Rect)`.
+   - Wire it in `src/render/sections/content.rs` by adding a `match` arm for `Screen::MyFeature` that calls `app::my_feature::draw_my_feature(...)`.
+   - If you want Info-box content, extend `src/render/sections/info.rs` to show a summary when `Screen::MyFeature` is active.
 
-4. Wire input in `src/ui/input/screens.rs`
-   - Implement functions for navigation and actions: `move_my_feature_up/down`, `change_my_feature_value`, `handle_enter_my_feature`.
-   - Extend the top-level delegates (`move_screen_up/down`, `change_value`, `handle_enter`) to call your functions when `Screen::MyFeature` is active.
-   - If the screen uses popups, add a `PopupKind::...` in `src/ui/app.rs`, add open functions on `AppState`, and handle selections in `apply_popup_selection`.
+4. Handle input for the screen
+   - Create `src/input/screens/my_feature.rs` implementing handlers like `move_my_feature_up/down`, `change_my_feature_value`, `handle_enter_my_feature`.
+   - Export the module in `src/input/screens/mod.rs` and wire the handlers in `src/input/screens/dispatcher.rs` inside `move_screen_up/down`, `change_value`, and `handle_enter` for `Screen::MyFeature`.
 
-5. Persist configuration (optional) in `src/ui/app/config.rs`
-   - Add fields to `AppConfig` if you need to save/load state for the new screen.
-   - Update `build_config()` to write, and `load_config()` to read these fields.
+5. Add popup plumbing (optional)
+   - Add `open_...` helpers or extend existing ones in `src/common/popups.rs` if your screen opens popups.
+   - Update `apply_popup_selection` in `src/common/popups.rs` to apply the selection to your screen state.
+   - Reuse a generic popup renderer (`src/render/popup/general.rs`) or add a custom one under `src/render/popup/` if needed.
 
-6. Finalize
+6. Persist configuration (optional)
+   - Add fields to the config schema in `src/app/config/types.rs` and surface them in `src/app/config/view.rs` if you want them shown in the summary.
+   - Read/write them in `src/app/config/io.rs` so they are saved/loaded from the TOML config.
+
+7. Participate in the install flow (optional)
+   - If your feature requires system actions, add a service in `src/core/services/` and return command steps.
+   - Append your service commands in `src/app/install/flow.rs` inside `build_install_plan` at the appropriate stage.
+
+8. Finalize
    - Add tests and documentation as needed.
-
-## 🚦 Roadmap
-
-- [ ] **v0.1.0** - MVP Installer
-  - [x] TUI scaffolding and navigation
-  - [x] Configuration save/load (TOML)
-  - [x] Disk selection and partitioning plan preview (Info popup)
-  - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
-  - [x] Partitioning execution via parted/mkfs/cryptsetup with safety checks
-    - [x] Abort if target has mounted partitions
-    - [x] Wipe confirmation if device appears already partitioned
-  - [x] Dry-run mode shows full command plan without changes
-  - [x] Mirror configuration (regions via reflector, custom servers, optional/custom repos persisted)
-  - [x] Mount filesystems, enable swap, pacstrap base and selected packages
-  - [x] Generate fstab
-  - [x] Basic system configuration (locale, timezone, hostname, keymap)
-  - [x] Enable networking/time sync (NetworkManager/systemd-timesyncd as selected)
-  - [x] Root/user setup (passwords, sudoers, optional login manager)
-  - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
-  - [ ] Installation progress view and log viewer
-
-- [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
-  - [ ] Advanced partition editor
-  - [ ] Custom mount points
-  - [ ] RAID configuration
-  - [ ] LVM support
-  - [ ] Unified Kernel Images generation
-  - [ ] EFISTUB and Limine bootloaders
-
-- [ ] **v0.3.0** - Enhanced User Experience
-  - [ ] Installation progress visualization
-  - [ ] Log viewer
-  - [ ] Help system with contextual information
-  - [ ] Multi-language UI support
-  - [ ] AUR helper integration
-
-- [ ] **v0.4.0** - Advanced Features
-  - [ ] Profile system (Desktop, Server, Minimal)
-  - [ ] Post-installation script support
-  - [ ] Configuration validation
-  - [ ] Network installation support
-
-- [ ] **v0.5.0** - Automation
-  - [ ] Unattended installation mode
-  - [ ] Configuration templates
-  - [ ] Cloud-init support
-  - [ ] Ansible playbook generation
-
-- [ ] **v1.0.0** - Production Ready
-  - [ ] Comprehensive testing suite
-  - [ ] Complete documentation
-  - [ ] Stable API
-  - [ ] Official Arch Linux repository inclusion
 
 ## 🤝 Contributing
 

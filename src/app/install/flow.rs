@@ -1,10 +1,10 @@
 use crate::app::{AppState, PopupKind};
-use crate::core::services::partitioning::PartitioningService;
-use crate::core::services::partitioning::PartitionPlan;
-use crate::core::services::mounting::MountingService;
-use crate::core::services::system::SystemService;
 use crate::core::services::fstab::FstabService;
+use crate::core::services::mounting::MountingService;
+use crate::core::services::partitioning::PartitionPlan;
+use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
+use crate::core::services::system::SystemService;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -73,10 +73,12 @@ impl AppState {
         let syscfg_cmds = SysConfigService::build_plan(self).commands;
         plan.extend(syscfg_cmds);
         // Bootloader setup
-        let boot_cmds = crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands;
+        let boot_cmds =
+            crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands;
         plan.extend(boot_cmds);
         // User setup: create users, passwords, sudoers, DM, hyprland config
-        let user_cmds = crate::core::services::usersetup::UserSetupService::build_plan(self).commands;
+        let user_cmds =
+            crate::core::services::usersetup::UserSetupService::build_plan(self).commands;
         plan.extend(user_cmds);
         plan
     }
@@ -163,12 +165,7 @@ impl AppState {
                     country_args.push(format!("-c \"{}\"", c));
                 } else {
                     // Fallback: use the line up to the first double space as the country name
-                    let name = line
-                        .split("  ")
-                        .next()
-                        .unwrap_or(line)
-                        .trim()
-                        .to_string();
+                    let name = line.split("  ").next().unwrap_or(line).trim().to_string();
                     if !name.is_empty() {
                         country_args.push(format!("-c \"{}\"", name.replace('"', "\\\"")));
                     }
@@ -189,7 +186,9 @@ impl AppState {
                 line.push_str(url);
                 // Simple quote escape for rare cases
                 let safe = line.replace('\'', "'\\''");
-                if !first { printf_cmd.push(' '); }
+                if !first {
+                    printf_cmd.push(' ');
+                }
                 first = false;
                 printf_cmd.push_str(&format!("'{}'", safe));
             }
@@ -199,15 +198,16 @@ impl AppState {
 
         if has_regions {
             // Use reflector to fetch and sort HTTPS mirrors for selected regions
-            let mut reflector_cmd = String::from(
-                "reflector --protocol https --sort rate ",
-            );
+            let mut reflector_cmd = String::from("reflector --protocol https --sort rate ");
             reflector_cmd.push_str(&country_args.join(" "));
             if has_custom_servers {
                 // Save to tmp then append after custom servers
                 reflector_cmd.push_str(" --save /mnt/etc/pacman.d/mirrorlist.ai.tmp");
                 cmds.push(reflector_cmd);
-                cmds.push("cat /mnt/etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist".into());
+                cmds.push(
+                    "cat /mnt/etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist"
+                        .into(),
+                );
                 cmds.push("rm -f /mnt/etc/pacman.d/mirrorlist.ai.tmp".into());
             } else {
                 // Save directly

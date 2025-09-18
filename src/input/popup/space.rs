@@ -549,31 +549,31 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                             .any(|p| p.name.eq_ignore_ascii_case(&name));
                         if !currently_selected {
                             for env in app.selected_desktop_envs.iter() {
-                                if let Some(set) = app.selected_env_packages.get(env) {
-                                    if set.contains(&name) {
-                                        currently_selected = true;
-                                        break;
-                                    }
+                                if let Some(set) = app.selected_env_packages.get(env)
+                                    && set.contains(&name)
+                                {
+                                    currently_selected = true;
+                                    break;
                                 }
                             }
                         }
                         if !currently_selected {
                             for srv in app.selected_server_types.iter() {
-                                if let Some(set) = app.selected_server_packages.get(srv) {
-                                    if set.contains(&name) {
-                                        currently_selected = true;
-                                        break;
-                                    }
+                                if let Some(set) = app.selected_server_packages.get(srv)
+                                    && set.contains(&name)
+                                {
+                                    currently_selected = true;
+                                    break;
                                 }
                             }
                         }
                         if !currently_selected {
                             for xorg in app.selected_xorg_types.iter() {
-                                if let Some(set) = app.selected_xorg_packages.get(xorg) {
-                                    if set.contains(&name) {
-                                        currently_selected = true;
-                                        break;
-                                    }
+                                if let Some(set) = app.selected_xorg_packages.get(xorg)
+                                    && set.contains(&name)
+                                {
+                                    currently_selected = true;
+                                    break;
                                 }
                             }
                         }
@@ -631,10 +631,7 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                     if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
                         && let Some(group) = app.popup_items.get(gi)
                     {
-                        let entry = app
-                            .addpkgs_group_selected
-                            .entry(group.clone())
-                            .or_default();
+                        let entry = app.addpkgs_group_selected.entry(group.clone()).or_default();
                         *entry = app.addpkgs_group_pkg_selected.clone();
                     }
                 }

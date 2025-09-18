@@ -1,9 +1,9 @@
-pub mod runner;
 pub mod app;
 pub mod common;
 pub mod core;
 pub mod input;
 pub mod render;
+pub mod runner;
 
 use std::io::Write;
 

@@ -25,15 +25,24 @@ impl FstabService {
 
         // Check filesystems created
         if state.is_uefi() && state.bootloader_index != 1 {
-            cmds.push(format!("blkid {} | grep -q 'TYPE=\"vfat\"' || echo 'WARN: ESP vfat not found on {}'", p1, p1));
+            cmds.push(format!(
+                "blkid {} | grep -q 'TYPE=\"vfat\"' || echo 'WARN: ESP vfat not found on {}'",
+                p1, p1
+            ));
         }
         if state.swap_enabled {
-            cmds.push(format!("blkid {} | grep -q 'TYPE=\"swap\"' || echo 'WARN: swap not found on {}'", p2, p2));
+            cmds.push(format!(
+                "blkid {} | grep -q 'TYPE=\"swap\"' || echo 'WARN: swap not found on {}'",
+                p2, p2
+            ));
         }
         if state.disk_encryption_type_index == 1 {
             cmds.push("blkid /dev/mapper/cryptroot | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on cryptroot'".into());
         } else {
-            cmds.push(format!("blkid {} | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on {}'", p3, p3));
+            cmds.push(format!(
+                "blkid {} | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on {}'",
+                p3, p3
+            ));
         }
 
         // Check mounts
@@ -42,7 +51,9 @@ impl FstabService {
             cmds.push("mountpoint -q /mnt/boot || echo 'ERROR: /mnt/boot is not mounted'".into());
         }
         if state.swap_enabled {
-            cmds.push("swapon --noheadings --raw | grep -q '^' || echo 'ERROR: swap not active'".into());
+            cmds.push(
+                "swapon --noheadings --raw | grep -q '^' || echo 'ERROR: swap not active'".into(),
+            );
         }
 
         // Generate fstab
@@ -51,5 +62,3 @@ impl FstabService {
         FstabPlan::new(cmds)
     }
 }
-
-

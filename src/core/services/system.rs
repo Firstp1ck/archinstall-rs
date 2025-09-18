@@ -17,7 +17,10 @@ impl SystemService {
     pub fn build_pre_install_plan(state: &AppState) -> SystemPlan {
         let mut cmds: Vec<String> = Vec::new();
         // Ensure pacman.conf exists in target
-        cmds.push("test -f /mnt/etc/pacman.conf || install -Dm644 /etc/pacman.conf /mnt/etc/pacman.conf".into());
+        cmds.push(
+            "test -f /mnt/etc/pacman.conf || install -Dm644 /etc/pacman.conf /mnt/etc/pacman.conf"
+                .into(),
+        );
 
         // Optional repos from UI state
         let enable_multilib = state.optional_repos_selected.contains(&0); // index 0 used earlier
@@ -25,11 +28,15 @@ impl SystemService {
 
         if enable_multilib {
             // Uncomment [multilib] block
-            cmds.push(r"sed -i '/^#\s*\[multilib\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf".into());
+            cmds.push(
+                r"sed -i '/^#\s*\[multilib\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf".into(),
+            );
         }
         if enable_testing {
             // Uncomment [testing] and [community-testing] if present
-            cmds.push(r"sed -i '/^#\s*\[testing\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf".into());
+            cmds.push(
+                r"sed -i '/^#\s*\[testing\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf".into(),
+            );
             cmds.push(r"sed -i '/^#\s*\[community-testing\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf".into());
         }
 
@@ -40,11 +47,19 @@ impl SystemService {
             for repo in state.custom_repos.iter() {
                 let name_safe = repo.name.replace('\n', " ").replace('\'', "'\\''");
                 let url_safe = repo.url.replace('\n', " ").replace('\'', "'\\''");
-                cmds.push(format!("printf '%s\\n' '[{}]' >> /mnt/etc/pacman.conf", name_safe));
-                cmds.push(format!("printf '%s\\n' 'Server = {}' >> /mnt/etc/pacman.conf", url_safe));
+                cmds.push(format!(
+                    "printf '%s\\n' '[{}]' >> /mnt/etc/pacman.conf",
+                    name_safe
+                ));
+                cmds.push(format!(
+                    "printf '%s\\n' 'Server = {}' >> /mnt/etc/pacman.conf",
+                    url_safe
+                ));
                 match repo.signature {
                     crate::app::RepoSignature::Never => {
-                        cmds.push("printf '%s\\n' 'SigLevel = Never' >> /mnt/etc/pacman.conf".into());
+                        cmds.push(
+                            "printf '%s\\n' 'SigLevel = Never' >> /mnt/etc/pacman.conf".into(),
+                        );
                     }
                     crate::app::RepoSignature::Optional => {
                         // Default optional; include sign option if provided
@@ -64,7 +79,10 @@ impl SystemService {
                                 crate::app::RepoSignOption::TrustedAll => cmds.push("printf '%s\\n' 'SigLevel = Required TrustedAll' >> /mnt/etc/pacman.conf".into()),
                             }
                         } else {
-                            cmds.push("printf '%s\\n' 'SigLevel = Required' >> /mnt/etc/pacman.conf".into());
+                            cmds.push(
+                                "printf '%s\\n' 'SigLevel = Required' >> /mnt/etc/pacman.conf"
+                                    .into(),
+                            );
                         }
                     }
                 }
@@ -150,10 +168,11 @@ impl SystemService {
         }
 
         // Login manager (if set and not none)
-        if let Some(lm) = state.selected_login_manager.clone() {
-            if !lm.is_empty() && lm != "none" {
-                package_set.insert(lm);
-            }
+        if let Some(lm) = state.selected_login_manager.clone()
+            && !lm.is_empty()
+            && lm != "none"
+        {
+            package_set.insert(lm);
         }
 
         // Desktop environment packages (only for selected environments)
@@ -188,18 +207,18 @@ impl SystemService {
             package_set.insert(d.clone());
         }
 
-		// CPU microcode (detect via /proc/cpuinfo)
-		// Prefer exact vendor markers when available; fall back to substring match
-		if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
-			let lower = cpuinfo.to_lowercase();
-			let is_intel = cpuinfo.contains("GenuineIntel") || lower.contains("intel");
-			let is_amd = cpuinfo.contains("AuthenticAMD") || lower.contains("amd");
-			if is_intel {
-				package_set.insert("intel-ucode".into());
-			} else if is_amd {
-				package_set.insert("amd-ucode".into());
-			}
-		}
+        // CPU microcode (detect via /proc/cpuinfo)
+        // Prefer exact vendor markers when available; fall back to substring match
+        if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo") {
+            let lower = cpuinfo.to_lowercase();
+            let is_intel = cpuinfo.contains("GenuineIntel") || lower.contains("intel");
+            let is_amd = cpuinfo.contains("AuthenticAMD") || lower.contains("amd");
+            if is_intel {
+                package_set.insert("intel-ucode".into());
+            } else if is_amd {
+                package_set.insert("amd-ucode".into());
+            }
+        }
 
         // User Additional Packages
         for ap in state.additional_packages.iter() {
@@ -220,13 +239,14 @@ impl SystemService {
         }
 
         if !missing.is_empty() {
-            let mut echo = String::from("echo 'Missing packages (skipped):" );
+            let mut echo = String::from("echo 'Missing packages (skipped):");
             for m in &missing {
-                echo.push_str(" \"");
+                echo.push(' ');
+                echo.push('"');
                 echo.push_str(m);
-                echo.push_str("\"");
+                echo.push('"');
             }
-            echo.push_str("'" );
+            echo.push('\'');
             cmds.push(echo);
         }
 
@@ -238,5 +258,3 @@ impl SystemService {
         SystemPlan::new(cmds)
     }
 }
-
-
