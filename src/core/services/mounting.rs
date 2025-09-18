@@ -26,6 +26,9 @@ impl MountingService {
         }
         // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
         if state.is_uefi() {
+            // Ensure kernel filesystem drivers are available (some ISOs need explicit load)
+            cmds.push("modprobe -q vfat || true".into());
+            cmds.push("modprobe -q fat || true".into());
             cmds.push(format!("mount --mkdir {p}1 /mnt/boot", p = device));
         }
         if state.swap_enabled {
