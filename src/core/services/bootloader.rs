@@ -28,7 +28,7 @@ impl BootloaderService {
                 // Install systemd-boot. Avoid touching EFI variables on some firmwares that hang.
                 // Explicitly point to ESP and boot paths; skip writing NVRAM entries (we keep fallback).
                 cmds.push(chroot_cmd(
-                    "bootctl --no-pager install --no-variables --esp-path=/boot --boot-path=/boot",
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 30s bootctl --no-pager install --no-variables --esp-path=/boot --boot-path=/boot",
                 ));
 
                 // Build loader.conf
@@ -48,12 +48,12 @@ impl BootloaderService {
                 ));
 
                 // Verify entries
-                cmds.push(chroot_cmd("bootctl --no-pager list || true"));
+                cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
                 // Fallback: if bootctl install failed, attempt efibootmgr
                 // Guard on efivarfs presence and add a timeout to avoid hangs on buggy firmware
                 cmds.push(chroot_cmd(
-                    "bootctl --no-pager status >/dev/null 2>&1 || { if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }",
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || { if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }",
                 ));
             }
             // 1: grub
