@@ -2,7 +2,7 @@ use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use std::collections::BTreeSet;
 
-use crate::ui::core::types::{
+use crate::core::types::{
     AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, MenuEntry, NetworkInterfaceConfig,
     PopupKind, Screen, UserAccount,
 };
@@ -51,7 +51,7 @@ pub struct AppState {
     // Disk Partitioning screen state
     pub disks_focus_index: usize, // 0..=2 items + 3 Continue
     pub disks_mode_index: usize,  // selected mode index 0..=2
-    pub disks_devices: Vec<crate::ui::app::disks::DiskDevice>,
+    pub disks_devices: Vec<crate::app::disks::DiskDevice>,
     pub disks_selected_device: Option<String>,
     // Cached details of the selected device (for partitioning/mounting)
     pub disks_selected_device_model: Option<String>,

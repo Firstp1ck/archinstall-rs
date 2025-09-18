@@ -1,4 +1,4 @@
-use crate::ui::core::state::AppState;
+use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
 pub struct PartitionPlan {

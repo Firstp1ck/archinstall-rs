@@ -1,6 +1,6 @@
-// Re-export core state and types to preserve crate::ui::app::* paths
-pub use crate::ui::core::state::AppState;
-pub use crate::ui::core::types::{
+// Re-export core state and types to preserve crate::app::* paths
+pub use crate::core::state::AppState;
+pub use crate::core::types::{
     AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, MenuEntry, NetworkConfigMode,
     NetworkInterfaceConfig, PopupKind, RepoSignOption, RepoSignature, Screen, UserAccount,
 };

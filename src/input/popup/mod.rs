@@ -1,4 +1,4 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 use crossterm::event::KeyCode;
 
 mod enter;

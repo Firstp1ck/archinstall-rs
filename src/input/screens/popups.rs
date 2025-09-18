@@ -1,10 +1,10 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 // Extracted from screens.rs: popup vertical navigation
 pub(crate) fn popup_move_up(app: &mut AppState) {
     if matches!(
         app.popup_kind,
-        Some(crate::ui::app::PopupKind::DesktopEnvSelect)
+        Some(crate::app::PopupKind::DesktopEnvSelect)
     ) && !app.popup_visible_indices.is_empty()
     {
         let is_wm_name = |s: &str| -> bool {
@@ -61,7 +61,7 @@ pub(crate) fn popup_move_up(app: &mut AppState) {
 pub(crate) fn popup_move_down(app: &mut AppState) {
     if matches!(
         app.popup_kind,
-        Some(crate::ui::app::PopupKind::DesktopEnvSelect)
+        Some(crate::app::PopupKind::DesktopEnvSelect)
     ) && !app.popup_visible_indices.is_empty()
     {
         let is_wm_name = |s: &str| -> bool {

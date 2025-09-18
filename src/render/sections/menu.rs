@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
-use crate::ui::app::{AppState, Focus};
+use crate::app::{AppState, Focus};
 
 pub fn draw_menu(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let items: Vec<ListItem> = app

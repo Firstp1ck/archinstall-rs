@@ -1,6 +1,6 @@
-use crate::ui::app::{AppState, PopupKind};
-use crate::ui::core::services::partitioning::PartitioningService;
-use crate::ui::core::services::partitioning::PartitionPlan;
+use crate::app::{AppState, PopupKind};
+use crate::core::services::partitioning::PartitioningService;
+use crate::core::services::partitioning::PartitionPlan;
 
 impl AppState {
     pub fn start_install(&mut self) {

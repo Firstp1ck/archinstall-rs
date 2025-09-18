@@ -1,8 +1,8 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub(crate) fn move_user_up(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::UserAccount
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::UserAccount
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -13,8 +13,8 @@ pub(crate) fn move_user_up(app: &mut AppState) {
     }
 }
 pub(crate) fn move_user_down(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::UserAccount
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::UserAccount
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -29,7 +29,7 @@ pub(crate) fn handle_enter_user(app: &mut AppState) {
             if app.users.is_empty() {
                 app.open_info_popup("No users to edit".into());
             } else {
-                app.popup_kind = Some(crate::ui::app::PopupKind::UserSelectEdit);
+                app.popup_kind = Some(crate::app::PopupKind::UserSelectEdit);
                 app.popup_open = true;
                 app.popup_items = app.users.iter().map(|u| u.username.clone()).collect();
                 app.popup_visible_indices = (0..app.popup_items.len()).collect();
@@ -42,7 +42,7 @@ pub(crate) fn handle_enter_user(app: &mut AppState) {
             if app.users.is_empty() {
                 app.open_info_popup("No users to delete".into());
             } else {
-                app.popup_kind = Some(crate::ui::app::PopupKind::UserSelectDelete);
+                app.popup_kind = Some(crate::app::PopupKind::UserSelectDelete);
                 app.popup_open = true;
                 app.popup_items = app.users.iter().map(|u| u.username.clone()).collect();
                 app.popup_visible_indices = (0..app.popup_items.len()).collect();

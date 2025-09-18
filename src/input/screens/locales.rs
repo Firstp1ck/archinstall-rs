@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, Focus, Screen};
+use crate::app::{AppState, Focus, Screen};
 
 pub(crate) fn move_locales_focus(app: &mut AppState, forward: bool) {
     if app.current_screen() != Screen::Locales {

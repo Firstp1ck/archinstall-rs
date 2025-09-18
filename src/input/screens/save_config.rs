@@ -1,8 +1,8 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub(crate) fn move_config_up(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::SaveConfiguration
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::SaveConfiguration
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -13,8 +13,8 @@ pub(crate) fn move_config_up(app: &mut AppState) {
     }
 }
 pub(crate) fn move_config_down(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::SaveConfiguration
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::SaveConfiguration
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }

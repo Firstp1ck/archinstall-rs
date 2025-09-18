@@ -3,7 +3,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text: &str) {
     frame.render_widget(ratatui::widgets::Clear, popup_rect);

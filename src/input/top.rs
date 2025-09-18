@@ -4,7 +4,7 @@ use super::screens::{
     change_value, move_menu_down, move_menu_up, move_screen_down, move_screen_up,
 };
 use super::{cmdline::handle_cmdline_keys, popup::handle_popup_keys};
-use crate::ui::app::{AppState, Focus, Screen};
+use crate::app::{AppState, Focus, Screen};
 
 // Returns true if the app should quit
 pub fn handle_event(app: &mut AppState, ev: Event) -> bool {

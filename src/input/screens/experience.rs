@@ -1,8 +1,8 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub(crate) fn move_experience_up(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::ExperienceMode
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::ExperienceMode
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -14,8 +14,8 @@ pub(crate) fn move_experience_up(app: &mut AppState) {
 }
 
 pub(crate) fn move_experience_down(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::ExperienceMode
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::ExperienceMode
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -23,8 +23,8 @@ pub(crate) fn move_experience_down(app: &mut AppState) {
 }
 
 pub(crate) fn change_experience_value(app: &mut AppState, _next: bool) {
-    if app.current_screen() != crate::ui::app::Screen::ExperienceMode
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::ExperienceMode
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }

@@ -1,4 +1,4 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub(crate) fn handle_enter_mirrors(app: &mut AppState) {
     match app.mirrors_focus_index {
@@ -12,8 +12,8 @@ pub(crate) fn handle_enter_mirrors(app: &mut AppState) {
 }
 
 pub(crate) fn move_mirrors_repos_up(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::MirrorsRepos
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::MirrorsRepos
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -25,8 +25,8 @@ pub(crate) fn move_mirrors_repos_up(app: &mut AppState) {
 }
 
 pub(crate) fn move_mirrors_repos_down(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::MirrorsRepos
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::MirrorsRepos
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }

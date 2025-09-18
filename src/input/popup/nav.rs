@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 // Re-export screen movement helpers from the parent input module
 use super::super::screens;

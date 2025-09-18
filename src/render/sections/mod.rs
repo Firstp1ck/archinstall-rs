@@ -1,7 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::ui::app::{AppState, INFOBOX_HEIGHT, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, Screen};
+use crate::app::{AppState, INFOBOX_HEIGHT, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, Screen};
 
 pub mod content;
 pub mod info;

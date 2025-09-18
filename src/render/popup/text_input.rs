@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text: &str) {
     frame.render_widget(ratatui::widgets::Clear, popup_rect);

@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 pub(crate) fn handle_space(app: &mut AppState) -> bool {
     match app.popup_kind {

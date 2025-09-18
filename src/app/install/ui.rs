@@ -3,7 +3,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app::{AppState, Focus};
+use crate::app::{AppState, Focus};
 
 pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     let title_span = Span::styled(
@@ -198,7 +198,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 let mut pkgs: Vec<String> = if let Some(set) = app.selected_env_packages.get(env) {
                     set.iter().cloned().collect()
                 } else {
-                    crate::ui::app::install::packages::env_default_packages(env)
+                    crate::app::install::packages::env_default_packages(env)
                         .into_iter()
                         .map(|s| s.to_string())
                         .collect()
@@ -227,7 +227,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                     if let Some(set) = app.selected_server_packages.get(server) {
                         set.iter().cloned().collect()
                     } else {
-                        crate::ui::app::install::packages::server_default_packages(server)
+                        crate::app::install::packages::server_default_packages(server)
                             .into_iter()
                             .map(|s| s.to_string())
                             .collect()
@@ -252,7 +252,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 {
                     set.iter().cloned().collect()
                 } else {
-                    crate::ui::app::install::packages::xorg_default_packages(xorg)
+                    crate::app::install::packages::xorg_default_packages(xorg)
                         .into_iter()
                         .map(|s| s.to_string())
                         .collect()

@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, Focus, Screen};
+use crate::app::{AppState, Focus, Screen};
 
 pub(crate) fn move_audio_up(app: &mut AppState) {
     if app.current_screen() != Screen::Audio || app.focus != Focus::Content {

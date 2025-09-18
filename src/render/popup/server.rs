@@ -3,7 +3,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let cols = Layout::default()

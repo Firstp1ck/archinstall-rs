@@ -1,8 +1,8 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub(crate) fn move_kernels_up(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::Kernels
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::Kernels
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }
@@ -14,8 +14,8 @@ pub(crate) fn move_kernels_up(app: &mut AppState) {
 }
 
 pub(crate) fn move_kernels_down(app: &mut AppState) {
-    if app.current_screen() != crate::ui::app::Screen::Kernels
-        || app.focus != crate::ui::app::Focus::Content
+    if app.current_screen() != crate::app::Screen::Kernels
+        || app.focus != crate::app::Focus::Content
     {
         return;
     }

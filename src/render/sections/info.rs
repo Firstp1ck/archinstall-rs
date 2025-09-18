@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app::{AppState, RepoSignOption, RepoSignature, Screen};
+use crate::app::{AppState, RepoSignOption, RepoSignature, Screen};
 
 pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let mut info_lines = vec![Line::from(Span::styled(
@@ -269,8 +269,8 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             info_lines.push(Line::from("Interfaces:"));
             for cfg in &app.network_configs {
                 let mode = match cfg.mode {
-                    crate::ui::app::NetworkConfigMode::Dhcp => "DHCP",
-                    crate::ui::app::NetworkConfigMode::Static => "Static",
+                    crate::app::NetworkConfigMode::Dhcp => "DHCP",
+                    crate::app::NetworkConfigMode::Static => "Static",
                 };
                 let mut line = format!("- {} ({})", cfg.interface, mode);
                 if let Some(ip) = &cfg.ip_cidr {

@@ -4,8 +4,8 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app;
-use crate::ui::app::{AppState, Focus, Screen};
+use crate::app;
+use crate::app::{AppState, Focus, Screen};
 
 pub fn draw_content(frame: &mut Frame, app: &mut AppState, area: Rect) {
     match app.current_screen() {

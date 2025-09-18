@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, Focus, Screen};
+use crate::app::{AppState, Focus, Screen};
 use crossterm::event::KeyCode;
 
 pub(crate) fn handle_cmdline_keys(app: &mut AppState, code: KeyCode) -> bool {

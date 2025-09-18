@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 mod desktop;
 mod general;

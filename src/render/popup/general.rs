@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
     // Optional header specifically for device list

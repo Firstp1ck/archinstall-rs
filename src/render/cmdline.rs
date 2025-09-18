@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub fn draw_cmdline(frame: &mut Frame, app: &mut AppState, area: Rect) {
     // Render a one-line command area at the very bottom inside the decision panel

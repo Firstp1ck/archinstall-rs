@@ -1,4 +1,4 @@
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 impl AppState {
     pub fn is_ascii_only(input: &str) -> bool {

@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 pub(crate) fn handle_left(app: &mut AppState) -> bool {
     if matches!(app.popup_kind, Some(PopupKind::ServerTypeSelect)) {

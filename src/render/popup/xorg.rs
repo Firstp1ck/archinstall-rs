@@ -4,7 +4,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem};
 
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let cols = Layout::default()

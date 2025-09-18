@@ -1,5 +1,9 @@
-mod runner;
-mod ui;
+pub mod runner;
+pub mod app;
+pub mod common;
+pub mod core;
+pub mod input;
+pub mod render;
 
 use std::io::Write;
 

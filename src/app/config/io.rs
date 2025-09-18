@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-use crate::ui::app::{
+use crate::app::{
     AdditionalPackage, AppState, CustomRepo, RepoSignOption, RepoSignature, UserAccount,
 };
 
@@ -431,7 +431,7 @@ impl AppState {
             .disks
             .partitions
             .into_iter()
-            .map(|p| crate::ui::app::DiskPartitionSpec {
+            .map(|p| crate::app::DiskPartitionSpec {
                 name: p.name,
                 role: p.role,
                 fs: p.fs,

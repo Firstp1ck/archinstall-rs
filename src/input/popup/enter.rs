@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 pub(crate) fn handle_enter(app: &mut AppState) -> bool {
     match app.popup_kind {
@@ -65,9 +65,9 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                     app.open_network_ip_input();
                 } else if let Some(iface) = app.network_selected_interface.clone() {
                     app.network_configs
-                        .push(crate::ui::app::NetworkInterfaceConfig {
+                        .push(crate::app::NetworkInterfaceConfig {
                             interface: iface,
-                            mode: crate::ui::app::NetworkConfigMode::Dhcp,
+                            mode: crate::app::NetworkConfigMode::Dhcp,
                             ip_cidr: None,
                             gateway: None,
                             dns: None,
@@ -81,7 +81,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                             app.validate_package("dhcp")
                         {
                             app.additional_packages
-                                .push(crate::ui::app::AdditionalPackage {
+                                .push(crate::app::AdditionalPackage {
                                     name: pkg_name,
                                     repo,
                                     version,
@@ -89,7 +89,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                                 });
                         } else {
                             app.additional_packages
-                                .push(crate::ui::app::AdditionalPackage {
+                                .push(crate::app::AdditionalPackage {
                                     name: "dhcp".into(),
                                     repo: String::new(),
                                     version: String::new(),
@@ -205,9 +205,9 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                 app.close_popup();
                 if let Some(iface) = app.network_selected_interface.clone() {
                     app.network_configs
-                        .push(crate::ui::app::NetworkInterfaceConfig {
+                        .push(crate::app::NetworkInterfaceConfig {
                             interface: iface,
-                            mode: crate::ui::app::NetworkConfigMode::Static,
+                            mode: crate::app::NetworkConfigMode::Static,
                             ip_cidr: Some(app.network_draft_ip_cidr.clone()),
                             gateway: if app.network_draft_gateway.is_empty() {
                                 None
@@ -258,7 +258,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         }
         Some(PopupKind::UserEditUsername) => {
             let value = app.custom_input_buffer.trim().to_string();
-            if !value.is_empty() && !crate::ui::app::AppState::is_ascii_lowercase_only(&value) {
+            if !value.is_empty() && !crate::app::AppState::is_ascii_lowercase_only(&value) {
                 app.useredit_reopen_after_info = true;
                 app.open_info_popup("Username must contain only lowercase ASCII characters".into());
             } else if app.selected_user_index < app.users.len() {
@@ -287,7 +287,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         }
         Some(PopupKind::HostnameInput) => {
             let value = app.custom_input_buffer.trim().to_string();
-            if !value.is_empty() && !crate::ui::app::AppState::is_ascii_only(&value) {
+            if !value.is_empty() && !crate::app::AppState::is_ascii_only(&value) {
                 app.hostname_reopen_after_info = true;
                 app.open_info_popup("Hostname must contain only ASCII characters".into());
             } else {
@@ -310,7 +310,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                         return false;
                     }
                     app.additional_packages
-                        .push(crate::ui::app::AdditionalPackage {
+                        .push(crate::app::AdditionalPackage {
                             name: pkg_name,
                             repo,
                             version,
@@ -345,7 +345,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         }
         Some(PopupKind::UserAddUsername) => {
             let value = app.custom_input_buffer.trim().to_string();
-            if !value.is_empty() && !crate::ui::app::AppState::is_ascii_lowercase_only(&value) {
+            if !value.is_empty() && !crate::app::AppState::is_ascii_lowercase_only(&value) {
                 app.username_reopen_after_info = true;
                 app.open_info_popup("Username must contain only lowercase ASCII characters".into());
             } else {
@@ -378,7 +378,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         Some(PopupKind::UserAddSudo) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
                 app.draft_user_is_sudo = global_idx == 0;
-                app.users.push(crate::ui::app::UserAccount {
+                app.users.push(crate::app::UserAccount {
                     username: app.draft_user_username.clone(),
                     password: app.draft_user_password.clone(),
                     password_hash: None,

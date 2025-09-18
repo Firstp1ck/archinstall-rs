@@ -1,4 +1,4 @@
-use crate::ui::app::{AppState, PopupKind};
+use crate::app::{AppState, PopupKind};
 
 impl AppState {
     pub fn apply_popup_selection(&mut self) {

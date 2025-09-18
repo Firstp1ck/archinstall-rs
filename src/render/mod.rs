@@ -1,6 +1,6 @@
-use ratatui::Frame;
+pub use ratatui::Frame;
 
-use crate::ui::app::AppState;
+use crate::app::AppState;
 
 mod cmdline;
 mod popup;
@@ -13,7 +13,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
         popup::draw_popup(frame, app);
     }
 
-    if app.cmdline_open && app.focus == crate::ui::app::Focus::Content {
+    if app.cmdline_open && app.focus == crate::app::Focus::Content {
         let area = app.last_content_rect;
         cmdline::draw_cmdline(frame, app, area);
     }
