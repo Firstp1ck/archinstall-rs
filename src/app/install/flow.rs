@@ -1,10 +1,11 @@
 use crate::app::{AppState, PopupKind};
 use crate::core::services::fstab::FstabService;
 use crate::core::services::mounting::MountingService;
-use crate::core::services::partitioning::PartitionPlan;
 use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
+use std::sync::mpsc;
+use std::thread;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -12,11 +13,26 @@ impl AppState {
     }
 
     pub fn start_install_flow(&mut self) {
-        let Some(target) = self.select_target_and_run_prechecks() else {
+        let Some(target) = self.select_target_and_run_prechecks() else { return; };
+        let sections = self.build_install_sections(&target);
+        if self.dry_run {
+            let mut body_lines: Vec<String> = Vec::new();
+            for (title, cmds) in sections {
+                body_lines.push(format!("=== {} ===", title));
+                for c in cmds { body_lines.push(c); }
+                body_lines.push(String::new());
+            }
+            self.open_info_popup(body_lines.join("\n"));
             return;
-        };
-        let plan = self.build_install_plan(&target);
-        self.run_install_plan(plan);
+        }
+        // Live logging setup
+        let (tx, rx) = mpsc::channel::<String>();
+        self.install_log.clear();
+        self.install_running = true;
+        self.install_log_tx = Some(tx.clone());
+        self.install_log_rx = Some(rx);
+        self.open_info_popup("Starting installation...".into());
+        self.start_install_background(sections);
     }
 
     fn select_target_and_run_prechecks(&mut self) -> Option<String> {
@@ -50,49 +66,78 @@ impl AppState {
         Some(target)
     }
 
-    fn build_install_plan(&self, target: &str) -> Vec<String> {
-        let mut plan: Vec<String> = Vec::new();
-        plan.extend(self.build_locales_plan());
-        plan.extend(self.build_mirrors_plan());
-        // Partitioning step
-        let part_cmds = PartitioningService::build_plan(self, target).commands;
-        plan.extend(part_cmds);
-        // Mounting step
-        let mount_cmds = MountingService::build_plan(self, target).commands;
-        plan.extend(mount_cmds);
-        // System pre-install step: adjust pacman.conf for optional repos
-        let sys_pre = SystemService::build_pre_install_plan(self).commands;
-        plan.extend(sys_pre);
-        // System installation: pacstrap base and selected packages
-        let pacstrap = SystemService::build_pacstrap_plan(self).commands;
-        plan.extend(pacstrap);
-        // fstab and checks
-        let fstab_cmds = FstabService::build_checks_and_fstab(self, target).commands;
-        plan.extend(fstab_cmds);
-        // System configuration inside chroot
-        let syscfg_cmds = SysConfigService::build_plan(self).commands;
-        plan.extend(syscfg_cmds);
-        // Bootloader setup
-        let boot_cmds =
-            crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands;
-        plan.extend(boot_cmds);
-        // User setup: create users, passwords, sudoers, DM, hyprland config
-        let user_cmds =
-            crate::core::services::usersetup::UserSetupService::build_plan(self).commands;
-        plan.extend(user_cmds);
-        plan
+    fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<String>)> {
+        let mut sections: Vec<(String, Vec<String>)> = Vec::new();
+        let locales = self.build_locales_plan();
+        if !locales.is_empty() { sections.push(("Locales".into(), locales)); }
+        let mirrors = self.build_mirrors_plan();
+        if !mirrors.is_empty() { sections.push(("Mirrors & Repos".into(), mirrors)); }
+        sections.push((
+            "Partitioning".into(),
+            PartitioningService::build_plan(self, target).commands,
+        ));
+        sections.push((
+            "Mounting".into(),
+            MountingService::build_plan(self, target).commands,
+        ));
+        sections.push((
+            "System pre-install".into(),
+            SystemService::build_pre_install_plan(self).commands,
+        ));
+        sections.push((
+            "System installation (pacstrap)".into(),
+            SystemService::build_pacstrap_plan(self).commands,
+        ));
+        sections.push((
+            "fstab and checks".into(),
+            FstabService::build_checks_and_fstab(self, target).commands,
+        ));
+        sections.push((
+            "System configuration".into(),
+            SysConfigService::build_plan(self).commands,
+        ));
+        sections.push((
+            "Bootloader setup".into(),
+            crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands,
+        ));
+        sections.push((
+            "User setup".into(),
+            crate::core::services::usersetup::UserSetupService::build_plan(self).commands,
+        ));
+        sections
     }
 
-    fn run_install_plan(&mut self, cmds: Vec<String>) {
-        if self.dry_run {
-            let body = cmds.join("\n");
-            self.open_info_popup(body);
-            return;
-        }
-        match PartitioningService::execute_plan(PartitionPlan::new(cmds)) {
-            Ok(()) => self.open_info_popup("Partitioning completed.".into()),
-            Err(msg) => self.open_info_popup(msg),
-        }
+    fn start_install_background(&mut self, sections: Vec<(String, Vec<String>)>) {
+        let tx = self.install_log_tx.clone();
+        thread::spawn(move || {
+            let Some(tx) = tx else { return; };
+            let mut any_error = None::<String>;
+            for (title, cmds) in sections {
+                let _ = tx.send(format!("=== {} ===", title));
+                for c in cmds {
+                    let _ = tx.send(format!("$ {}", c));
+                    let status = std::process::Command::new("bash").arg("-lc").arg(&c).status();
+                    match status {
+                        Ok(st) if st.success() => {}
+                        Ok(st) => {
+                            any_error = Some(format!("Command failed (exit {}): {}", st.code().unwrap_or(-1), c));
+                            let _ = tx.send(any_error.clone().unwrap());
+                            break;
+                        }
+                        Err(e) => {
+                            any_error = Some(format!("Failed to run: {} ({})", c, e));
+                            let _ = tx.send(any_error.clone().unwrap());
+                            break;
+                        }
+                    }
+                }
+                if any_error.is_some() { break; }
+                let _ = tx.send(String::new());
+            }
+            if any_error.is_none() {
+                let _ = tx.send("Installation completed.".into());
+            }
+        });
     }
 
     fn disk_has_mounted_partitions(&self, dev: &str) -> bool {
@@ -146,7 +191,8 @@ impl AppState {
     fn build_mirrors_plan(&self) -> Vec<String> {
         let mut cmds: Vec<String> = Vec::new();
 
-        // Ensure target mirrorlist directory exists
+        // Ensure host and target mirrorlist directories exist
+        cmds.push("install -d /etc/pacman.d".into());
         cmds.push("install -d /mnt/etc/pacman.d".into());
 
         // Collect selected regions (as shown to user) and try to extract country codes (2-letter)
@@ -176,10 +222,11 @@ impl AppState {
         let has_regions = !country_args.is_empty();
         let has_custom_servers = !self.mirrors_custom_servers.is_empty();
 
-        // If the user added custom servers, place them at the top of mirrorlist
+        // If the user added custom servers, place them at the top of mirrorlist (host and target)
         if has_custom_servers {
             // Write custom servers header
-            let mut printf_cmd = String::from("printf '%s\\n' ");
+            let mut printf_cmd_host = String::from("printf '%s\\n' ");
+            let mut printf_cmd_target = String::from("printf '%s\\n' ");
             let mut first = true;
             for url in &self.mirrors_custom_servers {
                 let mut line = String::from("Server = ");
@@ -187,35 +234,41 @@ impl AppState {
                 // Simple quote escape for rare cases
                 let safe = line.replace('\'', "'\\''");
                 if !first {
-                    printf_cmd.push(' ');
+                    printf_cmd_host.push(' ');
+                    printf_cmd_target.push(' ');
                 }
                 first = false;
-                printf_cmd.push_str(&format!("'{}'", safe));
+                printf_cmd_host.push_str(&format!("'{}'", safe));
+                printf_cmd_target.push_str(&format!("'{}'", safe));
             }
-            printf_cmd.push_str(" > /mnt/etc/pacman.d/mirrorlist");
-            cmds.push(printf_cmd);
+            printf_cmd_host.push_str(" > /etc/pacman.d/mirrorlist");
+            printf_cmd_target.push_str(" > /mnt/etc/pacman.d/mirrorlist");
+            cmds.push(printf_cmd_host);
+            cmds.push(printf_cmd_target);
         }
 
         if has_regions {
             // Use reflector to fetch and sort HTTPS mirrors for selected regions
-            let mut reflector_cmd = String::from("reflector --protocol https --sort rate ");
+            // Prefer the latest mirrors and sort by rate
+            let mut reflector_cmd = String::from("reflector --protocol https --latest 20 --sort rate ");
             reflector_cmd.push_str(&country_args.join(" "));
             if has_custom_servers {
                 // Save to tmp then append after custom servers
-                reflector_cmd.push_str(" --save /mnt/etc/pacman.d/mirrorlist.ai.tmp");
-                cmds.push(reflector_cmd);
-                cmds.push(
-                    "cat /mnt/etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist"
-                        .into(),
-                );
-                cmds.push("rm -f /mnt/etc/pacman.d/mirrorlist.ai.tmp".into());
+                // Generate for host, append to both host and target
+                let mut refl_host = reflector_cmd.clone();
+                refl_host.push_str(" --save /etc/pacman.d/mirrorlist.ai.tmp");
+                cmds.push(refl_host);
+                cmds.push("cat /etc/pacman.d/mirrorlist.ai.tmp >> /etc/pacman.d/mirrorlist".into());
+                cmds.push("cat /etc/pacman.d/mirrorlist.ai.tmp >> /mnt/etc/pacman.d/mirrorlist".into());
+                cmds.push("rm -f /etc/pacman.d/mirrorlist.ai.tmp".into());
             } else {
-                // Save directly
-                reflector_cmd.push_str(" --save /mnt/etc/pacman.d/mirrorlist");
+                // Save directly on host, then copy to target
+                reflector_cmd.push_str(" --save /etc/pacman.d/mirrorlist");
                 cmds.push(reflector_cmd);
+                cmds.push("install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist".into());
             }
         } else if !has_custom_servers {
-            // Neither regions nor custom servers selected: best effort copy from ISO
+            // Neither regions nor custom servers selected: best effort copy from ISO host
             cmds.push("test -f /mnt/etc/pacman.d/mirrorlist || install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist".into());
         }
 

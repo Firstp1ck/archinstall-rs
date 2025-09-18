@@ -41,6 +41,8 @@ fn run_loop(
     let tick_rate = Duration::from_millis(250);
 
     loop {
+        // Drain any pending install logs before rendering
+        app.drain_install_logs();
         terminal.draw(|frame| draw(frame, &mut app))?;
 
         let timeout = tick_rate

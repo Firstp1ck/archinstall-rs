@@ -1,6 +1,7 @@
 use ratatui::layout::Rect;
 use ratatui::widgets::ListState;
 use std::collections::BTreeSet;
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use crate::core::types::{
     AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, MenuEntry, NetworkInterfaceConfig,
@@ -210,6 +211,12 @@ pub struct AppState {
 
     // Install flow temp state
     pub pending_wipe_confirm: Option<bool>,
+
+    // Live install logging state
+    pub install_running: bool,
+    pub install_log: Vec<String>,
+    pub install_log_tx: Option<Sender<String>>,
+    pub install_log_rx: Option<Receiver<String>>,
 }
 
 impl AppState {
@@ -523,6 +530,11 @@ impl AppState {
             processed_sections: BTreeSet::new(),
 
             pending_wipe_confirm: None,
+
+            install_running: false,
+            install_log: Vec::new(),
+            install_log_tx: None,
+            install_log_rx: None,
         };
         // Initialize dynamic option lists and apply startup defaults
         let _ = s.load_locales_options();
@@ -598,5 +610,36 @@ impl AppState {
 
     pub fn current_screen(&self) -> Screen {
         self.menu_entries[self.selected_index].screen
+    }
+
+    pub fn append_install_log_line(&mut self, line: String) {
+        self.install_log.push(line);
+        // Update info popup body if it's open as Info
+        let info_open = self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info));
+        if info_open {
+            let body = self.install_log.join("\n");
+            if self.popup_items.is_empty() { self.popup_items.push(body); } else { self.popup_items[0] = body; }
+        }
+    }
+
+    pub fn drain_install_logs(&mut self) {
+        let Some(rx) = self.install_log_rx.take() else { return; };
+        let mut drained: Vec<String> = Vec::new();
+        let mut disconnected = false;
+        loop {
+            match rx.try_recv() {
+                Ok(line) => drained.push(line),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => { disconnected = true; break; }
+            }
+        }
+        for line in drained { self.append_install_log_line(line); }
+        if disconnected {
+            self.install_running = false;
+            self.install_log_rx = None;
+            self.install_log_tx = None;
+        } else {
+            self.install_log_rx = Some(rx);
+        }
     }
 }

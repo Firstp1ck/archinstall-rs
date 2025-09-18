@@ -97,8 +97,8 @@ impl SystemService {
     pub fn build_pacstrap_plan(state: &AppState) -> SystemPlan {
         let mut cmds: Vec<String> = Vec::new();
         // TODO(v0.3.0+): Add AUR helper support.
-        // Update DB to use new mirrors
-        cmds.push("pacman -Sy".into());
+        // Update DB to use new mirrors (force refresh)
+        cmds.push("pacman -Syy".into());
 
         use std::collections::BTreeSet;
         let mut package_set: BTreeSet<String> = BTreeSet::new();
@@ -252,7 +252,8 @@ impl SystemService {
 
         if !final_pkgs.is_empty() {
             let joined = final_pkgs.join(" ");
-            cmds.push(format!("pacstrap -K /mnt {}", joined));
+            // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
+            cmds.push(format!("pacstrap -K /mnt {} || (pacman -Syy && pacstrap -K /mnt {} )", joined, joined));
         }
 
         SystemPlan::new(cmds)

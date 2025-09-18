@@ -1,7 +1,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use crate::app::AppState;
@@ -19,18 +19,23 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text:
         .constraints([Constraint::Min(3)])
         .split(popup_rect);
 
-    let body = if app.popup_items.is_empty() {
-        String::new()
+    let body = if app.popup_items.is_empty() { String::new() } else { app.popup_items[0].clone() };
+    let mut lines: Vec<Line> = Vec::new();
+    if body.is_empty() {
+        lines.push(Line::from(""));
     } else {
-        app.popup_items[0].clone()
-    };
-    let lines = vec![
-        Line::from(body),
-        Line::from(""),
-        Line::from("Press Enter or ESC to close."),
-    ];
-    let content = Paragraph::new(lines)
-        .alignment(ratatui::layout::Alignment::Center)
-        .wrap(Wrap { trim: false });
+        for l in body.split('\n') {
+            lines.push(Line::from(l.to_string()));
+        }
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::raw("Press "),
+        Span::styled("Enter", Style::default().fg(Color::Cyan)),
+        Span::raw(" or "),
+        Span::styled("ESC", Style::default().fg(Color::Cyan)),
+        Span::raw(" to close."),
+    ]));
+    let content = Paragraph::new(lines).wrap(Wrap { trim: false });
     frame.render_widget(content, inner[0]);
 }
