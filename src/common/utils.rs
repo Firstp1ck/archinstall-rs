@@ -34,14 +34,14 @@ pub fn redact_command_for_logging(command: &str) -> String {
                     break;
                 }
             }
-            if open_quote_char != '\0' {
-                if let Some(rel_end) = rest[rel_start..].find(open_quote_char) {
-                    let start_abs = echo_idx + 5 + rel_start;
-                    let end_abs = start_abs + rel_end;
-                    let inner = s[start_abs..end_abs].to_string();
-                    let replacement = replacement_fn(&inner);
-                    s.replace_range(start_abs..end_abs, &replacement);
-                }
+            if open_quote_char != '\0'
+                && let Some(rel_end) = rest[rel_start..].find(open_quote_char)
+            {
+                let start_abs = echo_idx + 5 + rel_start;
+                let end_abs = start_abs + rel_end;
+                let inner = s[start_abs..end_abs].to_string();
+                let replacement = replacement_fn(&inner);
+                s.replace_range(start_abs..end_abs, &replacement);
             }
         }
     }

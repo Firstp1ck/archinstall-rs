@@ -64,11 +64,11 @@ fn run_loop(
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
         }
-    }
 
-    // If requested, leave TUI and run install plan with inherited stdio
-    if app.exit_tui_after_install {
-        if let Some(sections) = app.pending_install_sections.take() {
+        // If requested, leave TUI and run install plan with inherited stdio
+        if app.exit_tui_after_install
+            && let Some(sections) = app.pending_install_sections.take()
+        {
             // Ensure normal terminal restored
             disable_raw_mode()?;
             execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen)?;

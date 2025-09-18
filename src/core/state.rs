@@ -634,10 +634,10 @@ impl AppState {
             return;
         }
         if let Some(rest) = line.strip_prefix("::section_done::") {
-            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
-                if idx < self.install_section_done.len() {
-                    self.install_section_done[idx] = true;
-                }
+            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest)
+                && idx < self.install_section_done.len()
+            {
+                self.install_section_done[idx] = true;
             }
             return;
         }

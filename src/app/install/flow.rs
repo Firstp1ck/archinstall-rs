@@ -59,10 +59,12 @@ impl AppState {
                         &tx,
                         format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
                     );
-                    let cmdline = format!("{} 2>&1", c);
-                    let mut child = match Command::new("bash")
-                        .arg("-lc")
-                        .arg(&cmdline)
+                    // Run command inside a PTY using `script` so no output escapes the TUI
+                    // -q: quiet, -e: return child exit status, -f: flush output, -c: command
+                    let c_with_redirect = format!("{} 2>&1", c);
+                    let mut child = match Command::new("script")
+                        .args(["-qefc", &c_with_redirect, "/dev/null"])
+                        .stdin(Stdio::null())
                         .stdout(Stdio::piped())
                         .spawn()
                     {
@@ -77,7 +79,10 @@ impl AppState {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines() {
                             match line {
-                                Ok(l) => send(&tx, l),
+                                Ok(mut l) => {
+                                    if l.contains('\r') { l = l.replace('\r', ""); }
+                                    send(&tx, l)
+                                },
                                 Err(_) => break,
                             }
                         }
