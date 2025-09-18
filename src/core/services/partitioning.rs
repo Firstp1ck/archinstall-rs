@@ -25,6 +25,8 @@ impl PartitioningService {
 
         let align = state.disks_align.clone().unwrap_or_else(|| "1MiB".into());
         part_cmds.push(format!("parted -s {} mklabel {}", device, label));
+        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push("udevadm settle".into());
 
         let mut next_start = align.clone();
         // If system boots via UEFI, always create an ESP as partition 1
@@ -34,7 +36,7 @@ impl PartitioningService {
                 device, next_start
             ));
             part_cmds.push(format!("parted -s {} set 1 esp on", device));
-            part_cmds.push(format!("mkfs.fat -F32 {}1", device));
+            part_cmds.push(format!("mkfs.fat -F 32 {}1", device));
             next_start = "1025MiB".into();
         } else {
             part_cmds.push(format!(
