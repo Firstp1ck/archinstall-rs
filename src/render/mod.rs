@@ -1,4 +1,6 @@
 pub use ratatui::Frame;
+use ratatui::style::{Color, Style};
+use ratatui::widgets::{Block, Clear};
 
 use crate::app::AppState;
 
@@ -7,9 +9,11 @@ mod popup;
 mod sections;
 
 pub fn draw(frame: &mut Frame, app: &mut AppState) {
-    // Clear the full frame to avoid artifacts from underlying tty contents
+    // Paint full-screen background
     let full_area = frame.area();
-    frame.render_widget(ratatui::widgets::Clear, full_area);
+    frame.render_widget(Clear, full_area);
+    let bg = Block::default().style(Style::default().bg(Color::Rgb(0x28, 0x2A, 0x36)));
+    frame.render_widget(bg, full_area);
     sections::draw_sections(frame, app);
 
     if app.popup_open {
