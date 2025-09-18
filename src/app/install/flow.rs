@@ -4,8 +4,6 @@ use crate::core::services::mounting::MountingService;
 use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
-use std::sync::mpsc;
-use std::thread;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -25,14 +23,9 @@ impl AppState {
             self.open_info_popup(body_lines.join("\n"));
             return;
         }
-        // Live logging setup
-        let (tx, rx) = mpsc::channel::<String>();
-        self.install_log.clear();
-        self.install_running = true;
-        self.install_log_tx = Some(tx.clone());
-        self.install_log_rx = Some(rx);
-        self.open_info_popup("Starting installation...".into());
-        self.start_install_background(sections);
+        // Request to exit TUI and run install in stdout mode
+        self.exit_tui_after_install = true;
+        self.pending_install_sections = Some(sections);
     }
 
     fn select_target_and_run_prechecks(&mut self) -> Option<String> {
@@ -107,38 +100,7 @@ impl AppState {
         sections
     }
 
-    fn start_install_background(&mut self, sections: Vec<(String, Vec<String>)>) {
-        let tx = self.install_log_tx.clone();
-        thread::spawn(move || {
-            let Some(tx) = tx else { return; };
-            let mut any_error = None::<String>;
-            for (title, cmds) in sections {
-                let _ = tx.send(format!("=== {} ===", title));
-                for c in cmds {
-                    let _ = tx.send(format!("$ {}", c));
-                    let status = std::process::Command::new("bash").arg("-lc").arg(&c).status();
-                    match status {
-                        Ok(st) if st.success() => {}
-                        Ok(st) => {
-                            any_error = Some(format!("Command failed (exit {}): {}", st.code().unwrap_or(-1), c));
-                            let _ = tx.send(any_error.clone().unwrap());
-                            break;
-                        }
-                        Err(e) => {
-                            any_error = Some(format!("Failed to run: {} ({})", c, e));
-                            let _ = tx.send(any_error.clone().unwrap());
-                            break;
-                        }
-                    }
-                }
-                if any_error.is_some() { break; }
-                let _ = tx.send(String::new());
-            }
-            if any_error.is_none() {
-                let _ = tx.send("Installation completed.".into());
-            }
-        });
-    }
+    // No background thread when exiting TUI; runner will execute pending_install_sections
 
     fn disk_has_mounted_partitions(&self, dev: &str) -> bool {
         let output = std::process::Command::new("lsblk")

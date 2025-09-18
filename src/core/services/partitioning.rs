@@ -27,7 +27,8 @@ impl PartitioningService {
         part_cmds.push(format!("parted -s {} mklabel {}", device, label));
 
         let mut next_start = align.clone();
-        if state.is_uefi() && state.bootloader_index != 1 {
+        // If system boots via UEFI, always create an ESP as partition 1
+        if state.is_uefi() {
             part_cmds.push(format!(
                 "parted -s {} mkpart ESP fat32 {} 1025MiB",
                 device, next_start
@@ -45,7 +46,7 @@ impl PartitioningService {
         }
 
         if state.swap_enabled {
-            let swap_end = if state.is_uefi() && state.bootloader_index != 1 {
+            let swap_end = if state.is_uefi() {
                 "5121MiB"
             } else {
                 "4098MiB"

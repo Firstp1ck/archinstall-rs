@@ -10,6 +10,7 @@ use ratatui::backend::CrosstermBackend;
 use crate::app::AppState;
 use crate::input::handle_event;
 use crate::render::draw;
+use std::process::Command;
 
 pub fn run(dry_run: bool) -> io::Result<()> {
     enable_raw_mode()?;
@@ -56,8 +57,52 @@ fn run_loop(
             }
         }
 
+        if app.exit_tui_after_install {
+            break;
+        }
         if last_tick.elapsed() >= tick_rate {
             last_tick = Instant::now();
+        }
+    }
+
+    // If requested, leave TUI and run install plan with inherited stdio
+    if app.exit_tui_after_install {
+        if let Some(sections) = app.pending_install_sections.take() {
+            // Ensure normal terminal restored
+            disable_raw_mode()?;
+            execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen)?;
+            terminal.show_cursor()?;
+
+            println!("Starting installation...\n");
+            let mut any_error = None::<String>;
+            'outer: for (title, cmds) in sections {
+                println!("=== {} ===", title);
+                for c in cmds {
+                    println!("$ {}", &c);
+                    let status = Command::new("bash").arg("-lc").arg(&c).status();
+                    match status {
+                        Ok(st) if st.success() => {}
+                        Ok(st) => {
+                            any_error = Some(format!(
+                                "Command failed (exit {}): {}",
+                                st.code().unwrap_or(-1),
+                                c
+                            ));
+                            eprintln!("{}", any_error.as_ref().unwrap());
+                            break 'outer;
+                        }
+                        Err(e) => {
+                            any_error = Some(format!("Failed to run: {} ({})", c, e));
+                            eprintln!("{}", any_error.as_ref().unwrap());
+                            break 'outer;
+                        }
+                    }
+                }
+                println!();
+            }
+            if any_error.is_none() {
+                println!("Installation completed.");
+            }
         }
     }
 

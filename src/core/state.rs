@@ -217,6 +217,10 @@ pub struct AppState {
     pub install_log: Vec<String>,
     pub install_log_tx: Option<Sender<String>>,
     pub install_log_rx: Option<Receiver<String>>,
+
+    // Request to exit TUI and run install in stdout mode
+    pub exit_tui_after_install: bool,
+    pub pending_install_sections: Option<Vec<(String, Vec<String>)>>,
 }
 
 impl AppState {
@@ -535,6 +539,9 @@ impl AppState {
             install_log: Vec::new(),
             install_log_tx: None,
             install_log_rx: None,
+
+            exit_tui_after_install: false,
+            pending_install_sections: None,
         };
         // Initialize dynamic option lists and apply startup defaults
         let _ = s.load_locales_options();

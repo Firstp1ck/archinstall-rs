@@ -24,7 +24,8 @@ impl MountingService {
         } else {
             cmds.push(format!("mount {}3 /mnt", device));
         }
-        if state.is_uefi() && state.bootloader_index != 1 {
+        // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
+        if state.is_uefi() {
             cmds.push("mkdir -p /mnt/boot".into());
             cmds.push(format!("mount -t vfat {}1 /mnt/boot", device));
         }
