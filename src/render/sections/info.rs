@@ -157,35 +157,33 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             }
         } else if app.disks_mode_index == 0 {
             let bl = match app.bootloader_index {
-                1 => "GRUB",
                 0 => "systemd-boot",
+                1 => "GRUB",
                 2 => "efistub",
+                3 => "Limine",
                 _ => "other",
             };
             info_lines.push(Line::from(format!("Bootloader: {}", bl)));
+            let fw = if app.is_uefi() { "UEFI" } else { "BIOS" };
+            info_lines.push(Line::from(format!("Firmware: {}", fw)));
             info_lines.push(Line::from("Planned layout:"));
-            if bl == "GRUB" {
-                info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
-                if app.swap_enabled {
-                    info_lines.push(Line::from("- swap: 4GiB"));
-                }
-                let enc = if app.disk_encryption_type_index == 1 {
-                    " (LUKS)"
-                } else {
-                    ""
-                };
-                info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
-            } else {
+            if app.is_uefi() {
                 info_lines.push(Line::from("- gpt: 1024MiB EFI (FAT, ESP) -> /boot"));
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }
-                let enc = if app.disk_encryption_type_index == 1 {
-                    " (LUKS)"
-                } else {
-                    ""
-                };
+                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+            } else {
+                info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
+                if app.swap_enabled {
+                    info_lines.push(Line::from("- swap: 4GiB"));
+                }
+                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+                if bl != "GRUB" && bl != "Limine" {
+                    info_lines.push(Line::from("Warning: Selected bootloader requires UEFI; choose GRUB or Limine for BIOS."));
+                }
             }
         }
     } else if app.current_screen() == Screen::SwapPartition {

@@ -182,12 +182,12 @@ impl AppState {
                     }
                 }
                 self.disks_devices = devices;
-                // Default disk selection preference: /dev/sda, fallback /dev/sdb
+                // Default disk selection preference: /dev/vda, fallback /dev/vdb
                 if self.disks_selected_device.is_none() {
-                    if self.disks_devices.iter().any(|d| d.path == "/dev/sda") {
-                        self.disks_selected_device = Some("/dev/sda".into());
-                    } else if self.disks_devices.iter().any(|d| d.path == "/dev/sdb") {
-                        self.disks_selected_device = Some("/dev/sdb".into());
+                    if self.disks_devices.iter().any(|d| d.path == "/dev/vda") {
+                        self.disks_selected_device = Some("/dev/vda".into());
+                    } else if self.disks_devices.iter().any(|d| d.path == "/dev/vdb") {
+                        self.disks_selected_device = Some("/dev/vdb".into());
                     }
                 }
             }
