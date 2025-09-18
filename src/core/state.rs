@@ -217,6 +217,10 @@ pub struct AppState {
     pub install_log: Vec<String>,
     pub install_log_tx: Option<Sender<String>>,
     pub install_log_rx: Option<Receiver<String>>,
+    // Install progress (for in-TUI progress view)
+    pub install_section_titles: Vec<String>,
+    pub install_section_done: Vec<bool>,
+    pub install_current_section: Option<usize>,
 
     // Request to exit TUI and run install in stdout mode
     pub exit_tui_after_install: bool,
@@ -538,6 +542,9 @@ impl AppState {
             install_log: Vec::new(),
             install_log_tx: None,
             install_log_rx: None,
+            install_section_titles: Vec::new(),
+            install_section_done: Vec::new(),
+            install_current_section: None,
 
             exit_tui_after_install: false,
             pending_install_sections: None,
@@ -619,7 +626,29 @@ impl AppState {
     }
 
     pub fn append_install_log_line(&mut self, line: String) {
+        // Interpret simple progress markers and update state
+        if let Some(rest) = line.strip_prefix("::section_start::") {
+            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
+                self.install_current_section = Some(idx);
+            }
+            return;
+        }
+        if let Some(rest) = line.strip_prefix("::section_done::") {
+            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
+                if idx < self.install_section_done.len() {
+                    self.install_section_done[idx] = true;
+                }
+            }
+            return;
+        }
+
         self.install_log.push(line);
+        // keep log reasonably small
+        const MAX_LOG_LINES: usize = 2000;
+        if self.install_log.len() > MAX_LOG_LINES {
+            let drop = self.install_log.len() - MAX_LOG_LINES;
+            self.install_log.drain(0..drop);
+        }
         // Update info popup body if it's open as Info
         let info_open = self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info));
         if info_open {

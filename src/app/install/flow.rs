@@ -5,6 +5,10 @@ use crate::core::services::mounting::MountingService;
 use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
+use std::io::{BufRead, BufReader};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
+use std::thread;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -26,9 +30,79 @@ impl AppState {
             self.open_info_popup(body_lines.join("\n"));
             return;
         }
-        // Request to exit TUI and run install in stdout mode
-        self.exit_tui_after_install = true;
-        self.pending_install_sections = Some(sections);
+        // Launch background installer and keep TUI running with live logs
+        self.install_running = true;
+        self.install_section_titles = sections.iter().map(|(t, _)| t.clone()).collect();
+        self.install_section_done = vec![false; self.install_section_titles.len()];
+        self.install_current_section = None;
+
+        let (tx, rx) = mpsc::channel::<String>();
+        self.install_log_tx = Some(tx.clone());
+        self.install_log_rx = Some(rx);
+
+        // Spawn background thread to execute the plan
+        thread::spawn(move || {
+            let mut any_error: Option<String> = None;
+            // helper to send line and ignore errors if receiver dropped
+            let send = |tx: &mpsc::Sender<String>, s: String| {
+                let _ = tx.send(s);
+            };
+
+            send(&tx, "Starting installation...".to_string());
+            'outer: for (title, cmds) in sections.into_iter() {
+                send(&tx, format!("::section_start::{}", title));
+                send(&tx, format!("=== {} ===", title));
+                for c in cmds {
+                    send(&tx, format!("$ {}", crate::common::utils::redact_command_for_logging(&c)));
+                    let cmdline = format!("{} 2>&1", c);
+                    let mut child = match Command::new("bash")
+                        .arg("-lc")
+                        .arg(&cmdline)
+                        .stdout(Stdio::piped())
+                        .spawn()
+                    {
+                        Ok(ch) => ch,
+                        Err(e) => {
+                            any_error = Some(format!("Failed to spawn: {} ({})", c, e));
+                            send(&tx, any_error.as_ref().unwrap().clone());
+                            break 'outer;
+                        }
+                    };
+                    if let Some(stdout) = child.stdout.take() {
+                        let reader = BufReader::new(stdout);
+                        for line in reader.lines() {
+                            match line {
+                                Ok(l) => send(&tx, l),
+                                Err(_) => break,
+                            }
+                        }
+                    }
+                    match child.wait() {
+                        Ok(st) if st.success() => {}
+                        Ok(st) => {
+                            any_error = Some(format!(
+                                "Command failed (exit {}): {}",
+                                st.code().unwrap_or(-1),
+                                c
+                            ));
+                            send(&tx, any_error.as_ref().unwrap().clone());
+                            break 'outer;
+                        }
+                        Err(e) => {
+                            any_error = Some(format!("Failed to wait: {} ({})", c, e));
+                            send(&tx, any_error.as_ref().unwrap().clone());
+                            break 'outer;
+                        }
+                    }
+                }
+                send(&tx, format!("::section_done::{}", title));
+                send(&tx, String::new());
+            }
+            if any_error.is_none() {
+                send(&tx, "Installation completed.".to_string());
+            }
+            // drop tx -> disconnect to signal completion to UI
+        });
     }
 
     fn select_target_and_run_prechecks(&mut self) -> Option<String> {
@@ -103,7 +177,7 @@ impl AppState {
         sections
     }
 
-    // No background thread when exiting TUI; runner will execute pending_install_sections
+    // Background thread streams logs into AppState via mpsc
 
     fn disk_has_mounted_partitions(&self, dev: &str) -> bool {
         let output = std::process::Command::new("lsblk")

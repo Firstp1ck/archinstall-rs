@@ -6,6 +6,68 @@ use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use crate::app::{AppState, Focus};
 
 pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
+    // If installation is running (or has progress data), render a two-pane progress UI
+    if app.install_running || !app.install_section_titles.is_empty() {
+        let cols = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(36), Constraint::Min(10)])
+            .split(area);
+
+        // Left: overall progress by sections
+        let mut left_lines: Vec<Line> = Vec::new();
+        left_lines.push(Line::from(Span::styled(
+            "Overall Progress",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )));
+        left_lines.push(Line::from(""));
+        for (idx, title) in app.install_section_titles.iter().enumerate() {
+            let is_done = app
+                .install_section_done
+                .get(idx)
+                .copied()
+                .unwrap_or(false);
+            let is_current = app.install_current_section == Some(idx) && !is_done;
+            let marker = if is_done {
+                "[x]"
+            } else if is_current {
+                "[>]"
+            } else {
+                "[ ]"
+            };
+            let style = if is_current {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else if is_done {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            left_lines.push(Line::from(vec![
+                Span::styled(format!("{} ", marker), style),
+                Span::styled(title.clone(), style),
+            ]));
+        }
+        let left_block = Block::default().borders(Borders::ALL).title(if app.install_running {
+            " Installation in progress "
+        } else {
+            " Installation status "
+        });
+        let left_par = Paragraph::new(left_lines).block(left_block).wrap(Wrap { trim: false });
+        frame.render_widget(left_par, cols[0]);
+
+        // Right: live command output
+        let right_block = Block::default().borders(Borders::ALL).title(" Command output ");
+        let inner_right = right_block.inner(cols[1]);
+        frame.render_widget(right_block, cols[1]);
+        let max_visible = inner_right.height.saturating_sub(1) as usize;
+        let start = app.install_log.len().saturating_sub(max_visible);
+        let visible_lines = &app.install_log[start..];
+        let right_par = Paragraph::new(visible_lines.join("\n")).wrap(Wrap { trim: false });
+        frame.render_widget(right_par, inner_right);
+        return;
+    }
+
     let title_span = Span::styled(
         "Install",
         Style::default()
