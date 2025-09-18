@@ -93,8 +93,18 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 ### From Source
 
 ```bash
+# Install dependencies
+pacman -Syu rustup git gcc base-devel
+```
+
+```bash
+# Install rust
+rustup install stable
+```
+
+```bash
 # Clone the repository
-git clone https://github.com/yourusername/archinstall-rs.git
+git clone https://github.com/Firstp1ck/archinstall-rs.git
 cd archinstall-rs
 
 # Build the project
@@ -110,7 +120,7 @@ cargo run
 
 ```bash
 # Download the latest release
-wget https://github.com/yourusername/archinstall-rs/releases/latest/download/archinstall-rs
+wget https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/archinstall-rs
 chmod +x archinstall-rs
 
 # Run the installer
@@ -488,7 +498,7 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ```bash
 # Fork and clone the repository
-git clone https://github.com/yourusername/archinstall-rs.git
+git clone https://github.com/Firstp1ck/archinstall-rs.git
 cd archinstall-rs
 
 # Create a new branch for your feature
@@ -534,8 +544,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-- GitHub Issues: [Report bugs or request features](https://github.com/yourusername/archinstall-rs/issues)
-- Discussions: [Join the conversation](https://github.com/yourusername/archinstall-rs/discussions)
+- GitHub Issues: [Report bugs or request features](https://github.com/Firstp1ck/archinstall-rs/issues)
+- Discussions: [Join the conversation](https://github.com/Firstp1ck/archinstall-rs/discussions)
 
 ## ⚠️ Disclaimer
 
