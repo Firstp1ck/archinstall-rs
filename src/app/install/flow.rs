@@ -79,10 +79,12 @@ impl AppState {
                         let reader = BufReader::new(stdout);
                         for line in reader.lines() {
                             match line {
-                                Ok(mut l) => {
-                                    if l.contains('\r') { l = l.replace('\r', ""); }
-                                    send(&tx, l)
-                                },
+                                Ok(l) => {
+                                    let clean = crate::common::utils::sanitize_terminal_output_line(&l);
+                                    if !clean.is_empty() {
+                                        send(&tx, clean);
+                                    }
+                                }
                                 Err(_) => break,
                             }
                         }

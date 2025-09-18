@@ -65,3 +65,76 @@ pub fn redact_command_for_logging(command: &str) -> String {
 
     redacted
 }
+
+/// Remove ANSI escape/control sequences from a single line of terminal output.
+/// This strips CSI (ESC[...<final>), OSC (ESC]...BEL or ESC\), and other ESC-initiated sequences.
+pub fn strip_ansi_escape_codes(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut i: usize = 0;
+    let len = bytes.len();
+    let mut out = String::with_capacity(len);
+    while i < len {
+        if bytes[i] == 0x1B {
+            // ESC sequence
+            if i + 1 >= len {
+                // trailing ESC, drop
+                break;
+            }
+            let next = bytes[i + 1];
+            match next as char {
+                '[' => {
+                    // CSI: ESC [ ... <final 0x40..0x7E>
+                    i += 2;
+                    while i < len {
+                        let b = bytes[i];
+                        i += 1;
+                        if (0x40..=0x7E).contains(&b) {
+                            break;
+                        }
+                    }
+                }
+                ']' => {
+                    // OSC: ESC ] ... BEL (0x07) or ST (ESC \)
+                    i += 2;
+                    while i < len {
+                        if bytes[i] == 0x07 {
+                            i += 1; // consume BEL
+                            break;
+                        }
+                        if bytes[i] == 0x1B && i + 1 < len && bytes[i + 1] == b'\\' {
+                            i += 2; // consume ESC \
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                'P' | 'X' | '^' | '_' => {
+                    // DCS/SOS/PM/APC: ESC <type> ... ST (ESC \)
+                    i += 2;
+                    while i < len {
+                        if bytes[i] == 0x1B && i + 1 < len && bytes[i + 1] == b'\\' {
+                            i += 2;
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                _ => {
+                    // Single-char sequences like ESC( B etc. Skip ESC and the next byte
+                    i += 2;
+                }
+            }
+            continue;
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
+}
+
+/// Sanitize a terminal output line for safe rendering inside the TUI.
+/// Removes carriage returns and ANSI escape sequences.
+pub fn sanitize_terminal_output_line(input: &str) -> String {
+    let no_cr = input.replace('\r', "");
+    strip_ansi_escape_codes(&no_cr)
+}
