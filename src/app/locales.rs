@@ -172,12 +172,19 @@ impl AppState {
         }
 
         // Locale languages and their encodings from /etc/locale.gen
+        // Note: On the Arch ISO, most locales are commented out. We still want
+        // to present them as selectable options, so we parse commented lines too.
         if let Ok(text) = std::fs::read_to_string("/etc/locale.gen") {
             let mut set = std::collections::BTreeSet::new();
             let mut map = std::collections::BTreeMap::new();
-            for line in text.lines() {
-                let l = line.trim();
-                if l.is_empty() || l.starts_with('#') {
+            for raw_line in text.lines() {
+                let trimmed = raw_line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                // Strip optional leading '#'
+                let l = trimmed.trim_start_matches('#').trim();
+                if l.is_empty() {
                     continue;
                 }
                 let mut parts = l.split_whitespace();

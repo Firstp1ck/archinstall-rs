@@ -67,7 +67,7 @@ impl UserSetupService {
             && !lm.is_empty()
             && lm != "none"
         {
-            cmds.push(chroot_cmd(&format!("systemctl enable {}", lm)));
+            cmds.push(format!("systemctl --root=/mnt enable {}", lm));
         }
 
         // Hyprland keyboard layout configuration for each created user

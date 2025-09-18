@@ -95,13 +95,12 @@ impl SysConfigService {
 
         // Enable NetworkManager if chosen
         if state.network_mode_index == 2 {
-            cmds.push(chroot_cmd("systemctl enable NetworkManager"));
+            cmds.push("systemctl --root=/mnt enable NetworkManager".into());
         }
 
-        // Enable NTP if chosen
+        // Enable NTP if chosen (avoid timedatectl in chroot)
         if state.ats_enabled {
-            cmds.push(chroot_cmd("systemctl enable systemd-timesyncd"));
-            cmds.push(chroot_cmd("timedatectl set-ntp true"));
+            cmds.push("systemctl --root=/mnt enable systemd-timesyncd".into());
         }
 
         // Root password (set only if provided and confirmed)

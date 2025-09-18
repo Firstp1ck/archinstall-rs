@@ -351,35 +351,49 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
 
     let cols = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([
+            Constraint::Percentage(33),
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+        ])
         .split(inner);
 
     let section_heights: Vec<usize> = sections.iter().map(|s| s.len()).collect();
     let total_lines: usize = section_heights.iter().sum();
-    let target: usize = total_lines / 2;
+    let target1: usize = total_lines / 3;
+    let target2: usize = (2 * total_lines) / 3;
     let mut acc: usize = 0;
-    let mut split_index: usize = sections.len();
+    let mut split_index1: usize = sections.len();
+    let mut split_index2: usize = sections.len();
     for (i, h) in section_heights.iter().enumerate() {
-        if acc + h > target {
-            split_index = i;
+        if split_index1 == sections.len() && acc + h > target1 {
+            split_index1 = i;
+        }
+        if acc + h > target2 {
+            split_index2 = i;
             break;
         }
         acc += h;
     }
     let mut left_lines: Vec<Line> = Vec::new();
+    let mut middle_lines: Vec<Line> = Vec::new();
     let mut right_lines: Vec<Line> = Vec::new();
     for (i, sec) in sections.into_iter().enumerate() {
-        if i < split_index {
+        if i < split_index1 {
             left_lines.extend(sec);
+        } else if i < split_index2 {
+            middle_lines.extend(sec);
         } else {
             right_lines.extend(sec);
         }
     }
 
     let left_par = Paragraph::new(left_lines).wrap(Wrap { trim: false });
+    let middle_par = Paragraph::new(middle_lines).wrap(Wrap { trim: false });
     let right_par = Paragraph::new(right_lines).wrap(Wrap { trim: false });
     frame.render_widget(left_par, cols[0]);
-    frame.render_widget(right_par, cols[1]);
+    frame.render_widget(middle_par, cols[1]);
+    frame.render_widget(right_par, cols[2]);
 }
 
 fn push_section_lines(sections: &mut Vec<Vec<Line>>, name: &str, items: &Vec<String>) {

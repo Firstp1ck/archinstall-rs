@@ -12,10 +12,16 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     let size = frame.area();
 
     // left (menu) | right (info + content) | keybinds (rightmost)
+    // On Install screen, collapse the left menu to give full width to the overview
+    let left_constraint = if app.current_screen() == Screen::Install {
+        Constraint::Length(0)
+    } else {
+        Constraint::Length(LEFT_MENU_WIDTH)
+    };
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(LEFT_MENU_WIDTH),
+            left_constraint,
             Constraint::Min(10),
             Constraint::Length(KEYBINDS_WIDTH),
         ])
@@ -47,7 +53,9 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     app.last_content_rect = content_rect;
 
     // Render sections
-    menu::draw_menu(frame, app, left_menu_rect);
+    if app.current_screen() != Screen::Install {
+        menu::draw_menu(frame, app, left_menu_rect);
+    }
     if app.current_screen() != Screen::Install {
         info::draw_info(frame, app, infobox_rect);
     }
