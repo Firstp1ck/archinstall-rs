@@ -1,4 +1,6 @@
 use crate::ui::app::{AppState, PopupKind};
+use crate::ui::core::services::partitioning::PartitioningService;
+use crate::ui::core::services::partitioning::PartitionPlan;
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -48,7 +50,7 @@ impl AppState {
         let mut plan: Vec<String> = Vec::new();
         plan.extend(self.build_locales_plan());
         plan.extend(self.build_mirrors_plan());
-        plan.extend(self.build_partition_plan(target));
+        plan.extend(PartitioningService::build_plan(self, target).commands);
         plan.extend(self.build_bootloader_plan());
         plan.extend(self.build_uki_plan());
         plan.extend(self.build_system_plan());
@@ -67,7 +69,10 @@ impl AppState {
             self.open_info_popup(body);
             return;
         }
-        self.execute_plan(cmds);
+        match PartitioningService::execute_plan(PartitionPlan::new(cmds)) {
+            Ok(()) => self.open_info_popup("Partitioning completed.".into()),
+            Err(msg) => self.open_info_popup(msg),
+        }
     }
 
     fn disk_has_mounted_partitions(&self, dev: &str) -> bool {

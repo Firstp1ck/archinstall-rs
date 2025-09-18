@@ -1,3 +1,4 @@
+mod runner;
 mod ui;
 
 use std::io::Write;
@@ -22,7 +23,7 @@ fn main() -> std::io::Result<()> {
         }
     }
     let dry_run = std::env::args().any(|arg| arg == "--dry-run" || arg == "--dry");
-    ui::run(dry_run)
+    runner::run(dry_run)
 }
 
 fn run_preflight_checks() -> bool {
