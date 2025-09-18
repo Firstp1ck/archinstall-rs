@@ -34,7 +34,7 @@ impl PartitioningService {
                 device, next_start
             ));
             part_cmds.push(format!("parted -s {} set 1 esp on", device));
-            part_cmds.push(format!("mkfs.vfat -F32 {}1", device));
+            part_cmds.push(format!("mkfs.fat -F32 {}1", device));
             next_start = "1025MiB".into();
         } else {
             part_cmds.push(format!(

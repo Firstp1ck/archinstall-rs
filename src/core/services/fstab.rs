@@ -24,9 +24,10 @@ impl FstabService {
         let p3 = format!("{}3", device);
 
         // Check filesystems created
-        if state.is_uefi() && state.bootloader_index != 1 {
+        if state.is_uefi() {
+            // Check that partition 1 is an EFI System Partition by PARTLABEL/TYPE GUID, not by fs type
             cmds.push(format!(
-                "blkid {} | grep -q 'TYPE=\"vfat\"' || echo 'WARN: ESP vfat not found on {}'",
+                "blkid -o export {} | grep -Eq 'PARTLABEL=ESP|PARTLABEL=EFI System Partition|PARTTYPE=EF00|PARTUUID=' || echo 'WARN: ESP not detected on {}'",
                 p1, p1
             ));
         }
@@ -47,7 +48,7 @@ impl FstabService {
 
         // Check mounts
         cmds.push("mountpoint -q /mnt || echo 'ERROR: /mnt is not mounted'".into());
-        if state.is_uefi() && state.bootloader_index != 1 {
+        if state.is_uefi() {
             cmds.push("mountpoint -q /mnt/boot || echo 'ERROR: /mnt/boot is not mounted'".into());
         }
         if state.swap_enabled {
