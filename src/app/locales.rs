@@ -7,6 +7,25 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
+#[derive(Debug)]
+pub enum LocalesLoadError {
+    ListKeymaps,
+    ReadLocaleGen,
+    ListEncodings,
+}
+
+impl std::fmt::Display for LocalesLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LocalesLoadError::ListKeymaps => write!(f, "failed to list keymaps"),
+            LocalesLoadError::ReadLocaleGen => write!(f, "failed to read /etc/locale.gen"),
+            LocalesLoadError::ListEncodings => write!(f, "failed to list encodings"),
+        }
+    }
+}
+
+impl std::error::Error for LocalesLoadError {}
+
 impl AppState {
     pub fn current_keyboard_layout(&self) -> String {
         let idx = if self.editing_locales {
@@ -133,7 +152,7 @@ impl AppState {
         self.cmdline_buffer.clear();
     }
 
-    pub fn load_locales_options(&mut self) -> Result<(), ()> {
+    pub fn load_locales_options(&mut self) -> Result<(), LocalesLoadError> {
         if self.locales_loaded {
             return Ok(());
         }

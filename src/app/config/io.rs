@@ -10,6 +10,23 @@ use crate::app::{
 
 use super::types::*;
 
+#[derive(Debug)]
+pub enum ConfigLoadError {
+    ReadFile,
+    ParseToml,
+}
+
+impl std::fmt::Display for ConfigLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConfigLoadError::ReadFile => write!(f, "failed to read config file"),
+            ConfigLoadError::ParseToml => write!(f, "failed to parse config file (TOML)"),
+        }
+    }
+}
+
+impl std::error::Error for ConfigLoadError {}
+
 impl AppState {
     fn config_path() -> PathBuf {
         std::env::current_dir()
@@ -277,14 +294,14 @@ impl AppState {
         }
     }
 
-    pub fn load_config(&mut self) -> Result<(), ()> {
+    pub fn load_config(&mut self) -> Result<(), ConfigLoadError> {
         // Ensure option lists are available before mapping names back to indices
         let _ = self.load_locales_options();
         let _ = self.load_mirrors_options();
 
         let path = Self::config_path();
-        let text = std::fs::read_to_string(path).map_err(|_| ())?;
-        let cfg: AppConfig = toml::from_str(&text).map_err(|_| ())?;
+        let text = std::fs::read_to_string(path).map_err(|_| ConfigLoadError::ReadFile)?;
+        let cfg: AppConfig = toml::from_str(&text).map_err(|_| ConfigLoadError::ParseToml)?;
         self.last_load_missing_sections.clear();
 
         // Locales

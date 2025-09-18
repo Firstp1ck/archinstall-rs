@@ -6,8 +6,23 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
+#[derive(Debug)]
+pub enum MirrorsLoadError {
+    ListCountries,
+}
+
+impl std::fmt::Display for MirrorsLoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MirrorsLoadError::ListCountries => write!(f, "failed to list countries via reflector"),
+        }
+    }
+}
+
+impl std::error::Error for MirrorsLoadError {}
+
 impl AppState {
-    pub fn load_mirrors_options(&mut self) -> Result<(), ()> {
+    pub fn load_mirrors_options(&mut self) -> Result<(), MirrorsLoadError> {
         if self.mirrors_loaded {
             return Ok(());
         }

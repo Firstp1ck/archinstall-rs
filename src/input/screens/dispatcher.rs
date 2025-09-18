@@ -167,7 +167,7 @@ fn handle_enter_config(app: &mut AppState) {
                 }
                 app.open_info_popup(msg);
             }
-            Err(()) => app.info_message = "Failed to load configuration".into(),
+            Err(_e) => app.info_message = "Failed to load configuration".into(),
         },
         2 => advance(app),
         _ => {}
