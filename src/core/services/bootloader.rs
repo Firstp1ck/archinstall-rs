@@ -26,7 +26,7 @@ impl BootloaderService {
             // 0: systemd-boot
             0 => {
                 // Install systemd-boot
-                cmds.push(chroot_cmd("bootctl install --variables=yes"));
+                cmds.push(chroot_cmd("bootctl --no-pager install --variables=yes"));
 
                 // Build loader.conf
                 cmds.push(chroot_cmd(
@@ -45,11 +45,11 @@ impl BootloaderService {
                 ));
 
                 // Verify entries
-                cmds.push(chroot_cmd("bootctl list || true"));
+                cmds.push(chroot_cmd("bootctl --no-pager list || true"));
 
                 // Fallback: if bootctl install failed, attempt efibootmgr
                 cmds.push(chroot_cmd(
-                    "bootctl status >/dev/null 2>&1 || efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode",
+                    "bootctl --no-pager status >/dev/null 2>&1 || efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode",
                 ));
             }
             // 1: grub

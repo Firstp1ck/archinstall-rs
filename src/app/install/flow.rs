@@ -12,6 +12,24 @@ use std::thread;
 
 impl AppState {
     pub fn start_install(&mut self) {
+        // Prevent starting a second install while one is already running or staged
+        if self.install_running {
+            self.open_info_popup(
+                "Installation already running. Please wait until it finishes.".into(),
+            );
+            return;
+        }
+        // Also guard if we have an in-progress staged plan (section titles present but running=false)
+        if !self.install_section_titles.is_empty() && self.install_log_tx.is_some() {
+            self.open_info_popup("Installation is already in progress.".into());
+            return;
+        }
+
+        // Validate required sections before proceeding
+        if let Some(msg) = self.validate_install_requirements() {
+            self.open_info_popup(msg);
+            return;
+        }
         self.start_install_flow();
     }
 
@@ -59,11 +77,18 @@ impl AppState {
                         &tx,
                         format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
                     );
-                    // Run command inside a PTY using `script` so no output escapes the TUI
-                    // -q: quiet, -e: return child exit status, -f: flush output, -c: command
-                    let c_with_redirect = format!("{} 2>&1", c);
-                    let mut child = match Command::new("script")
-                        .args(["-qefc", &c_with_redirect, "/dev/null"])
+                    // Run without a TTY to force plain, non-progress output; line-buffer via stdbuf
+                    let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
+                    let mut child = match Command::new("bash")
+                        .arg("-lc")
+                        .arg(&pipeline)
+                        .env("TERM", "dumb")
+                        .env("NO_COLOR", "1")
+                        .env("PACMAN_COLOR", "never")
+                        .env("SYSTEMD_PAGER", "cat")
+                        .env("SYSTEMD_COLORS", "0")
+                        .env("PAGER", "cat")
+                        .env("LESS", "FRX")
                         .stdin(Stdio::null())
                         .stdout(Stdio::piped())
                         .spawn()
@@ -80,7 +105,8 @@ impl AppState {
                         for line in reader.lines() {
                             match line {
                                 Ok(l) => {
-                                    let clean = crate::common::utils::sanitize_terminal_output_line(&l);
+                                    let clean =
+                                        crate::common::utils::sanitize_terminal_output_line(&l);
                                     if !clean.is_empty() {
                                         send(&tx, clean);
                                     }
@@ -148,6 +174,59 @@ impl AppState {
         Some(target)
     }
 
+    fn validate_install_requirements(&self) -> Option<String> {
+        let mut issues: Vec<String> = Vec::new();
+
+        // Locales: keyboard, language, encoding must not be <none>
+        let kb = self.current_keyboard_layout();
+        let lang = self.current_locale_language();
+        let enc = self.current_locale_encoding();
+        if kb == "<none>" || lang == "<none>" || enc == "<none>" {
+            issues.push("Locales are not fully set (keyboard, language, encoding).".into());
+        }
+
+        // Region (mirrors) must be selected
+        if self.mirrors_regions_selected.is_empty() {
+            issues.push("Region is not selected (Mirrors & Repositories).".into());
+        }
+
+        // Disk partitioning target device must be selected
+        if self.disks_selected_device.is_none() {
+            issues.push("Disk partitioning: target device is not selected.".into());
+        }
+
+        // Hostname must be non-empty
+        if self.hostname_value.trim().is_empty() {
+            issues.push("Hostname is not set.".into());
+        }
+
+        // Root password must be provided and confirmed
+        if self.root_password.trim().is_empty() || self.root_password_confirm.trim().is_empty() {
+            issues.push("Root password is not set.".into());
+        } else if self.root_password != self.root_password_confirm {
+            issues.push("Root passwords do not match.".into());
+        }
+
+        // At least one user must be configured
+        if self.users.is_empty() {
+            issues.push("At least one user account must be added.".into());
+        }
+
+        // Timezone must be non-empty
+        if self.timezone_value.trim().is_empty() {
+            issues.push("Timezone is not set.".into());
+        }
+
+        if issues.is_empty() {
+            None
+        } else {
+            Some(format!(
+                "Please complete the following before installing:\n- {}",
+                issues.join("\n- ")
+            ))
+        }
+    }
+
     fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<String>)> {
         let mut sections: Vec<(String, Vec<String>)> = Vec::new();
         let locales = self.build_locales_plan();
@@ -158,6 +237,18 @@ impl AppState {
         if !mirrors.is_empty() {
             sections.push(("Mirrors & Repos".into(), mirrors));
         }
+        // Pre-cleanup to avoid device busy if re-running installer or previous mounts exist
+        sections.push((
+            "Pre-cleanup".into(),
+            vec![
+                // Try to disable any swap using the target disk
+                format!("swapoff -a || true"),
+                // Unmount any mounts under /mnt from a previous attempt
+                "umount -R /mnt 2>/dev/null || true".into(),
+                // Settle devices
+                "udevadm settle || true".into(),
+            ],
+        ));
         sections.push((
             "Partitioning".into(),
             PartitioningService::build_plan(self, target).commands,

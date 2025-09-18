@@ -28,7 +28,11 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     } else {
         Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([left_constraint, Constraint::Min(10), Constraint::Length(KEYBINDS_WIDTH)])
+            .constraints([
+                left_constraint,
+                Constraint::Min(10),
+                Constraint::Length(KEYBINDS_WIDTH),
+            ])
             .split(size)
     };
 
