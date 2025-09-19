@@ -682,7 +682,7 @@ impl AppState {
 
         self.install_log.push(line);
         // keep log reasonably small
-        const MAX_LOG_LINES: usize = 2000;
+        const MAX_LOG_LINES: usize =90000;
         if self.install_log.len() > MAX_LOG_LINES {
             let drop = self.install_log.len() - MAX_LOG_LINES;
             self.install_log.drain(0..drop);
