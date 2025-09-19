@@ -10,7 +10,7 @@ custom_servers = []
 custom_repos = []
 
 [disks]
-mode = "Best-effort partition layout"
+mode = "Manual Partitioning"
 selected_device = "/dev/sdb"
 selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
@@ -21,7 +21,32 @@ selected_device_read_only = false
 label = "gpt"
 wipe = true
 align = "1MiB"
-partitions = []
+
+[[disks.partitions]]
+name = "/dev/sdb"
+role = "BOOT"
+fs = "fat32"
+start = "0"
+size = "1073741824"
+flags = []
+mountpoint = "/boot"
+
+[[disks.partitions]]
+name = "/dev/sdb"
+role = "SWAP"
+fs = "linux-swap"
+start = "1073741824"
+size = "4294967296"
+flags = []
+
+[[disks.partitions]]
+name = "/dev/sdb"
+role = "ROOT"
+fs = "btrfs"
+start = "5368709120"
+size = "1995012308992"
+flags = []
+mountpoint = "/"
 
 [disk_encryption]
 encryption_type = "None"
@@ -129,3 +154,15 @@ repo = "extra"
 name = "stow"
 version = "2.4.1-1"
 description = "Manage installation of multiple softwares in the same directory tree"
+
+[[additional_packages]]
+repo = "core"
+name = "nano"
+version = "8.6-1"
+description = "Pico editor clone with enhancements"
+
+[[additional_packages]]
+repo = ""
+name = "vim"
+version = ""
+description = "Selected from package groups"

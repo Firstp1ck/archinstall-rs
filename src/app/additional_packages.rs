@@ -165,16 +165,43 @@ impl AppState {
             return None;
         }
         let stdout = String::from_utf8_lossy(&output.stdout);
-        // Expect first non-empty line like: "extra/stow 2.4.1-1"
-        // Next line (indented) is description
+        // Find the exact package match, not just the first result
         let mut lines = stdout.lines().filter(|l| !l.trim().is_empty());
-        let header = lines.next()?;
-        let desc_line = lines.next().unwrap_or("").trim();
+        let mut header = None;
+        let mut desc_line = String::new();
+
+        // Look for the exact package name match
+        while let Some(line) = lines.next() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let repo_and_name = parts[0];
+                if let Some(pkg_name) = repo_and_name.split('/').nth(1) {
+                    if pkg_name == name.trim() {
+                        header = Some(line);
+                        // Get the description from the next line
+                        if let Some(desc) = lines.next() {
+                            desc_line = desc.trim().to_string();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        let header = header?;
         // Parse header
         // Split to repo/name and version
         let mut parts = header.split_whitespace();
         let repo_and_name = parts.next()?; // e.g., extra/stow
         let version = parts.next().unwrap_or("").to_string();
+
+        // Remove installation status markers like [Installiert] or [Installed]
+        let version = version
+            .split('[')
+            .next()
+            .unwrap_or(&version)
+            .trim()
+            .to_string();
         let mut rn_iter = repo_and_name.splitn(2, '/');
         let repo = rn_iter.next()?.to_string();
         let pkg_name = rn_iter.next()?.to_string();

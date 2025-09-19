@@ -16,7 +16,22 @@ pub struct PartitioningService;
 impl PartitioningService {
     pub fn build_plan(state: &AppState, device: &str) -> PartitionPlan {
         let mut part_cmds: Vec<String> = Vec::new();
-        // TODO(v0.2.0): Support Manual Partitioning editor and executing explicit partition list.
+
+        // Check if manual partitioning mode is selected
+        let is_manual_mode = state.disks_mode_index == 1;
+
+        if is_manual_mode && !state.disks_partitions.is_empty() {
+            // Manual partitioning mode: process the disks_partitions vector
+            Self::build_manual_partition_plan(state, device, &mut part_cmds);
+        } else {
+            // Best-effort automatic partitioning mode
+            Self::build_automatic_partition_plan(state, device, &mut part_cmds);
+        }
+
+        PartitionPlan::new(part_cmds)
+    }
+
+    fn build_automatic_partition_plan(state: &AppState, device: &str, part_cmds: &mut Vec<String>) {
         // TODO(v0.4.0): Add LVM/RAID support and advanced btrfs subvolume layouts.
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
@@ -73,8 +88,164 @@ impl PartitioningService {
         } else {
             part_cmds.push(format!("mkfs.btrfs -f {}3", device));
         }
+    }
 
-        PartitionPlan::new(part_cmds)
+    fn build_manual_partition_plan(state: &AppState, device: &str, part_cmds: &mut Vec<String>) {
+        let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
+        if state.disks_wipe {
+            part_cmds.push(format!("wipefs -a {}", device));
+        }
+
+        part_cmds.push(format!("parted -s {} mklabel {}", device, label));
+        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push("udevadm settle".into());
+
+        // Sort partitions by start position to ensure correct order
+        let mut sorted_partitions = state.disks_partitions.clone();
+        sorted_partitions.sort_by(|a, b| {
+            let start_a = a
+                .start
+                .as_ref()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            let start_b = b
+                .start
+                .as_ref()
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            start_a.cmp(&start_b)
+        });
+
+        let mut partition_number = 1;
+        for spec in &sorted_partitions {
+            // Skip partitions not for this device
+            if let Some(spec_device) = &spec.name {
+                if spec_device != device {
+                    continue;
+                }
+            }
+
+            let role = spec.role.as_deref().unwrap_or("OTHER");
+            let fs = spec.fs.as_deref().unwrap_or("ext4");
+            let start = spec.start.as_deref().unwrap_or("0");
+            let size = spec.size.as_deref().unwrap_or("100%");
+
+            // Convert start and size to appropriate units for parted
+            let start_str = Self::bytes_to_parted_unit(start);
+            let size_str = Self::bytes_to_parted_unit(size);
+
+            // Create partition
+            let part_type = match role {
+                "BOOT" | "EFI" => "ESP",
+                "SWAP" => "linux-swap",
+                _ => "primary",
+            };
+
+            part_cmds.push(format!(
+                "parted -s {} mkpart {} {} {} {}",
+                device, part_type, fs, start_str, size_str
+            ));
+
+            // Set partition flags based on role
+            match role {
+                "BOOT" | "EFI" => {
+                    part_cmds.push(format!(
+                        "parted -s {} set {} esp on",
+                        device, partition_number
+                    ));
+                }
+                "BIOS_BOOT" => {
+                    part_cmds.push(format!(
+                        "parted -s {} set {} bios_grub on",
+                        device, partition_number
+                    ));
+                }
+                _ => {}
+            }
+
+            // Format the partition
+            let partition_path = Self::get_partition_path(device, partition_number);
+            match fs {
+                "fat32" | "fat16" | "fat12" => {
+                    let fat_type = match fs {
+                        "fat32" => "32",
+                        "fat16" => "16",
+                        "fat12" => "12",
+                        _ => "32",
+                    };
+                    part_cmds.push(format!("mkfs.fat -F {} {}", fat_type, partition_path));
+                }
+                "linux-swap" => {
+                    part_cmds.push(format!("mkswap {}", partition_path));
+                }
+                "btrfs" => {
+                    part_cmds.push(format!("mkfs.btrfs -f {}", partition_path));
+                }
+                "ext4" => {
+                    part_cmds.push(format!("mkfs.ext4 -F {}", partition_path));
+                }
+                "ext3" => {
+                    part_cmds.push(format!("mkfs.ext3 -F {}", partition_path));
+                }
+                "ext2" => {
+                    part_cmds.push(format!("mkfs.ext2 -F {}", partition_path));
+                }
+                "xfs" => {
+                    part_cmds.push(format!("mkfs.xfs -f {}", partition_path));
+                }
+                "f2fs" => {
+                    part_cmds.push(format!("mkfs.f2fs -f {}", partition_path));
+                }
+                _ => {
+                    part_cmds.push(format!("mkfs.ext4 -F {}", partition_path));
+                }
+            }
+
+            partition_number += 1;
+        }
+
+        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push("udevadm settle".into());
+    }
+
+    fn bytes_to_parted_unit(bytes_str: &str) -> String {
+        // If it's already in a parted-compatible format, return as-is
+        if bytes_str.contains("MiB")
+            || bytes_str.contains("GiB")
+            || bytes_str.contains("KiB")
+            || bytes_str.contains("MB")
+            || bytes_str.contains("GB")
+            || bytes_str.contains("KB")
+            || bytes_str == "100%"
+        {
+            return bytes_str.to_string();
+        }
+
+        // Convert bytes to MiB for parted
+        if let Ok(bytes) = bytes_str.parse::<u64>() {
+            let mib = bytes / (1024 * 1024);
+            if mib == 0 {
+                "1MiB".to_string()
+            } else {
+                format!("{}MiB", mib)
+            }
+        } else {
+            bytes_str.to_string()
+        }
+    }
+
+    fn get_partition_path(device: &str, partition_number: u32) -> String {
+        // Handle devices that end with a digit (like /dev/nvme0n1)
+        if device
+            .chars()
+            .last()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
+            format!("{}p{}", device, partition_number)
+        } else {
+            format!("{}{}", device, partition_number)
+        }
     }
 
     pub fn execute_plan(plan: PartitionPlan) -> Result<(), String> {
