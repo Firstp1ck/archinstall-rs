@@ -14,7 +14,7 @@ impl AppState {
         // Prevent starting a second install while one is already running or staged
         if self.install_running {
             self.open_info_popup(
-                "Installation already running. Please wait until it finishes.".into(),
+                "Installation already running. Please wait...".into(),
             );
             return;
         }
@@ -334,7 +334,7 @@ impl AppState {
             SystemService::build_pre_install_plan(self).commands,
         ));
         sections.push((
-            "System installation (pacstrap)".into(),
+            "System package installations".into(),
             SystemService::build_pacstrap_plan(self).commands,
         ));
         sections.push((

@@ -729,7 +729,8 @@ impl AppState {
             self.install_log_rx = None;
             self.install_log_tx = None;
             // Show a message in the TUI log output when channel is disconnected
-            self.install_log.push("[Install process ended: no more output will be received.]".to_string());
+            self.install_log
+                .push("[Install process ended: no more output will be received.]".to_string());
         } else {
             self.install_log_rx = Some(rx);
         }

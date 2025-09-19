@@ -54,12 +54,29 @@ fn run_loop(
     };
     let mut last_logged_line: usize = 0;
 
+    let mut install_was_running = false;
     loop {
         // Drain any pending install logs before rendering
         app.drain_install_logs();
 
+        // Detect install completion in TUI-driven flow
+        if !app.dry_run
+            && install_was_running
+            && !app.install_running
+            && !app.install_completed
+            && !app.install_section_titles.is_empty()
+            && app.install_section_done.iter().all(|&done| done)
+        {
+            app.install_completed = true;
+        }
+        install_was_running = app.install_running;
+
         // If install just finished (not dry-run), trigger reboot prompt
-        if !app.dry_run && app.install_completed && !app.reboot_prompt_open && app.reboot_confirmed.is_none() {
+        if !app.dry_run
+            && app.install_completed
+            && !app.reboot_prompt_open
+            && app.reboot_confirmed.is_none()
+        {
             app.reboot_prompt_open = true;
         }
 

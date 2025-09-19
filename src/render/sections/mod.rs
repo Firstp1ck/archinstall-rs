@@ -1,13 +1,20 @@
 /// Draws the install progress (left) and command output (right) panes during installation.
-fn draw_install_split(frame: &mut Frame, app: &mut AppState, left: ratatui::layout::Rect, right: ratatui::layout::Rect) {
-    use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+fn draw_install_split(
+    frame: &mut Frame,
+    app: &mut AppState,
+    left: ratatui::layout::Rect,
+    right: ratatui::layout::Rect,
+) {
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
     // Left: Overall Progress
     let mut left_lines: Vec<Line> = Vec::new();
     left_lines.push(Line::from(Span::styled(
         "Overall Progress",
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
     )));
     left_lines.push(Line::from(""));
     for (idx, title) in app.install_section_titles.iter().enumerate() {
@@ -21,7 +28,9 @@ fn draw_install_split(frame: &mut Frame, app: &mut AppState, left: ratatui::layo
             "[ ]"
         };
         let style = if is_current {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD)
         } else if is_done {
             Style::default().fg(Color::Green)
         } else {
@@ -32,12 +41,18 @@ fn draw_install_split(frame: &mut Frame, app: &mut AppState, left: ratatui::layo
             Span::styled(title.clone(), style),
         ]));
     }
-    let left_block = Block::default().borders(Borders::ALL).title(" Installation in progress ");
-    let left_par = Paragraph::new(left_lines).block(left_block).wrap(Wrap { trim: false });
+    let left_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Installation in progress ");
+    let left_par = Paragraph::new(left_lines)
+        .block(left_block)
+        .wrap(Wrap { trim: false });
     frame.render_widget(left_par, left);
 
     // Right: Command Output
-    let right_block = Block::default().borders(Borders::ALL).title(" Command output ");
+    let right_block = Block::default()
+        .borders(Borders::ALL)
+        .title(" Command output ");
     let inner_right = right_block.inner(right);
     frame.render_widget(right_block, right);
     let max_visible = inner_right.height.saturating_sub(2) as usize; // Reserve 1 line for indicator
@@ -80,24 +95,32 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         draw_install_split(frame, app, cols[0], cols[1]);
     } else if app.reboot_prompt_open {
         // Draw reboot prompt popup
-        use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
         use ratatui::style::{Color, Modifier, Style};
         use ratatui::text::{Line, Span};
+        use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
         let area = ratatui::layout::Rect {
             x: size.width / 4,
             y: size.height / 3,
             width: size.width / 2,
             height: 7,
         };
-        let block = Block::default().borders(Borders::ALL).title(" Reboot now? ");
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Reboot now? ");
         let text = vec![
             Line::from(Span::styled(
-                "Installation completed.", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                "Installation completed.",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from("Do you want to reboot now? [Y/n]"),
             Line::from(""),
-            Line::from(Span::styled("Press Y/Enter to reboot, N/Esc to cancel.", Style::default().fg(Color::Yellow))),
+            Line::from(Span::styled(
+                "Press Y/Enter to reboot, N/Esc to cancel.",
+                Style::default().fg(Color::Yellow),
+            )),
         ];
         let par = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
         frame.render_widget(par, area);
