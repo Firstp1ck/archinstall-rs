@@ -551,8 +551,8 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             && idx == app.install_focus_index;
         if is_focused {
             let style = Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD | Modifier::REVERSED);
             let styled = Line::from(Span::styled(display, style));
             match col {
                 0 => {

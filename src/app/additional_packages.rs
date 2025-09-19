@@ -175,8 +175,8 @@ impl AppState {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 2 {
                 let repo_and_name = parts[0];
-                if let Some(pkg_name) = repo_and_name.split('/').nth(1) {
-                    if pkg_name == name.trim() {
+                if let Some(pkg_name) = repo_and_name.split('/').nth(1)
+                    && pkg_name == name.trim() {
                         header = Some(line);
                         // Get the description from the next line
                         if let Some(desc) = lines.next() {
@@ -184,7 +184,6 @@ impl AppState {
                         }
                         break;
                     }
-                }
             }
         }
 

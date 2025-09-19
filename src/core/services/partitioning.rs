@@ -119,11 +119,10 @@ impl PartitioningService {
         let mut partition_number = 1;
         for spec in &sorted_partitions {
             // Skip partitions not for this device
-            if let Some(spec_device) = &spec.name {
-                if spec_device != device {
+            if let Some(spec_device) = &spec.name
+                && spec_device != device {
                     continue;
                 }
-            }
 
             let role = spec.role.as_deref().unwrap_or("OTHER");
             let fs = spec.fs.as_deref().unwrap_or("ext4");
