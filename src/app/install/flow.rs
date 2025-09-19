@@ -143,7 +143,7 @@ impl AppState {
             };
 
             send(&tx, "Starting installation...".to_string());
-            let mut thread_panicked = false;
+            let thread_panicked = false;
             'outer: for (title, cmds) in sections.into_iter() {
                 send(&tx, format!("::section_start::{}", title));
                 send(&tx, format!("=== {} ===", title));
