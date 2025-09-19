@@ -583,11 +583,3 @@ This installer modifies disk partitions and system configurations. Always backup
 ---
 
 **Made with ❤️ and 🦀 for the Arch Linux community**
-
-
-### Next AI Prompts
-
-- I want the selection in the Install "Desicion Menu" to be selectable. At the moment I cannot select anything. Moment not implemented? Selection not implemented?
-- Password flow for "Disk Encryption" should be the same as for Root and User. Additional with the "Partition:" afterwards to be selected.
-- Update README Roadmap
-- Fix Cargo clippy corretions
