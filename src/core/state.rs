@@ -682,11 +682,7 @@ impl AppState {
 
         self.install_log.push(line);
         // keep log reasonably small
-        const MAX_LOG_LINES: usize =90000;
-        if self.install_log.len() > MAX_LOG_LINES {
-            let drop = self.install_log.len() - MAX_LOG_LINES;
-            self.install_log.drain(0..drop);
-        }
+        // No log line limit: allow install_log to grow as needed
         // Update info popup body if it's open as Info
         let info_open = self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info));
         if info_open {
