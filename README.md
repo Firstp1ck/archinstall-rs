@@ -2,7 +2,11 @@
 
 A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux written in Rust. This project aims to simplify the Arch Linux installation process while maintaining the flexibility and control that Arch users expect.
 
+## 📷 TUI Installer
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
+
+## 📷 Install Process
+![archinstall-rs install process](Images/install_v0.0.1.png)
 
 > ⚠️ Still under Development.
 
