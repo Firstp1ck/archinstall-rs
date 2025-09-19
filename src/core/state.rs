@@ -705,16 +705,18 @@ impl AppState {
 
     pub fn drain_install_logs(&mut self) {
         let Some(rx) = self.install_log_rx.take() else {
+            eprintln!("[DEBUG] drain_install_logs: no install_log_rx");
             return;
         };
-        let mut drained: Vec<String> = Vec::new();
-        let mut disconnected = false;
+    let mut drained: Vec<String> = Vec::new();
+    let mut disconnected = false;
         loop {
             match rx.try_recv() {
                 Ok(line) => drained.push(line),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     disconnected = true;
+                    eprintln!("[DEBUG] drain_install_logs: channel disconnected, will set install_running = false");
                     break;
                 }
             }
@@ -728,6 +730,7 @@ impl AppState {
             self.install_running = false;
             self.install_log_rx = None;
             self.install_log_tx = None;
+            eprintln!("[DEBUG] drain_install_logs: install_running set to false");
             // Show a message in the TUI log output when channel is disconnected
             self.install_log
                 .push("[Install process ended: no more output will be received.]".to_string());

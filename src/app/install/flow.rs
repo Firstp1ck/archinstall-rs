@@ -13,9 +13,7 @@ impl AppState {
     pub fn start_install(&mut self) {
         // Prevent starting a second install while one is already running or staged
         if self.install_running {
-            self.open_info_popup(
-                "Installation already running. Please wait...".into(),
-            );
+            self.open_info_popup("Installation already running. Please wait...".into());
             return;
         }
         // Also guard if we have an in-progress staged plan (section titles present but running=false)
@@ -37,7 +35,7 @@ impl AppState {
             return;
         };
         let sections = self.build_install_sections(&target);
-        if self.dry_run {
+    if self.dry_run {
             // Simulate the same install UI, but do not execute commands.
             // Stream the plan into the live log with a Dry-Run label.
             self.install_running = true;
@@ -56,6 +54,7 @@ impl AppState {
             let log_path_display = log_path_buf.to_string_lossy().to_string();
 
             thread::spawn(move || {
+                let debug_tag = "[DEBUG] dry-run thread";
                 // Prepare dry-run.log: truncate at start of dry-run
                 let mut log_file: Option<std::fs::File> = match std::fs::File::create(&log_path_buf)
                 {
@@ -118,6 +117,7 @@ impl AppState {
                 let complete = "Dry-run completed.".to_string();
                 write_log(&mut log_file, &complete);
                 send(&tx, complete);
+                eprintln!("{}: thread exiting normally", debug_tag);
                 // drop tx -> disconnect to signal completion to UI
             });
             return;
@@ -134,13 +134,16 @@ impl AppState {
 
         // Spawn background thread to execute the plan
         thread::spawn(move || {
+            let debug_tag = "[DEBUG] install thread";
             let mut any_error: Option<String> = None;
+            let thread_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             // helper to send line and ignore errors if receiver dropped
             let send = |tx: &mpsc::Sender<String>, s: String| {
                 let _ = tx.send(s);
             };
 
             send(&tx, "Starting installation...".to_string());
+            let mut thread_panicked = false;
             'outer: for (title, cmds) in sections.into_iter() {
                 send(&tx, format!("::section_start::{}", title));
                 send(&tx, format!("=== {} ===", title));
@@ -149,7 +152,6 @@ impl AppState {
                         &tx,
                         format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
                     );
-                    // Run without a TTY to force plain, non-progress output; line-buffer via stdbuf
                     let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
                     let mut child = match Command::new("bash")
                         .arg("-lc")
@@ -169,6 +171,7 @@ impl AppState {
                         Err(e) => {
                             any_error = Some(format!("Failed to spawn: {} ({})", c, e));
                             send(&tx, any_error.as_ref().unwrap().clone());
+                            eprintln!("{}: failed to spawn: {} ({})", debug_tag, c, e);
                             break 'outer;
                         }
                     };
@@ -177,13 +180,15 @@ impl AppState {
                         for line in reader.lines() {
                             match line {
                                 Ok(l) => {
-                                    let clean =
-                                        crate::common::utils::sanitize_terminal_output_line(&l);
+                                    let clean = crate::common::utils::sanitize_terminal_output_line(&l);
                                     if !clean.is_empty() {
                                         send(&tx, clean);
                                     }
                                 }
-                                Err(_) => break,
+                                Err(e) => {
+                                    eprintln!("{}: error reading child stdout: {}", debug_tag, e);
+                                    break;
+                                }
                             }
                         }
                     }
@@ -196,11 +201,13 @@ impl AppState {
                                 c
                             ));
                             send(&tx, any_error.as_ref().unwrap().clone());
+                            eprintln!("{}: command failed (exit {}): {}", debug_tag, st.code().unwrap_or(-1), c);
                             break 'outer;
                         }
                         Err(e) => {
                             any_error = Some(format!("Failed to wait: {} ({})", c, e));
                             send(&tx, any_error.as_ref().unwrap().clone());
+                            eprintln!("{}: failed to wait: {} ({})", debug_tag, c, e);
                             break 'outer;
                         }
                     }
@@ -210,6 +217,12 @@ impl AppState {
             }
             if any_error.is_none() {
                 send(&tx, "Installation completed.".to_string());
+            }
+            thread_panicked
+        }));
+            match thread_result {
+                Ok(_) => eprintln!("{}: thread exiting normally", debug_tag),
+                Err(e) => eprintln!("{}: thread panicked: {:?}", debug_tag, e),
             }
             // drop tx -> disconnect to signal completion to UI
         });
