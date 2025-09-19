@@ -9,6 +9,11 @@ use crate::core::types::{
 };
 
 pub struct AppState {
+    /// True if a real install completed (not dry-run)
+    pub install_completed: bool,
+    // Reboot prompt state
+    pub reboot_prompt_open: bool,
+    pub reboot_confirmed: Option<bool>,
     /// For visual indicator: last seen install_log length
     pub last_install_log_len: Option<usize>,
     pub dry_run: bool,
@@ -363,6 +368,9 @@ impl AppState {
         list_state.select(Some(0));
 
         let mut s = Self {
+            install_completed: false,
+            reboot_prompt_open: false,
+            reboot_confirmed: None,
             last_install_log_len: None,
             dry_run,
             menu_entries,

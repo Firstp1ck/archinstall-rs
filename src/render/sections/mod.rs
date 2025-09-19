@@ -78,6 +78,29 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         app.last_menu_rect = cols[0];
         app.last_content_rect = cols[1];
         draw_install_split(frame, app, cols[0], cols[1]);
+    } else if app.reboot_prompt_open {
+        // Draw reboot prompt popup
+        use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::text::{Line, Span};
+        let area = ratatui::layout::Rect {
+            x: size.width / 4,
+            y: size.height / 3,
+            width: size.width / 2,
+            height: 7,
+        };
+        let block = Block::default().borders(Borders::ALL).title(" Reboot now? ");
+        let text = vec![
+            Line::from(Span::styled(
+                "Installation completed.", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            )),
+            Line::from(""),
+            Line::from("Do you want to reboot now? [Y/n]"),
+            Line::from(""),
+            Line::from(Span::styled("Press Y/Enter to reboot, N/Esc to cancel.", Style::default().fg(Color::Yellow))),
+        ];
+        let par = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
+        frame.render_widget(par, area);
     } else {
         let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
         let hide_keybinds = app.install_running;

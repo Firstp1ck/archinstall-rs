@@ -1,4 +1,4 @@
-use std::io::{self, Write};
+use std::io::{self};
 use std::time::{Duration, Instant};
 
 use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event};
@@ -58,6 +58,11 @@ fn run_loop(
         // Drain any pending install logs before rendering
         app.drain_install_logs();
 
+        // If install just finished (not dry-run), trigger reboot prompt
+        if !app.dry_run && app.install_completed && !app.reboot_prompt_open && app.reboot_confirmed.is_none() {
+            app.reboot_prompt_open = true;
+        }
+
         // Write new log lines to file if not dry_run
         if let Some(file) = log_file.as_mut() {
             while last_logged_line < app.install_log.len() {
@@ -77,11 +82,37 @@ fn run_loop(
 
         if event::poll(timeout)? {
             let ev: Event = event::read()?;
-            if handle_event(&mut app, ev) {
+            // If reboot prompt is open, handle Y/N keys
+            if app.reboot_prompt_open {
+                if let crossterm::event::Event::Key(key) = &ev {
+                    use crossterm::event::KeyCode;
+                    match key.code {
+                        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                            app.reboot_confirmed = Some(true);
+                            app.reboot_prompt_open = false;
+                        }
+                        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                            app.reboot_confirmed = Some(false);
+                            app.reboot_prompt_open = false;
+                        }
+                        _ => {}
+                    }
+                }
+            } else if handle_event(&mut app, ev) {
                 break;
             }
         }
 
+        // After reboot prompt, exit TUI and perform reboot if confirmed
+        if let Some(confirmed) = app.reboot_confirmed {
+            if confirmed {
+                // Exit TUI and reboot
+                break;
+            } else {
+                // Exit TUI, no reboot
+                break;
+            }
+        }
         if app.exit_tui_after_install {
             break;
         }
@@ -130,21 +161,15 @@ fn run_loop(
                 println!();
             }
             if any_error.is_none() {
-                println!("Installation completed.");
-                print!("Do you want to reboot now? [Y/n] ");
-                io::stdout().flush()?;
-                let mut answer = String::new();
-                io::stdin().read_line(&mut answer)?;
-                let ans = answer.trim();
-                if ans.is_empty()
-                    || ans.eq_ignore_ascii_case("y")
-                    || ans.eq_ignore_ascii_case("yes")
-                {
-                    let _ = Command::new("bash").arg("-lc").arg("reboot").status();
-                }
+                // Mark install as completed for reboot prompt
+                app.install_completed = true;
             }
         }
     }
 
+    // After TUI closes, perform reboot if confirmed
+    if let Some(true) = app.reboot_confirmed {
+        let _ = Command::new("bash").arg("-lc").arg("reboot").status();
+    }
     Ok(())
 }
