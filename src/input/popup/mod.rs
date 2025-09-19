@@ -26,7 +26,20 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
             }
         }
         KeyCode::Char('/') => {
-            if text::handle_search_slash(app) {
+            // During Manual Partitioning popups, '/' should be typed into fields (e.g., mountpoint)
+            if matches!(
+                app.popup_kind,
+                Some(crate::app::PopupKind::ManualPartitionTable)
+                    | Some(crate::app::PopupKind::ManualPartitionCreate)
+                    | Some(crate::app::PopupKind::ManualPartitionKindSelect)
+                    | Some(crate::app::PopupKind::ManualPartitionFilesystem)
+                    | Some(crate::app::PopupKind::ManualPartitionMountpoint)
+                    | Some(crate::app::PopupKind::ManualPartitionEdit)
+            ) {
+                if text::handle_text_char(app, '/') {
+                    return false;
+                }
+            } else if text::handle_search_slash(app) {
                 return false;
             }
         }

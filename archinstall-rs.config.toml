@@ -15,7 +15,7 @@ selected_device = "/dev/sdb"
 selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
 selected_device_size = "1.8 TiB"
-selected_device_freespace = "1.1 MiB"
+selected_device_freespace = "1.8 TiB"
 selected_device_sector_size = "512/4096 B"
 selected_device_read_only = false
 label = "gpt"
@@ -30,7 +30,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "Archlinux"

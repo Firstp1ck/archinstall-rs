@@ -12,12 +12,8 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     let size = frame.area();
 
     // left (menu) | right (info + content) | keybinds (rightmost)
-    // On Install screen, collapse the left menu to give full width to the overview
-    let left_constraint = if app.current_screen() == Screen::Install {
-        Constraint::Length(0)
-    } else {
-        Constraint::Length(LEFT_MENU_WIDTH)
-    };
+    // On Install screen, show the Main Menu as well
+    let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
     // During install process, hide keybinds pane to maximize content area
     let hide_keybinds = app.install_running;
     let chunks = if hide_keybinds {
@@ -66,10 +62,8 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     app.last_infobox_rect = infobox_rect;
     app.last_content_rect = content_rect;
 
-    // Render sections
-    if app.current_screen() != Screen::Install {
-        menu::draw_menu(frame, app, left_menu_rect);
-    }
+    // Render sections; keep Main Menu visible, but skip Info on Install
+    menu::draw_menu(frame, app, left_menu_rect);
     if app.current_screen() != Screen::Install {
         info::draw_info(frame, app, infobox_rect);
     }

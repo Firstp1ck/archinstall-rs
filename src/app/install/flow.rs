@@ -1,5 +1,4 @@
 use crate::app::{AppState, PopupKind};
-use crate::common::utils::redact_command_for_logging;
 use crate::core::services::fstab::FstabService;
 use crate::core::services::mounting::MountingService;
 use crate::core::services::partitioning::PartitioningService;
@@ -39,15 +38,88 @@ impl AppState {
         };
         let sections = self.build_install_sections(&target);
         if self.dry_run {
-            let mut body_lines: Vec<String> = Vec::new();
-            for (title, cmds) in sections {
-                body_lines.push(format!("=== {} ===", title));
-                for c in cmds {
-                    body_lines.push(redact_command_for_logging(&c));
+            // Simulate the same install UI, but do not execute commands.
+            // Stream the plan into the live log with a Dry-Run label.
+            self.install_running = true;
+            self.install_section_titles = sections.iter().map(|(t, _)| t.clone()).collect();
+            self.install_section_done = vec![false; self.install_section_titles.len()];
+            self.install_current_section = None;
+
+            let (tx, rx) = mpsc::channel::<String>();
+            self.install_log_tx = Some(tx.clone());
+            self.install_log_rx = Some(rx);
+
+            // Resolve absolute log path up-front
+            let log_path_buf = std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                .join("run.log");
+            let log_path_display = log_path_buf.to_string_lossy().to_string();
+
+            thread::spawn(move || {
+                // Prepare run.log: truncate at start of dry-run
+                let mut log_file: Option<std::fs::File> = match std::fs::File::create(&log_path_buf)
+                {
+                    Ok(f) => Some(f),
+                    Err(e) => {
+                        // Surface failure to user log stream
+                        let _ = tx.send(format!(
+                            "WARN: Could not create log file at {}: {}",
+                            log_path_display, e
+                        ));
+                        None
+                    }
+                };
+                // helper to send line and ignore errors if receiver dropped
+                let send = |tx: &mpsc::Sender<String>, s: String| {
+                    let _ = tx.send(s);
+                };
+
+                let write_log = |file: &mut Option<std::fs::File>, line: &str| {
+                    if let Some(f) = file.as_mut() {
+                        use std::io::Write as _;
+                        let _ = writeln!(f, "{}", line);
+                    }
+                };
+
+                let start_msg = "Starting dry-run (no commands will be executed)...".to_string();
+                write_log(&mut log_file, &start_msg);
+                send(&tx, start_msg);
+                std::thread::sleep(std::time::Duration::from_millis(15));
+                let path_msg = format!("Logging dry-run output to: {}", log_path_display);
+                write_log(&mut log_file, &path_msg);
+                send(&tx, path_msg);
+                std::thread::sleep(std::time::Duration::from_millis(15));
+                for (title, cmds) in sections.into_iter() {
+                    let marker = format!("::section_start::{}", title);
+                    write_log(&mut log_file, &marker);
+                    send(&tx, marker);
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                    let header = format!("=== {} ===", title);
+                    write_log(&mut log_file, &header);
+                    send(&tx, header);
+                    std::thread::sleep(std::time::Duration::from_millis(25));
+                    for c in cmds {
+                        let line = format!(
+                            "[Dry-Run] $ {}",
+                            crate::common::utils::redact_command_for_logging(&c)
+                        );
+                        write_log(&mut log_file, &line);
+                        send(&tx, line);
+                        // Pace output to avoid UI lag spikes; emulate real-time logs
+                        std::thread::sleep(std::time::Duration::from_millis(8));
+                    }
+                    let done = format!("::section_done::{}", title);
+                    write_log(&mut log_file, &done);
+                    send(&tx, done);
+                    write_log(&mut log_file, "");
+                    send(&tx, String::new());
+                    std::thread::sleep(std::time::Duration::from_millis(20));
                 }
-                body_lines.push(String::new());
-            }
-            self.open_info_popup(body_lines.join("\n"));
+                let complete = "Dry-run completed.".to_string();
+                write_log(&mut log_file, &complete);
+                send(&tx, complete);
+                // drop tx -> disconnect to signal completion to UI
+            });
             return;
         }
         // Launch background installer and keep TUI running with live logs

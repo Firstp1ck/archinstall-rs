@@ -36,6 +36,190 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
         return;
     }
 
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionTable)) {
+        let header = Paragraph::new(Line::from(
+            "Status   | Path                 | Type               | Start        | End          | Size       | Filesystem Type | Mountpoint   | Mount options",
+        ))
+        .block(Block::default().borders(Borders::ALL).title(" Columns "))
+        .wrap(Wrap { trim: false });
+        let inner_list = ratatui::layout::Layout::default()
+            .direction(ratatui::layout::Direction::Vertical)
+            .constraints([
+                ratatui::layout::Constraint::Length(3),
+                ratatui::layout::Constraint::Min(3),
+            ])
+            .split(area);
+        frame.render_widget(header, inner_list[0]);
+        let list = List::new(build_items(app))
+            .block(Block::default().borders(Borders::ALL).title(" Options "))
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("▶ ");
+        let mut state = ratatui::widgets::ListState::default();
+        state.select(Some(app.popup_selected_visible));
+        frame.render_stateful_widget(list, inner_list[1], &mut state);
+        return;
+    }
+
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionCreate)) {
+        // Info table + input + unit selector
+        let layout = ratatui::layout::Layout::default()
+            .direction(ratatui::layout::Direction::Vertical)
+            .constraints([
+                ratatui::layout::Constraint::Length(8),
+                ratatui::layout::Constraint::Length(3),
+                ratatui::layout::Constraint::Min(3),
+            ])
+            .split(area);
+
+        let start = format!("{}", app.manual_create_free_start_bytes);
+        let end = format!("{}", app.manual_create_free_end_bytes);
+        let remaining = app
+            .manual_create_free_end_bytes
+            .saturating_sub(app.manual_create_free_start_bytes);
+        let (unit_label, unit_divisor): (&str, u64) = match app.manual_create_units_index {
+            0 => ("B", 1),
+            1 => ("KiB", 1024),
+            2 => ("MiB", 1024 * 1024),
+            3 => ("GiB", 1024 * 1024 * 1024),
+            _ => ("GiB", 1024 * 1024 * 1024),
+        };
+        let size_live = if app.custom_input_buffer.trim().is_empty() {
+            format!("{} {}", remaining / unit_divisor, unit_label)
+        } else {
+            format!("{} {}", app.custom_input_buffer.clone(), unit_label)
+        };
+        let info = Paragraph::new(Line::from(format!(
+            "Start | {}    \nEnd   | {}    \nSize  | {}",
+            start, end, size_live
+        )))
+        .block(Block::default().borders(Borders::ALL).title(" Info "))
+        .wrap(Wrap { trim: false });
+        frame.render_widget(info, layout[0]);
+
+        // Input field (reuse style)
+        let input = Paragraph::new(Line::from(vec![
+            ratatui::text::Span::styled(
+                "> ",
+                Style::default()
+                    .fg(if app.manual_create_focus_units {
+                        Color::White
+                    } else {
+                        Color::Yellow
+                    })
+                    .add_modifier(Modifier::BOLD),
+            ),
+            ratatui::text::Span::raw(app.custom_input_buffer.clone()),
+        ]))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(if app.manual_create_focus_units {
+                    format!(" Size ({}) ", unit_label)
+                } else {
+                    format!(" Size ({}) (focused) ", unit_label)
+                }),
+        )
+        .wrap(Wrap { trim: false });
+        frame.render_widget(input, layout[1]);
+
+        // Units selector
+        let units = ["B", "KiB / KB", "MiB / MB", "GiB / GB"];
+        let mut items: Vec<ListItem> = Vec::new();
+        for (i, u) in units.iter().enumerate() {
+            let marker = if i == app.manual_create_units_index {
+                "[x]"
+            } else {
+                "[ ]"
+            };
+            items.push(ListItem::new(format!("{} {}", marker, u)));
+        }
+        let list =
+            List::new(items)
+                .block(Block::default().borders(Borders::ALL).title(
+                    if app.manual_create_focus_units {
+                        " Units (focused) "
+                    } else {
+                        " Units (Enter to select) "
+                    },
+                ))
+                .highlight_style(
+                    Style::default()
+                        .fg(if app.manual_create_focus_units {
+                            Color::Yellow
+                        } else {
+                            Color::White
+                        })
+                        .add_modifier(Modifier::BOLD),
+                )
+                .highlight_symbol("▶ ");
+        let mut state = ratatui::widgets::ListState::default();
+        if app.manual_create_focus_units {
+            state.select(Some(app.manual_create_units_index));
+        } else {
+            state.select(None);
+        }
+        frame.render_stateful_widget(list, layout[2], &mut state);
+        return;
+    }
+
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionKindSelect)) {
+        let list = List::new(build_items(app))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Select Type "),
+            )
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("▶ ");
+        let mut state = ratatui::widgets::ListState::default();
+        state.select(Some(app.popup_selected_visible));
+        frame.render_stateful_widget(list, area, &mut state);
+        return;
+    }
+
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionFilesystem)) {
+        let list = List::new(build_items(app))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Select Filesystem "),
+            )
+            .highlight_style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+            .highlight_symbol("▶ ");
+        let mut state = ratatui::widgets::ListState::default();
+        state.select(Some(app.popup_selected_visible));
+        frame.render_stateful_widget(list, area, &mut state);
+        return;
+    }
+
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionMountpoint)) {
+        let input = Paragraph::new(Line::from(vec![
+            ratatui::text::Span::styled(
+                "> ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            ratatui::text::Span::raw(app.custom_input_buffer.clone()),
+        ]))
+        .block(Block::default().borders(Borders::ALL).title(" Mountpoint "))
+        .wrap(Wrap { trim: false });
+        frame.render_widget(input, area);
+        return;
+    }
+
     // Special two-pane layout for AdditionalPackageGroupSelect to show packages side-by-side
     if matches!(
         app.popup_kind,

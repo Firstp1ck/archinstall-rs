@@ -1,5 +1,5 @@
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
@@ -96,24 +96,41 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             1 => "Manual Partitioning",
             _ => "Pre-mounted configuration",
         };
-        info_lines.push(Line::from(format!("Disk mode: {}", mode)));
-        if let Some(dev) = &app.disks_selected_device {
-            info_lines.push(Line::from(format!("Selected drive: {}", dev)));
-        }
-        if app.disks_mode_index == 1 && !app.disks_partitions.is_empty() {
-            if let Some(label) = &app.disks_label {
-                info_lines.push(Line::from(format!("Label: {}", label)));
+        // Manual Partitioning: split the infobox into two panes (left: info, right: partitions)
+        if app.disks_mode_index == 1 {
+            // Split the provided area horizontally
+            let cols = ratatui::layout::Layout::default()
+                .direction(ratatui::layout::Direction::Horizontal)
+                .constraints([
+                    ratatui::layout::Constraint::Percentage(50),
+                    ratatui::layout::Constraint::Percentage(50),
+                ])
+                .split(area);
+
+            // Left pane: general info (no partitions)
+            let mut left_info: Vec<Line> = Vec::new();
+            left_info.push(Line::from(format!("Disk mode: {}", mode)));
+            if let Some(dev) = &app.disks_selected_device {
+                left_info.push(Line::from(format!("Selected drive: {}", dev)));
             }
-            info_lines.push(Line::from(format!(
+            if let Some(label) = &app.disks_label {
+                left_info.push(Line::from(format!("Label: {}", label)));
+            }
+            left_info.push(Line::from(format!(
                 "Wipe: {}",
                 if app.disks_wipe { "Yes" } else { "No" }
             )));
             if let Some(align) = &app.disks_align {
-                info_lines.push(Line::from(format!("Align: {}", align)));
+                left_info.push(Line::from(format!("Align: {}", align)));
             }
-            info_lines.push(Line::from("Partitions:"));
+            let left_block = Paragraph::new(left_info)
+                .block(Block::default().borders(Borders::ALL).title(" Info "))
+                .wrap(Wrap { trim: true });
+            frame.render_widget(left_block, cols[0]);
+
+            // Right pane: partitions (existing on left, created on right)
+            let mut right_lines: Vec<String> = Vec::new();
             for p in &app.disks_partitions {
-                let name = p.name.clone().unwrap_or_default();
                 let role = p.role.clone().unwrap_or_default();
                 let fs = p.fs.clone().unwrap_or_default();
                 let start = p.start.clone().unwrap_or_default();
@@ -129,11 +146,7 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 } else {
                     ""
                 };
-
                 let mut line = String::new();
-                if !name.is_empty() {
-                    line.push_str(&format!("{} ", name));
-                }
                 if !role.is_empty() {
                     line.push_str(&format!("({}) ", role));
                 }
@@ -153,8 +166,90 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 if line.is_empty() {
                     line = "(empty)".into();
                 }
-                info_lines.push(Line::from(format!("- {}", line.trim())));
+                right_lines.push(line.trim().to_string());
             }
+
+            let mut left_lines: Vec<String> = Vec::new();
+            if let Some(dev) = &app.disks_selected_device {
+                if let Ok(output) = std::process::Command::new("lsblk")
+                    .args([
+                        "-J",
+                        "-b",
+                        "-o",
+                        "NAME,PATH,TYPE,SIZE,FSTYPE,START,PHY-SEC,LOG-SEC",
+                    ])
+                    .output()
+                    && output.status.success()
+                {
+                    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+                        && let Some(blockdevices) =
+                            json.get("blockdevices").and_then(|v| v.as_array())
+                    {
+                        for devnode in blockdevices {
+                            let path = devnode.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                            if !path.starts_with(dev) {
+                                continue;
+                            }
+                            let sector_size = devnode
+                                .get("phy-sec")
+                                .and_then(|v| v.as_u64())
+                                .or_else(|| devnode.get("log-sec").and_then(|v| v.as_u64()))
+                                .unwrap_or(512);
+                            if let Some(children) =
+                                devnode.get("children").and_then(|v| v.as_array())
+                            {
+                                for ch in children {
+                                    let ch_type =
+                                        ch.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                    if ch_type != "part" {
+                                        continue;
+                                    }
+                                    let name =
+                                        ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                    let size_b =
+                                        ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                                    let start_sectors =
+                                        ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
+                                    let start_b = start_sectors.saturating_mul(sector_size);
+                                    let end_b = start_b.saturating_add(size_b);
+                                    let fs =
+                                        ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
+                                    left_lines.push(format!(
+                                        "{} {} [{}..{}] {}",
+                                        name,
+                                        crate::app::AppState::human_bytes(size_b),
+                                        start_b,
+                                        end_b,
+                                        fs
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Build a titled block for partitions and render a single left-aligned list
+            let right_block = Block::default().borders(Borders::ALL).title(" Partitions ");
+            frame.render_widget(right_block.clone(), cols[1]);
+            let right_inner = right_block.inner(cols[1]);
+            let mut combined: Vec<String> = Vec::new();
+            if !left_lines.is_empty() {
+                combined.push("Existing:".into());
+                combined.extend(left_lines.into_iter().map(|s| format!("- {}", s)));
+            }
+            if !right_lines.is_empty() {
+                combined.push("Created:".into());
+                combined.extend(right_lines.into_iter().map(|s| format!("- {}", s)));
+            }
+            if combined.is_empty() {
+                combined.push("(none)".into());
+            }
+            let part_p = Paragraph::new(combined.join("\n"))
+                .alignment(Alignment::Left)
+                .wrap(Wrap { trim: true });
+            frame.render_widget(part_p, right_inner);
+            return;
         } else if app.disks_mode_index == 0 {
             let bl = match app.bootloader_index {
                 0 => "systemd-boot",
@@ -166,20 +261,32 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             info_lines.push(Line::from(format!("Bootloader: {}", bl)));
             let fw = if app.is_uefi() { "UEFI" } else { "BIOS" };
             info_lines.push(Line::from(format!("Firmware: {}", fw)));
+            if let Some(dev) = &app.disks_selected_device {
+                // Show selected target device path for best-effort mode
+                info_lines.push(Line::from(format!("Selected drive: {}", dev)));
+            }
             info_lines.push(Line::from("Planned layout:"));
             if app.is_uefi() {
                 info_lines.push(Line::from("- gpt: 1024MiB EFI (FAT, ESP) -> /boot"));
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
             } else {
                 info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
                 if bl != "GRUB" && bl != "Limine" {
                     info_lines.push(Line::from("Warning: Selected bootloader requires UEFI; choose GRUB or Limine for BIOS."));
@@ -192,7 +299,16 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             "Disabled"
         };
-        info_lines.push(Line::from(format!("Swap: {}", swap)));
+        info_lines.push(Line::from(format!("Swapon: {}", swap)));
+        info_lines.push(Line::from(
+            "Swapon can be used to activate the swap partition.",
+        ));
+        info_lines.push(Line::from(
+            "If disabled here, the system will be configured with swapoff.",
+        ));
+        info_lines.push(Line::from(
+            "You can always run 'swapon' later to activate the swap partition.",
+        ));
     } else if app.current_screen() == Screen::Bootloader {
         let bl = match app.bootloader_index {
             0 => "Systemd-boot",

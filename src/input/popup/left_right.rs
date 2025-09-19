@@ -1,6 +1,11 @@
 use crate::app::{AppState, PopupKind};
 
 pub(crate) fn handle_left(app: &mut AppState) -> bool {
+    // Manual partition size/units: toggle focus back to size
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionCreate)) {
+        app.manual_create_focus_units = false;
+        return false;
+    }
     if matches!(app.popup_kind, Some(PopupKind::ServerTypeSelect)) {
         if app.popup_packages_focus {
             app.popup_packages_focus = false;
@@ -41,6 +46,11 @@ pub(crate) fn handle_left(app: &mut AppState) -> bool {
 }
 
 pub(crate) fn handle_right(app: &mut AppState) -> bool {
+    // Manual partition size/units: toggle focus to units
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionCreate)) {
+        app.manual_create_focus_units = true;
+        return false;
+    }
     if matches!(app.popup_kind, Some(PopupKind::ServerTypeSelect)) {
         if !app.popup_packages_focus {
             app.popup_packages_focus = true;

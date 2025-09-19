@@ -1,4 +1,6 @@
-use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers};
+use crossterm::event::{
+    Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 
 use super::screens::{
     change_value, move_menu_down, move_menu_up, move_screen_down, move_screen_up,
@@ -129,7 +131,43 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             }
             _ => {}
         },
-        // No mouse support in TTY
+        Event::Mouse(MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column,
+            row,
+            ..
+        }) => {
+            // Only handle clicks in Install screen decision menu
+            if app.current_screen() == Screen::Install && !app.popup_open {
+                let x = column;
+                let y = row;
+                // Check click against computed targets
+                for (rect, target) in app.install_click_targets.clone() {
+                    if x >= rect.x
+                        && x < rect.x + rect.width
+                        && y >= rect.y
+                        && y < rect.y + rect.height
+                    {
+                        match target {
+                            crate::core::types::InstallClickTarget::Section(screen) => {
+                                if let Some(idx) =
+                                    app.menu_entries.iter().position(|m| m.screen == screen)
+                                {
+                                    app.selected_index = idx;
+                                    app.list_state.select(Some(idx));
+                                    app.focus = Focus::Content;
+                                }
+                            }
+                            crate::core::types::InstallClickTarget::InstallButton => {
+                                super::screens::dispatcher::handle_enter(app);
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        // No mouse support in TTY for other events
         Event::Resize(_, _) => {}
         _ => {}
     }

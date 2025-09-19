@@ -1,7 +1,7 @@
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-use crossterm::event::{self, Event};
+use crossterm::event::{self, DisableMouseCapture, EnableMouseCapture, Event};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crossterm::{execute, terminal};
 use ratatui::Terminal;
@@ -18,7 +18,7 @@ pub fn run(dry_run: bool) -> io::Result<()> {
     let mut stdout = io::stdout();
     // Clear the primary screen so preflight output doesn't persist when exiting the TUI
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
-    execute!(stdout, terminal::EnterAlternateScreen)?;
+    execute!(stdout, terminal::EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     // Ensure the alternate screen starts clean, especially on Linux TTYs
@@ -28,7 +28,11 @@ pub fn run(dry_run: bool) -> io::Result<()> {
     let res = run_loop(&mut terminal, dry_run);
 
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen)?;
+    execute!(
+        terminal.backend_mut(),
+        DisableMouseCapture,
+        terminal::LeaveAlternateScreen
+    )?;
     terminal.show_cursor()?;
 
     res

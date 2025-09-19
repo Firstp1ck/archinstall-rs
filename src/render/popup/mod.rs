@@ -37,8 +37,8 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::NetworkGateway)
             | Some(PopupKind::NetworkDNS)
     ) {
-        let w = area.width.clamp(20, 34);
-        let h = area.height.clamp(7, 9);
+        let w = area.width.clamp(24, 42);
+        let h = area.height.clamp(9, 12);
         (w, h)
     } else {
         (
@@ -85,6 +85,12 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::ServerTypeSelect) => " Select Server Type (space to toggle) ",
         Some(PopupKind::XorgTypeSelect) => " Select Xorg (space to toggle)",
         Some(PopupKind::DisksDeviceList) => " Available Drives ",
+        Some(PopupKind::ManualPartitionTable) => " Partitions and Free Space ",
+        Some(PopupKind::ManualPartitionCreate) => " Create Partition ",
+        Some(PopupKind::ManualPartitionKindSelect) => " Create Partition: Type ",
+        Some(PopupKind::ManualPartitionFilesystem) => " Create Partition: Filesystem ",
+        Some(PopupKind::ManualPartitionMountpoint) => " Create Partition: Mountpoint ",
+        Some(PopupKind::ManualPartitionEdit) => " Edit Partition ",
         Some(PopupKind::DiskEncryptionType) => " Encryption Type ",
         Some(PopupKind::DiskEncryptionPassword) => " Enter encryption password ",
         Some(PopupKind::DiskEncryptionPasswordConfirm) => " Confirm encryption password ",
@@ -154,19 +160,37 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         .constraints([Constraint::Length(3), Constraint::Min(3)])
         .split(popup_rect);
 
-    let search_label = if app.popup_in_search { "/" } else { "" };
-    let search = Paragraph::new(Line::from(vec![
-        ratatui::text::Span::styled(
-            search_label,
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-        ratatui::text::Span::raw(app.popup_search_query.clone()),
-    ]))
-    .block(Block::default().borders(Borders::ALL).title(" Search "))
-    .wrap(Wrap { trim: false });
-    frame.render_widget(search, inner[0]);
+    // Hide search bar during all Manual Partitioning popups to allow entering '/'
+    let hide_search = matches!(
+        app.popup_kind,
+        Some(PopupKind::ManualPartitionTable)
+            | Some(PopupKind::ManualPartitionCreate)
+            | Some(PopupKind::ManualPartitionKindSelect)
+            | Some(PopupKind::ManualPartitionFilesystem)
+            | Some(PopupKind::ManualPartitionMountpoint)
+            | Some(PopupKind::ManualPartitionEdit)
+    );
+    if !hide_search {
+        let search_label = if app.popup_in_search { "/" } else { "" };
+        let search = Paragraph::new(Line::from(vec![
+            ratatui::text::Span::styled(
+                search_label,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            ratatui::text::Span::raw(app.popup_search_query.clone()),
+        ]))
+        .block(Block::default().borders(Borders::ALL).title(" Search "))
+        .wrap(Wrap { trim: false });
+        frame.render_widget(search, inner[0]);
+    } else {
+        // render an empty block to keep layout consistent
+        let blank = Paragraph::new(Line::from(""))
+            .block(Block::default().borders(Borders::ALL).title(" "))
+            .wrap(Wrap { trim: false });
+        frame.render_widget(blank, inner[0]);
+    }
 
     match app.popup_kind {
         Some(PopupKind::DesktopEnvSelect) => desktop::draw(frame, app, inner[1]),

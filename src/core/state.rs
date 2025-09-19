@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
 use crate::core::types::{
-    AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, MenuEntry, NetworkInterfaceConfig,
-    PopupKind, Screen, UserAccount,
+    AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, InstallClickTarget, MenuEntry,
+    NetworkInterfaceConfig, PopupKind, Screen, UserAccount,
 };
 
 pub struct AppState {
@@ -66,6 +66,21 @@ pub struct AppState {
     pub disks_wipe: bool,
     pub disks_align: Option<String>,
     pub disks_partitions: Vec<DiskPartitionSpec>,
+
+    // Manual Partitioning: create partition popup state
+    pub manual_create_units_index: usize, // 0: B, 1: KiB/KB, 2: MiB/MB, 3: GiB/GB
+    pub manual_create_free_start_bytes: u64,
+    pub manual_create_free_end_bytes: u64,
+    pub manual_create_selected_size_bytes: u64,
+    pub manual_create_focus_units: bool,
+    pub manual_create_kind_index: usize, // 0: BOOT, 1: SWAP, 2: ROOT, 3: OTHER
+    pub manual_create_fs_options: Vec<String>,
+    pub manual_create_fs_index: usize,
+    pub manual_create_mountpoint: String,
+    pub manual_edit_index: Option<usize>,
+
+    // Manual Partitioning: per-row metadata for the table (selection handling)
+    pub manual_partition_row_meta: Vec<crate::core::types::ManualPartitionRowMeta>,
 
     // Mirrors & Repositories screen state
     pub mirrors_focus_index: usize, // 0..=3 items + 4 Continue
@@ -225,6 +240,9 @@ pub struct AppState {
     // Request to exit TUI and run install in stdout mode
     pub exit_tui_after_install: bool,
     pub pending_install_sections: Option<Vec<(String, Vec<String>)>>,
+
+    // Clickable targets in Install decision menu (computed each render)
+    pub install_click_targets: Vec<(ratatui::layout::Rect, InstallClickTarget)>,
 }
 
 impl AppState {
@@ -392,6 +410,19 @@ impl AppState {
             disks_align: Some("1MiB".into()),
             disks_partitions: Vec::new(),
 
+            manual_create_units_index: 0,
+            manual_create_free_start_bytes: 0,
+            manual_create_free_end_bytes: 0,
+            manual_create_selected_size_bytes: 0,
+            manual_create_focus_units: false,
+            manual_create_kind_index: 0,
+            manual_create_fs_options: Vec::new(),
+            manual_create_fs_index: 0,
+            manual_create_mountpoint: String::new(),
+            manual_edit_index: None,
+
+            manual_partition_row_meta: Vec::new(),
+
             mirrors_focus_index: 0,
             mirrors_regions_options: Vec::new(),
             mirrors_regions_selected: BTreeSet::new(),
@@ -548,6 +579,7 @@ impl AppState {
 
             exit_tui_after_install: false,
             pending_install_sections: None,
+            install_click_targets: Vec::new(),
         };
         // Initialize dynamic option lists and apply startup defaults
         let _ = s.load_locales_options();

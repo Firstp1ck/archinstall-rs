@@ -3,9 +3,11 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-use crate::app::{AppState, Focus};
+use crate::app::{AppState, Focus, Screen};
 
 pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
+    // Reset click targets for this render
+    app.install_click_targets.clear();
     // If installation is running (or has progress data), render a two-pane progress UI
     if app.install_running || !app.install_section_titles.is_empty() {
         let cols = Layout::default()
@@ -79,8 +81,8 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             .add_modifier(Modifier::BOLD),
     );
 
-    let mut sections: Vec<Vec<Line>> = Vec::new();
-    sections.push(vec![Line::from(title_span), Line::from("")]);
+    let mut sections: Vec<(String, Vec<Line>)> = Vec::new();
+    sections.push(("".into(), vec![Line::from(title_span), Line::from("")]));
 
     let locales_items = vec![
         format!("Keyboard: {}", app.current_keyboard_layout()),
@@ -335,7 +337,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             exp_pkg_sec.push(Line::from(""));
         }
         if !exp_pkg_sec.is_empty() {
-            sections.push(exp_pkg_sec);
+            sections.push(("Experience Packages".into(), exp_pkg_sec));
         }
     }
 
@@ -396,7 +398,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             apkg_sec.push(Line::from("  …"));
         }
         apkg_sec.push(Line::from(""));
-        sections.push(apkg_sec);
+        sections.push(("Additional Packages".into(), apkg_sec));
     }
 
     let button_style = match app.focus {
@@ -405,7 +407,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             .add_modifier(Modifier::BOLD),
         _ => Style::default(),
     };
-    sections.push(vec![Line::from(Span::styled("[ Install ]", button_style))]);
+    // Install button (clickable)
+    sections.push((
+        "__INSTALL_BUTTON__".into(),
+        vec![Line::from(Span::styled("[ Install ]", button_style))],
+    ));
 
     let title = match app.focus {
         Focus::Content => " Desicion Menu (focused) ",
@@ -424,7 +430,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         ])
         .split(inner);
 
-    let section_heights: Vec<usize> = sections.iter().map(|s| s.len()).collect();
+    let section_heights: Vec<usize> = sections.iter().map(|(_, s)| s.len()).collect();
     let total_lines: usize = section_heights.iter().sum();
     let target1: usize = total_lines / 3;
     let target2: usize = (2 * total_lines) / 3;
@@ -444,13 +450,67 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     let mut left_lines: Vec<Line> = Vec::new();
     let mut middle_lines: Vec<Line> = Vec::new();
     let mut right_lines: Vec<Line> = Vec::new();
-    for (i, sec) in sections.into_iter().enumerate() {
-        if i < split_index1 {
-            left_lines.extend(sec);
+    // We need to track header line Y positions to map clicks. Compute per-column placement.
+    let mut cur_y_left: u16 = 0;
+    let mut cur_y_mid: u16 = 0;
+    let mut cur_y_right: u16 = 0;
+    let inner_left = cols[0];
+    let inner_mid = cols[1];
+    let inner_right = cols[2];
+
+    for (i, (name, sec)) in sections.into_iter().enumerate() {
+        let target_col = if i < split_index1 {
+            0
         } else if i < split_index2 {
-            middle_lines.extend(sec);
+            1
         } else {
-            right_lines.extend(sec);
+            2
+        };
+        match target_col {
+            0 => {
+                // header at current y in left col
+                if let Some(_first_line) = sec.first() {
+                    if !name.is_empty() {
+                        let header_rect =
+                            Rect::new(inner_left.x, inner_left.y + cur_y_left, inner_left.width, 1);
+                        if let Some(target) = screen_for_section_name(&name) {
+                            app.install_click_targets.push((header_rect, target));
+                        }
+                    }
+                }
+                cur_y_left += sec.len() as u16;
+                left_lines.extend(sec);
+            }
+            1 => {
+                if let Some(_first_line) = sec.first() {
+                    if !name.is_empty() {
+                        let header_rect =
+                            Rect::new(inner_mid.x, inner_mid.y + cur_y_mid, inner_mid.width, 1);
+                        if let Some(target) = screen_for_section_name(&name) {
+                            app.install_click_targets.push((header_rect, target));
+                        }
+                    }
+                }
+                cur_y_mid += sec.len() as u16;
+                middle_lines.extend(sec);
+            }
+            _ => {
+                if let Some(_first_line) = sec.first() {
+                    if !name.is_empty() {
+                        let header_rect = Rect::new(
+                            inner_right.x,
+                            inner_right.y + cur_y_right,
+                            inner_right.width,
+                            1,
+                        );
+                        if let Some(target) = screen_for_section_name(&name) {
+                            app.install_click_targets.push((header_rect, target));
+                        }
+                    }
+                }
+                cur_y_right += sec.len() as u16;
+                right_lines.extend(sec);
+            }
         }
     }
 
@@ -462,7 +522,30 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     frame.render_widget(right_par, cols[2]);
 }
 
-fn push_section_lines(sections: &mut Vec<Vec<Line>>, name: &str, items: &Vec<String>) {
+fn screen_for_section_name(name: &str) -> Option<crate::core::types::InstallClickTarget> {
+    use crate::core::types::InstallClickTarget as ICT;
+    let t = match name {
+        "Locales" => ICT::Section(Screen::Locales),
+        "Mirrors & Repositories" => ICT::Section(Screen::MirrorsRepos),
+        "Disks" => ICT::Section(Screen::Disks),
+        "Disk Encryption" => ICT::Section(Screen::DiskEncryption),
+        "Swap" => ICT::Section(Screen::SwapPartition),
+        "Bootloader" => ICT::Section(Screen::Bootloader),
+        "Unified Kernel Images" => ICT::Section(Screen::UnifiedKernelImages),
+        "System" => ICT::Section(Screen::Hostname), // maps to first of system-related
+        "User Accounts" => ICT::Section(Screen::UserAccount),
+        "Experience" => ICT::Section(Screen::ExperienceMode),
+        "Graphic Drivers" => ICT::Section(Screen::ExperienceMode),
+        "Kernels" => ICT::Section(Screen::Kernels),
+        "Network" => ICT::Section(Screen::NetworkConfiguration),
+        "Additional Packages" => ICT::Section(Screen::AdditionalPackages),
+        "__INSTALL_BUTTON__" => ICT::InstallButton,
+        _ => return None,
+    };
+    Some(t)
+}
+
+fn push_section_lines(sections: &mut Vec<(String, Vec<Line>)>, name: &str, items: &Vec<String>) {
     if items.is_empty() {
         return;
     }
@@ -477,5 +560,5 @@ fn push_section_lines(sections: &mut Vec<Vec<Line>>, name: &str, items: &Vec<Str
         sec.push(Line::from(format!("- {}", item)));
     }
     sec.push(Line::from(""));
-    sections.push(sec);
+    sections.push((name.to_string(), sec));
 }

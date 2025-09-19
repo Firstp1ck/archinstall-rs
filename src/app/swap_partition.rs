@@ -22,7 +22,7 @@ pub fn draw_swap_partition(frame: &mut ratatui::Frame, app: &mut AppState, area:
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
     let options = vec![(
-        "Swap",
+        "Swapon",
         if app.swap_enabled {
             "Enabled"
         } else {

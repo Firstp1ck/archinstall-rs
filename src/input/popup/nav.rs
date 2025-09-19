@@ -4,6 +4,17 @@ use crate::app::{AppState, PopupKind};
 use super::super::screens;
 
 pub(crate) fn handle_nav_up(app: &mut AppState) -> bool {
+    // Manual partition size/units: when units focused, move selection
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionCreate))
+        && app.manual_create_focus_units
+    {
+        if app.manual_create_units_index == 0 {
+            app.manual_create_units_index = 3;
+        } else {
+            app.manual_create_units_index -= 1;
+        }
+        return false;
+    }
     if matches!(
         app.popup_kind,
         Some(PopupKind::AdditionalPackageGroupSelect)
@@ -228,6 +239,13 @@ pub(crate) fn handle_nav_up(app: &mut AppState) -> bool {
 }
 
 pub(crate) fn handle_nav_down(app: &mut AppState) -> bool {
+    // Manual partition size/units: when units focused, move selection
+    if matches!(app.popup_kind, Some(PopupKind::ManualPartitionCreate))
+        && app.manual_create_focus_units
+    {
+        app.manual_create_units_index = (app.manual_create_units_index + 1) % 4;
+        return false;
+    }
     if matches!(
         app.popup_kind,
         Some(PopupKind::AdditionalPackageGroupSelect)

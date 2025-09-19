@@ -32,6 +32,12 @@ pub enum Screen {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum InstallClickTarget {
+    Section(Screen),
+    InstallButton,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PopupKind {
     KeyboardLayout,
     LocaleLanguage,
@@ -73,6 +79,12 @@ pub enum PopupKind {
     NetworkGateway,
     NetworkDNS,
     WipeConfirm,
+    ManualPartitionTable,
+    ManualPartitionCreate,
+    ManualPartitionKindSelect,
+    ManualPartitionFilesystem,
+    ManualPartitionMountpoint,
+    ManualPartitionEdit,
     // Additional Packages: groups
     AdditionalPackageGroupSelect,
     AdditionalPackageGroupPackages,
@@ -148,4 +160,12 @@ pub struct DiskPartitionSpec {
     pub mountpoint: Option<String>,
     pub mount_options: Option<String>,
     pub encrypt: Option<bool>,
+}
+
+#[derive(Clone)]
+pub struct ManualPartitionRowMeta {
+    pub kind: String,              // "existing" | "created" | "free"
+    pub spec_index: Option<usize>, // for created rows
+    pub free_start: Option<u64>,   // for free rows
+    pub free_end: Option<u64>,     // for free rows
 }

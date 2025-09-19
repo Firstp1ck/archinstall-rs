@@ -1,2 +1,3 @@
 /target
 # archinstall-rs.config.toml
+*.log

@@ -1,5 +1,87 @@
 use crate::app::{AppState, PopupKind};
 
+fn finalize_manual_partition(app: &mut AppState) {
+    // Compute size in bytes from stored selection (preferred) or current input
+    let computed_size = {
+        let qty = app.custom_input_buffer.trim().parse::<u64>().unwrap_or(0);
+        let unit_multiplier: u64 = match app.manual_create_units_index {
+            0 => 1,
+            1 => 1024,               // KiB/KB
+            2 => 1024 * 1024,        // MiB/MB
+            3 => 1024 * 1024 * 1024, // GiB/GB
+            _ => 1024 * 1024 * 1024,
+        };
+        qty.saturating_mul(unit_multiplier)
+    };
+    let size_bytes = if app.manual_create_selected_size_bytes != 0 {
+        app.manual_create_selected_size_bytes
+    } else {
+        computed_size
+    };
+    let start_b = app.manual_create_free_start_bytes;
+    let end_b = app.manual_create_free_end_bytes;
+    let max_bytes = end_b.saturating_sub(start_b);
+    let final_size = size_bytes.min(max_bytes);
+
+    // Map kind index back to role string (strip any (created) suffix)
+    let role = match app.manual_create_kind_index {
+        0 => "BOOT",
+        1 => "SWAP",
+        2 => "ROOT",
+        3 => "OTHER",
+        _ => "OTHER",
+    };
+
+    // Filesystem selection
+    let fs = if app.manual_create_kind_index == 1 {
+        Some("linux-swap".to_string())
+    } else if let Some(name) = app
+        .manual_create_fs_options
+        .get(app.manual_create_fs_index)
+        .cloned()
+    {
+        Some(name)
+    } else {
+        None
+    };
+
+    // Mountpoint
+    let mountpoint = if app.manual_create_kind_index == 1 {
+        None
+    } else {
+        let mp = if app.manual_create_kind_index == 0 {
+            "/boot"
+        } else if app.manual_create_kind_index == 2 {
+            "/"
+        } else {
+            app.manual_create_mountpoint.as_str()
+        };
+        Some(mp.to_string())
+    };
+
+    // Save partition spec (update if editing, else append)
+    let mut spec = crate::core::types::DiskPartitionSpec::default();
+    spec.name = app.disks_selected_device.clone();
+    spec.role = Some(role.to_string());
+    spec.fs = fs;
+    spec.start = Some(format!("{}", start_b));
+    spec.size = Some(format!("{}", final_size));
+    spec.mountpoint = mountpoint;
+    if let Some(edit_idx) = app.manual_edit_index.take() {
+        if let Some(existing) = app.disks_partitions.get_mut(edit_idx) {
+            *existing = spec;
+        } else {
+            app.disks_partitions.push(spec);
+        }
+    } else {
+        app.disks_partitions.push(spec);
+    }
+
+    // After creation, reset selection and go back to the ManualPartitionTable for the selected device
+    app.manual_create_selected_size_bytes = 0;
+    app.open_manual_partition_table_for_selected();
+}
+
 pub(crate) fn handle_enter(app: &mut AppState) -> bool {
     match app.popup_kind {
         Some(PopupKind::Info) => {
@@ -377,6 +459,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             app.root_password = app.custom_input_buffer.clone();
             app.custom_input_buffer.clear();
             app.close_popup();
+            app.open_root_password_confirm_input();
         }
         Some(PopupKind::RootPasswordConfirm) => {
             app.root_password_confirm = app.custom_input_buffer.clone();
@@ -496,7 +579,155 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                     }
                 }
             }
+            // If Manual mode is active, open the follow-up manual partition table
+            let manual_mode = app.disks_mode_index == 1;
             app.close_popup();
+            if manual_mode {
+                app.open_manual_partition_table_for_selected();
+            }
+        }
+        Some(PopupKind::ManualPartitionTable) => {
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible)
+                && let Some(line) = app.popup_items.get(global_idx)
+            {
+                let _cols: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
+                if global_idx < app.manual_partition_row_meta.len() {
+                    let m = &app.manual_partition_row_meta[global_idx];
+                    if m.kind.eq_ignore_ascii_case("free") {
+                        let used_b = m.free_start.unwrap_or(0);
+                        let total_b = m.free_end.unwrap_or(0);
+                        app.close_popup();
+                        app.open_manual_partition_create(used_b, total_b);
+                        return false;
+                    } else if m.kind.eq_ignore_ascii_case("created") {
+                        let idx = m.spec_index.unwrap_or(0);
+                        app.close_popup();
+                        app.popup_kind = Some(PopupKind::ManualPartitionEdit);
+                        app.popup_items = vec!["Modify".into(), "Delete".into()];
+                        app.popup_visible_indices = vec![0, 1];
+                        app.popup_selected_visible = 0;
+                        app.popup_in_search = false;
+                        app.popup_search_query.clear();
+                        app.info_message = format!("__EDIT_INDEX__{}", idx);
+                        app.popup_open = true;
+                        return false;
+                    }
+                }
+            }
+            app.close_popup();
+        }
+        Some(PopupKind::ManualPartitionEdit) => {
+            // Retrieve the stashed index from info_message
+            let idx = app
+                .info_message
+                .strip_prefix("__EDIT_INDEX__")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0);
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                if global_idx == 0 {
+                    // Modify: preload current spec into creation flow
+                    if let Some(spec) = app.disks_partitions.get(idx).cloned() {
+                        // Mark which partition we are editing so finalize updates instead of appending
+                        app.manual_edit_index = Some(idx);
+                        app.close_popup();
+                        // Map role back to kind index
+                        app.manual_create_kind_index = match spec.role.as_deref().unwrap_or("") {
+                            "BOOT" => 0,
+                            "SWAP" => 1,
+                            "ROOT" => 2,
+                            _ => 3,
+                        };
+                        // Preload size in GiB
+                        if let (Some(start), Some(size)) = (spec.start, spec.size) {
+                            if let (Ok(st), Ok(sz)) = (start.parse::<u64>(), size.parse::<u64>()) {
+                                app.manual_create_free_start_bytes = st;
+                                app.manual_create_free_end_bytes = st.saturating_add(sz);
+                                app.manual_create_selected_size_bytes = sz;
+                                app.custom_input_buffer = format!("{}", sz / (1024 * 1024 * 1024));
+                            }
+                        }
+                        // Filesystem and mountpoint
+                        if let Some(fs) = spec.fs {
+                            app.manual_create_fs_options = vec![fs.clone()];
+                            app.manual_create_fs_index = 0;
+                        }
+                        if let Some(mp) = spec.mountpoint {
+                            app.manual_create_mountpoint = mp;
+                        }
+                        app.open_manual_partition_size_units();
+                    }
+                } else {
+                    // Delete
+                    if idx < app.disks_partitions.len() {
+                        app.disks_partitions.remove(idx);
+                    }
+                    app.close_popup();
+                    app.open_manual_partition_table_for_selected();
+                }
+            }
+        }
+        Some(PopupKind::ManualPartitionKindSelect) => {
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                app.manual_create_kind_index = global_idx;
+                // For SWAP, no mountpoint; for BOOT/ROOT/OTHER, ask FS then mountpoint (except SWAP)
+                app.close_popup();
+                // Size + units first for all kinds
+                app.open_manual_partition_size_units();
+            }
+        }
+        Some(PopupKind::ManualPartitionCreate) => {
+            // First Enter switches focus from size to units; next Enter proceeds
+            if !app.manual_create_focus_units {
+                app.manual_create_focus_units = true;
+                return false;
+            }
+            // Persist the chosen size in bytes for subsequent steps
+            let qty = app.custom_input_buffer.trim().parse::<u64>().unwrap_or(0);
+            let unit_multiplier: u64 = match app.manual_create_units_index {
+                0 => 1,
+                1 => 1024,
+                2 => 1024 * 1024,
+                3 => 1024 * 1024 * 1024,
+                _ => 1024 * 1024 * 1024,
+            };
+            let size_bytes = qty.saturating_mul(unit_multiplier);
+            let start_b = app.manual_create_free_start_bytes;
+            let end_b = app.manual_create_free_end_bytes;
+            let max_bytes = end_b.saturating_sub(start_b);
+            app.manual_create_selected_size_bytes = size_bytes.min(max_bytes);
+            // After size+unit, go to FS selection if needed, then mountpoint
+            let needs_fs = app.manual_create_kind_index != 1; // not for SWAP
+            app.close_popup();
+            if needs_fs {
+                app.open_manual_partition_fs_select();
+            } else {
+                // SWAP done (no fs mountpoint questions) -> finalize and reopen table
+                finalize_manual_partition(app);
+            }
+        }
+        Some(PopupKind::ManualPartitionFilesystem) => {
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                app.manual_create_fs_index = global_idx;
+                app.close_popup();
+                // BOOT/ROOT/OTHER mountpoints
+                if app.manual_create_kind_index == 0
+                    || app.manual_create_kind_index == 2
+                    || app.manual_create_kind_index == 3
+                {
+                    app.open_manual_partition_mountpoint();
+                }
+                // If SWAP or BOOT without mountpoint step, finalize
+                if app.manual_create_kind_index == 1 {
+                    // finalize directly
+                    finalize_manual_partition(app);
+                }
+            }
+        }
+        Some(PopupKind::ManualPartitionMountpoint) => {
+            app.manual_create_mountpoint = app.custom_input_buffer.clone();
+            app.custom_input_buffer.clear();
+            app.close_popup();
+            finalize_manual_partition(app);
         }
         Some(PopupKind::DiskEncryptionType) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
@@ -569,7 +800,28 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         | Some(PopupKind::XorgTypeSelect) => {
             app.close_popup();
         }
-        None => app.apply_popup_selection(),
+        None => {
+            // Special handling: pressing Enter on Install screen should ask wipe confirm
+            if app.current_screen() == crate::core::types::Screen::Install {
+                let dev = app
+                    .disks_selected_device
+                    .clone()
+                    .unwrap_or_else(|| "the selected drive".into());
+                app.popup_kind = Some(PopupKind::WipeConfirm);
+                app.popup_items = vec![
+                    format!("Yes — wipe {} and continue", dev),
+                    "No — cancel".into(),
+                ];
+                app.popup_visible_indices = vec![0, 1];
+                app.popup_selected_visible = 0; // Yes by default
+                app.popup_in_search = false;
+                app.popup_search_query.clear();
+                app.popup_open = true;
+                return false;
+            } else {
+                app.apply_popup_selection();
+            }
+        }
     }
     false
 }
