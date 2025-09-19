@@ -724,6 +724,8 @@ impl AppState {
             self.install_running = false;
             self.install_log_rx = None;
             self.install_log_tx = None;
+            // Debug print to stderr when channel is disconnected
+            eprintln!("[DEBUG] Install process/channel disconnected: no more output will be received.");
         } else {
             self.install_log_rx = Some(rx);
         }
