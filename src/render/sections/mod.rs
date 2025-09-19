@@ -44,20 +44,10 @@ fn draw_install_split(frame: &mut Frame, app: &mut AppState, left: ratatui::layo
     let start = app.install_log.len().saturating_sub(max_visible);
     let visible_lines = &app.install_log[start..];
     let mut output = visible_lines.join("\n");
-    // Visual indicator: show if log is updating, frozen, or process ended
-    let indicator = if !app.install_running {
-        "[Install process ended]"
-    } else if let Some(prev) = app.last_install_log_len {
-        if app.install_log.len() > prev {
-            "[Log updating...]"
-        } else {
-            "[Log frozen!]"
-        }
-    } else {
-        "[Log updating...]"
-    };
-    output.push_str("\n");
-    output.push_str(indicator);
+    // Visual indicator: show only if process ended
+    if !app.install_running {
+        output.push_str("\n[Install process ended]");
+    }
     let right_par = Paragraph::new(output).wrap(Wrap { trim: false });
     frame.render_widget(right_par, inner_right);
 }
