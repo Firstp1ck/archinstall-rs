@@ -170,8 +170,8 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             }
 
             let mut left_lines: Vec<String> = Vec::new();
-            if let Some(dev) = &app.disks_selected_device {
-                if let Ok(output) = std::process::Command::new("lsblk")
+            if let Some(dev) = &app.disks_selected_device
+                && let Ok(output) = std::process::Command::new("lsblk")
                     .args([
                         "-J",
                         "-b",
@@ -179,51 +179,41 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                         "NAME,PATH,TYPE,SIZE,FSTYPE,START,PHY-SEC,LOG-SEC",
                     ])
                     .output()
-                    && output.status.success()
-                {
-                    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
-                        && let Some(blockdevices) =
-                            json.get("blockdevices").and_then(|v| v.as_array())
-                    {
-                        for devnode in blockdevices {
-                            let path = devnode.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                            if !path.starts_with(dev) {
+                && output.status.success()
+                && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+                && let Some(blockdevices) = json.get("blockdevices").and_then(|v| v.as_array())
+            {
+                for devnode in blockdevices {
+                    let path = devnode.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                    if !path.starts_with(dev) {
+                        continue;
+                    }
+                    let sector_size = devnode
+                        .get("phy-sec")
+                        .and_then(|v| v.as_u64())
+                        .or_else(|| devnode.get("log-sec").and_then(|v| v.as_u64()))
+                        .unwrap_or(512);
+                    if let Some(children) = devnode.get("children").and_then(|v| v.as_array()) {
+                        for ch in children {
+                            let ch_type = ch.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                            if ch_type != "part" {
                                 continue;
                             }
-                            let sector_size = devnode
-                                .get("phy-sec")
-                                .and_then(|v| v.as_u64())
-                                .or_else(|| devnode.get("log-sec").and_then(|v| v.as_u64()))
-                                .unwrap_or(512);
-                            if let Some(children) =
-                                devnode.get("children").and_then(|v| v.as_array())
-                            {
-                                for ch in children {
-                                    let ch_type =
-                                        ch.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                                    if ch_type != "part" {
-                                        continue;
-                                    }
-                                    let name =
-                                        ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                                    let size_b =
-                                        ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
-                                    let start_sectors =
-                                        ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
-                                    let start_b = start_sectors.saturating_mul(sector_size);
-                                    let end_b = start_b.saturating_add(size_b);
-                                    let fs =
-                                        ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
-                                    left_lines.push(format!(
-                                        "{} {} [{}..{}] {}",
-                                        name,
-                                        crate::app::AppState::human_bytes(size_b),
-                                        start_b,
-                                        end_b,
-                                        fs
-                                    ));
-                                }
-                            }
+                            let name = ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                            let size_b = ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let start_sectors =
+                                ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let start_b = start_sectors.saturating_mul(sector_size);
+                            let end_b = start_b.saturating_add(size_b);
+                            let fs = ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
+                            left_lines.push(format!(
+                                "{} {} [{}..{}] {}",
+                                name,
+                                crate::app::AppState::human_bytes(size_b),
+                                start_b,
+                                end_b,
+                                fs
+                            ));
                         }
                     }
                 }

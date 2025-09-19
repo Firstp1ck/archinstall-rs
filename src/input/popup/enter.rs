@@ -35,14 +35,10 @@ fn finalize_manual_partition(app: &mut AppState) {
     // Filesystem selection
     let fs = if app.manual_create_kind_index == 1 {
         Some("linux-swap".to_string())
-    } else if let Some(name) = app
-        .manual_create_fs_options
-        .get(app.manual_create_fs_index)
-        .cloned()
-    {
-        Some(name)
     } else {
-        None
+        app.manual_create_fs_options
+            .get(app.manual_create_fs_index)
+            .cloned()
     };
 
     // Mountpoint
@@ -60,13 +56,15 @@ fn finalize_manual_partition(app: &mut AppState) {
     };
 
     // Save partition spec (update if editing, else append)
-    let mut spec = crate::core::types::DiskPartitionSpec::default();
-    spec.name = app.disks_selected_device.clone();
-    spec.role = Some(role.to_string());
-    spec.fs = fs;
-    spec.start = Some(format!("{}", start_b));
-    spec.size = Some(format!("{}", final_size));
-    spec.mountpoint = mountpoint;
+    let spec = crate::core::types::DiskPartitionSpec {
+        name: app.disks_selected_device.clone(),
+        role: Some(role.to_string()),
+        fs,
+        start: Some(format!("{}", start_b)),
+        size: Some(format!("{}", final_size)),
+        mountpoint,
+        ..Default::default()
+    };
     if let Some(edit_idx) = app.manual_edit_index.take() {
         if let Some(existing) = app.disks_partitions.get_mut(edit_idx) {
             *existing = spec;
@@ -638,13 +636,13 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                             _ => 3,
                         };
                         // Preload size in GiB
-                        if let (Some(start), Some(size)) = (spec.start, spec.size) {
-                            if let (Ok(st), Ok(sz)) = (start.parse::<u64>(), size.parse::<u64>()) {
-                                app.manual_create_free_start_bytes = st;
-                                app.manual_create_free_end_bytes = st.saturating_add(sz);
-                                app.manual_create_selected_size_bytes = sz;
-                                app.custom_input_buffer = format!("{}", sz / (1024 * 1024 * 1024));
-                            }
+                        if let (Some(start), Some(size)) = (spec.start, spec.size)
+                            && let (Ok(st), Ok(sz)) = (start.parse::<u64>(), size.parse::<u64>())
+                        {
+                            app.manual_create_free_start_bytes = st;
+                            app.manual_create_free_end_bytes = st.saturating_add(sz);
+                            app.manual_create_selected_size_bytes = sz;
+                            app.custom_input_buffer = format!("{}", sz / (1024 * 1024 * 1024));
                         }
                         // Filesystem and mountpoint
                         if let Some(fs) = spec.fs {
@@ -739,6 +737,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             app.disk_encryption_password = app.custom_input_buffer.clone();
             app.custom_input_buffer.clear();
             app.close_popup();
+            app.open_disk_encryption_password_confirm_input();
         }
         Some(PopupKind::DiskEncryptionPasswordConfirm) => {
             app.disk_encryption_password_confirm = app.custom_input_buffer.clone();
@@ -749,6 +748,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             } else {
                 app.info_message.clear();
                 app.close_popup();
+                app.open_disk_encryption_partition_list();
             }
         }
         Some(PopupKind::DiskEncryptionPartitionList) => {

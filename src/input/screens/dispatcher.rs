@@ -31,6 +31,16 @@ pub(crate) fn move_locales_focus(app: &mut AppState, forward: bool) {
 
 pub(crate) fn move_screen_up(app: &mut AppState) {
     match app.current_screen() {
+        Screen::Install => {
+            if app.focus != Focus::Content {
+                return;
+            }
+            if app.install_focus_index == 0 {
+                app.install_focus_index = app.install_click_targets.len().saturating_sub(1);
+            } else {
+                app.install_focus_index = app.install_focus_index.saturating_sub(1);
+            }
+        }
         Screen::Locales => locales::move_locales_up(app),
         Screen::MirrorsRepos => mirrors::move_mirrors_repos_up(app),
         Screen::Disks => disks::move_disks_up(app),
@@ -55,6 +65,16 @@ pub(crate) fn move_screen_up(app: &mut AppState) {
 
 pub(crate) fn move_screen_down(app: &mut AppState) {
     match app.current_screen() {
+        Screen::Install => {
+            if app.focus != Focus::Content {
+                return;
+            }
+            let count = app.install_click_targets.len();
+            if count == 0 {
+                return;
+            }
+            app.install_focus_index = (app.install_focus_index + 1) % count;
+        }
         Screen::Locales => locales::move_locales_down(app),
         Screen::MirrorsRepos => mirrors::move_mirrors_repos_down(app),
         Screen::Disks => disks::move_disks_down(app),
@@ -116,7 +136,28 @@ pub(crate) fn handle_enter(app: &mut AppState) {
         Screen::Disks => disks::handle_enter_disks(app),
         Screen::DiskEncryption => de::handle_enter_diskenc(app),
         Screen::Install => {
-            app.start_install();
+            if !app.install_click_targets.is_empty() {
+                let idx = app
+                    .install_focus_index
+                    .min(app.install_click_targets.len() - 1);
+                let target = app.install_click_targets[idx].1;
+                match target {
+                    crate::core::types::InstallClickTarget::Section(screen) => {
+                        if let Some(menu_idx) =
+                            app.menu_entries.iter().position(|m| m.screen == screen)
+                        {
+                            app.selected_index = menu_idx;
+                            app.list_state.select(Some(menu_idx));
+                            app.focus = Focus::Content;
+                        }
+                    }
+                    crate::core::types::InstallClickTarget::InstallButton => {
+                        app.start_install();
+                    }
+                }
+            } else {
+                app.start_install();
+            }
         }
         Screen::Abort => app.open_abort_confirm_popup(),
         Screen::SwapPartition => swap::handle_enter_swap(app),

@@ -232,205 +232,176 @@ impl AppState {
             ])
             .output()
             && output.status.success()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+            && let Some(blockdevices) = json.get("blockdevices").and_then(|v| v.as_array())
         {
-            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
-                && let Some(blockdevices) = json.get("blockdevices").and_then(|v| v.as_array())
-            {
-                for dev in blockdevices {
-                    let path = dev.get("path").and_then(|v| v.as_str()).unwrap_or("");
-                    if !device.is_empty() && !path.starts_with(&device) {
-                        continue;
-                    }
-                    // Include created specs and free space as rows
-                    let parent_size = dev.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
-                    // Track used ranges (start,end) across existing and created partitions
-                    let mut used_ranges: Vec<(u64, u64)> = Vec::new();
-                    if let Some(children) = dev.get("children").and_then(|v| v.as_array()) {
-                        let sector_size = dev
-                            .get("phy-sec")
-                            .and_then(|v| v.as_u64())
-                            .or_else(|| dev.get("log-sec").and_then(|v| v.as_u64()))
-                            .unwrap_or(512);
-                        for ch in children {
-                            let ch_name = ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
-                            let ch_type = ch.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                            if ch_type != "part" {
-                                continue;
-                            }
-                            let ch_size = ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let ch_fstype = ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
-                            let ch_mount =
-                                ch.get("mountpoint").and_then(|v| v.as_str()).unwrap_or("");
-                            // START is in sectors; convert to bytes using detected sector size
-                            let start_sectors =
-                                ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let start_bytes = start_sectors.saturating_mul(sector_size);
-                            let end_bytes = start_bytes.saturating_add(ch_size);
-                            used_ranges.push((start_bytes, end_bytes));
-                            // Flags from PARTFLAGS or LABEL heuristics
-                            let _flags = ch.get("partflags").and_then(|v| v.as_str()).unwrap_or("");
-                            let status = "existing"; // existing partition
-                            let dev_display = if ch_name.is_empty() { path } else { ch_name };
-                            let size_h = Self::human_bytes(ch_size);
-                            let start_h = if start_bytes == 0 {
-                                String::new()
-                            } else {
-                                format!("{}", start_bytes)
-                            };
-                            let end_h = if end_bytes == 0 {
-                                String::new()
-                            } else {
-                                format!("{}", end_bytes)
-                            };
-                            rows.push(format!(
-                                "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
-                                status,
-                                dev_display,
-                                "Primary",
-                                start_h,
-                                end_h,
-                                size_h,
-                                ch_fstype,
-                                ch_mount,
-                                ""
-                            ));
-                            meta.push(crate::core::types::ManualPartitionRowMeta {
-                                kind: "existing".into(),
-                                spec_index: None,
-                                free_start: None,
-                                free_end: None,
-                            });
+            for dev in blockdevices {
+                let path = dev.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                if !device.is_empty() && !path.starts_with(&device) {
+                    continue;
+                }
+                // Include created specs and free space as rows
+                let parent_size = dev.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                // Track used ranges (start,end) across existing and created partitions
+                let mut used_ranges: Vec<(u64, u64)> = Vec::new();
+                if let Some(children) = dev.get("children").and_then(|v| v.as_array()) {
+                    let sector_size = dev
+                        .get("phy-sec")
+                        .and_then(|v| v.as_u64())
+                        .or_else(|| dev.get("log-sec").and_then(|v| v.as_u64()))
+                        .unwrap_or(512);
+                    for ch in children {
+                        let ch_name = ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        let ch_type = ch.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                        if ch_type != "part" {
+                            continue;
                         }
-                    }
-                    // Always show created specs for this selected device
-                    let mut next_other_index: u32 = 4;
-                    let part_path_for = |base: &str, n: u32| -> String {
-                        if base
-                            .chars()
-                            .last()
-                            .map(|c| c.is_ascii_digit())
-                            .unwrap_or(false)
-                        {
-                            format!("{}p{}", base, n)
+                        let ch_size = ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let ch_fstype = ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
+                        let ch_mount = ch.get("mountpoint").and_then(|v| v.as_str()).unwrap_or("");
+                        // START is in sectors; convert to bytes using detected sector size
+                        let start_sectors = ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
+                        let start_bytes = start_sectors.saturating_mul(sector_size);
+                        let end_bytes = start_bytes.saturating_add(ch_size);
+                        used_ranges.push((start_bytes, end_bytes));
+                        // Flags from PARTFLAGS or LABEL heuristics
+                        let _flags = ch.get("partflags").and_then(|v| v.as_str()).unwrap_or("");
+                        let status = "existing"; // existing partition
+                        let dev_display = if ch_name.is_empty() { path } else { ch_name };
+                        let size_h = Self::human_bytes(ch_size);
+                        let start_h = if start_bytes == 0 {
+                            String::new()
                         } else {
-                            format!("{}{}", base, n)
-                        }
-                    };
-                    for (spec_idx, spec) in self.disks_partitions.iter().enumerate() {
-                        // If spec.name is set, only show for that device
-                        if let Some(dev_name) = &spec.name {
-                            if dev_name != &path {
-                                continue;
-                            }
-                        }
-                        let role = spec.role.clone().unwrap_or_default();
-                        let fs = spec.fs.clone().unwrap_or_default();
-                        let mp = spec.mountpoint.clone().unwrap_or_default();
-                        let start = spec.start.clone().unwrap_or_default();
-                        let size = spec.size.clone().unwrap_or_default();
-                        let (end, size_h) =
-                            if let (Ok(st), Ok(sz)) = (start.parse::<u64>(), size.parse::<u64>()) {
-                                // Track as used range
-                                let end_b = st.saturating_add(sz);
-                                used_ranges.push((st, end_b));
-                                (format!("{}", end_b), Self::human_bytes(sz))
-                            } else {
-                                (String::new(), size)
-                            };
-                        // Derive display partition path numbering: 1 BOOT, 2 SWAP, 3 ROOT, >=4 OTHER
-                        let display_path = match role.as_str() {
-                            "BOOT" => part_path_for(path, 1),
-                            "SWAP" => part_path_for(path, 2),
-                            "ROOT" => part_path_for(path, 3),
-                            _ => {
-                                let p = part_path_for(path, next_other_index);
-                                next_other_index += 1;
-                                p
-                            }
+                            format!("{}", start_bytes)
+                        };
+                        let end_h = if end_bytes == 0 {
+                            String::new()
+                        } else {
+                            format!("{}", end_bytes)
                         };
                         rows.push(format!(
-                            "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
-                            "created",
-                            display_path,
-                            role,
-                            start,
-                            end,
-                            size_h,
-                            fs,
-                            mp,
-                            ""
-                        ));
+                                        "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
+                                        status,
+                                        dev_display,
+                                        "Primary",
+                                        start_h,
+                                        end_h,
+                                        size_h,
+                                        ch_fstype,
+                                        ch_mount,
+                                        ""
+                                    ));
                         meta.push(crate::core::types::ManualPartitionRowMeta {
-                            kind: "created".into(),
-                            spec_index: Some(spec_idx),
+                            kind: "existing".into(),
+                            spec_index: None,
                             free_start: None,
                             free_end: None,
                         });
                     }
-
-                    // Merge used ranges and compute free gaps across the device
-                    if parent_size > 0 {
-                        used_ranges.sort_by_key(|(s, _)| *s);
-                        let mut merged: Vec<(u64, u64)> = Vec::new();
-                        for (s, e) in used_ranges {
-                            if merged.is_empty() {
-                                merged.push((s, e));
-                            } else {
-                                let last = merged.last_mut().unwrap();
-                                if s <= last.1 {
-                                    if e > last.1 {
-                                        last.1 = e;
-                                    }
-                                } else {
-                                    merged.push((s, e));
-                                }
-                            }
+                }
+                // Always show created specs for this selected device
+                let mut next_other_index: u32 = 4;
+                let part_path_for = |base: &str, n: u32| -> String {
+                    if base
+                        .chars()
+                        .last()
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false)
+                    {
+                        format!("{}p{}", base, n)
+                    } else {
+                        format!("{}{}", base, n)
+                    }
+                };
+                for (spec_idx, spec) in self.disks_partitions.iter().enumerate() {
+                    // If spec.name is set, only show for that device
+                    if let Some(dev_name) = &spec.name
+                        && dev_name != path
+                    {
+                        continue;
+                    }
+                    let role = spec.role.clone().unwrap_or_default();
+                    let fs = spec.fs.clone().unwrap_or_default();
+                    let mp = spec.mountpoint.clone().unwrap_or_default();
+                    let start = spec.start.clone().unwrap_or_default();
+                    let size = spec.size.clone().unwrap_or_default();
+                    let (end, size_h) =
+                        if let (Ok(st), Ok(sz)) = (start.parse::<u64>(), size.parse::<u64>()) {
+                            // Track as used range
+                            let end_b = st.saturating_add(sz);
+                            used_ranges.push((st, end_b));
+                            (format!("{}", end_b), Self::human_bytes(sz))
+                        } else {
+                            (String::new(), size)
+                        };
+                    // Derive display partition path numbering: 1 BOOT, 2 SWAP, 3 ROOT, >=4 OTHER
+                    let display_path = match role.as_str() {
+                        "BOOT" => part_path_for(path, 1),
+                        "SWAP" => part_path_for(path, 2),
+                        "ROOT" => part_path_for(path, 3),
+                        _ => {
+                            let p = part_path_for(path, next_other_index);
+                            next_other_index += 1;
+                            p
                         }
-                        let mut cursor: u64 = 0;
-                        for (s, e) in &merged {
-                            if *s > cursor {
-                                let free_start = cursor;
-                                let free_end = *s;
-                                let free = free_end.saturating_sub(free_start);
-                                let size_h = Self::human_bytes(free);
-                                rows.push(format!(
+                    };
+                    rows.push(format!(
                                     "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
-                                    "free",
-                                    path,
-                                    "Free space",
-                                    format!("{}", free_start),
-                                    format!("{}", free_end),
+                                    "created",
+                                    display_path,
+                                    role,
+                                    start,
+                                    end,
                                     size_h,
-                                    "",
-                                    "",
+                                    fs,
+                                    mp,
                                     ""
                                 ));
-                                meta.push(crate::core::types::ManualPartitionRowMeta {
-                                    kind: "free".into(),
-                                    spec_index: None,
-                                    free_start: Some(free_start),
-                                    free_end: Some(free_end),
-                                });
+                    meta.push(crate::core::types::ManualPartitionRowMeta {
+                        kind: "created".into(),
+                        spec_index: Some(spec_idx),
+                        free_start: None,
+                        free_end: None,
+                    });
+                }
+
+                // Merge used ranges and compute free gaps across the device
+                if parent_size > 0 {
+                    used_ranges.sort_by_key(|(s, _)| *s);
+                    let mut merged: Vec<(u64, u64)> = Vec::new();
+                    for (s, e) in used_ranges {
+                        if merged.is_empty() {
+                            merged.push((s, e));
+                        } else {
+                            let last = merged.last_mut().unwrap();
+                            if s <= last.1 {
+                                if e > last.1 {
+                                    last.1 = e;
+                                }
+                            } else {
+                                merged.push((s, e));
                             }
-                            cursor = (*e).max(cursor);
                         }
-                        if cursor < parent_size {
+                    }
+                    let mut cursor: u64 = 0;
+                    for (s, e) in &merged {
+                        if *s > cursor {
                             let free_start = cursor;
-                            let free_end = parent_size;
+                            let free_end = *s;
                             let free = free_end.saturating_sub(free_start);
                             let size_h = Self::human_bytes(free);
                             rows.push(format!(
-                                "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
-                                "free",
-                                path,
-                                "Free space",
-                                format!("{}", free_start),
-                                format!("{}", free_end),
-                                size_h,
-                                "",
-                                "",
-                                ""
-                            ));
+                                            "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
+                                            "free",
+                                            path,
+                                            "Free space",
+                                            format!("{}", free_start),
+                                            format!("{}", free_end),
+                                            size_h,
+                                            "",
+                                            "",
+                                            ""
+                                        ));
                             meta.push(crate::core::types::ManualPartitionRowMeta {
                                 kind: "free".into(),
                                 spec_index: None,
@@ -438,6 +409,31 @@ impl AppState {
                                 free_end: Some(free_end),
                             });
                         }
+                        cursor = (*e).max(cursor);
+                    }
+                    if cursor < parent_size {
+                        let free_start = cursor;
+                        let free_end = parent_size;
+                        let free = free_end.saturating_sub(free_start);
+                        let size_h = Self::human_bytes(free);
+                        rows.push(format!(
+                                        "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
+                                        "free",
+                                        path,
+                                        "Free space",
+                                        format!("{}", free_start),
+                                        format!("{}", free_end),
+                                        size_h,
+                                        "",
+                                        "",
+                                        ""
+                                    ));
+                        meta.push(crate::core::types::ManualPartitionRowMeta {
+                            kind: "free".into(),
+                            spec_index: None,
+                            free_start: Some(free_start),
+                            free_end: Some(free_end),
+                        });
                     }
                 }
             }

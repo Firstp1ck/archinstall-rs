@@ -1,14 +1,26 @@
 # 🦀 archinstall-rs
 
-> ⚠️ DO NOT USE! Still under Development, does not work yet!
-
 A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux written in Rust. This project aims to simplify the Arch Linux installation process while maintaining the flexibility and control that Arch users expect.
 
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
 
+> ⚠️ Still under Development.
+
+### What works at the moment:
+- 64bit system
+- UEFI Systems
+- View stuck at the end, but Install complete
+- Only Best-Effort Partitioning
+- Only Grub and Systemd Bootloader
+- Only NetworkManager available yet
+- Only Experience Mode "Desktop Environment" yet (due to NetworkManager)
+- No Encryption yet
+- No Custom Server/Repos yet
+- No Unified Kernel Images (no Secure Boot)
+
 ## 🚦 Roadmap
 
-- [ ] **v0.1.0** - MVP Installer
+- [x] **v0.1.0** - MVP Installer
   - [x] TUI scaffolding and navigation
   - [x] Configuration save/load (TOML)
   - [x] Disk selection and partitioning plan preview (Info popup)
@@ -24,7 +36,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Enable networking/time sync (NetworkManager/systemd-timesyncd as selected)
   - [x] Root/user setup (passwords, sudoers, optional login manager)
   - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
-  - [ ] Installation progress view and log viewer
+  - [x] Installation progress view and log viewer
 
 - [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
   - [ ] Advanced partition editor

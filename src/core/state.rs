@@ -243,6 +243,8 @@ pub struct AppState {
 
     // Clickable targets in Install decision menu (computed each render)
     pub install_click_targets: Vec<(ratatui::layout::Rect, InstallClickTarget)>,
+    // Keyboard selection within Install decision menu (index into install_click_targets)
+    pub install_focus_index: usize,
 }
 
 impl AppState {
@@ -580,6 +582,7 @@ impl AppState {
             exit_tui_after_install: false,
             pending_install_sections: None,
             install_click_targets: Vec::new(),
+            install_focus_index: 0,
         };
         // Initialize dynamic option lists and apply startup defaults
         let _ = s.load_locales_options();

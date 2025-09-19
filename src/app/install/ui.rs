@@ -245,7 +245,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             }
         }
         let exp_items = items;
-        push_section_lines(&mut sections, "Experience", &exp_items);
+        push_section_lines(&mut sections, "Experience Packages", &exp_items);
 
         let mut exp_pkg_sec: Vec<Line> = Vec::new();
         exp_pkg_sec.push(Line::from(Span::styled(
@@ -337,7 +337,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             exp_pkg_sec.push(Line::from(""));
         }
         if !exp_pkg_sec.is_empty() {
-            sections.push(("Experience Packages".into(), exp_pkg_sec));
+            sections.push(("Experience Mode".into(), exp_pkg_sec));
         }
     }
 
@@ -458,6 +458,13 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     let inner_mid = cols[1];
     let inner_right = cols[2];
 
+    let mut header_meta: Vec<(
+        Rect,
+        crate::core::types::InstallClickTarget,
+        usize,  // column: 0,1,2
+        usize,  // line index within that column buffer
+        String, // display text for header line
+    )> = Vec::new();
     for (i, (name, sec)) in sections.into_iter().enumerate() {
         let target_col = if i < split_index1 {
             0
@@ -469,49 +476,103 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         match target_col {
             0 => {
                 // header at current y in left col
-                if let Some(_first_line) = sec.first() {
-                    if !name.is_empty() {
-                        let header_rect =
-                            Rect::new(inner_left.x, inner_left.y + cur_y_left, inner_left.width, 1);
-                        if let Some(target) = screen_for_section_name(&name) {
-                            app.install_click_targets.push((header_rect, target));
-                        }
+                if let Some(_first_line) = sec.first()
+                    && !name.is_empty()
+                {
+                    let header_rect =
+                        Rect::new(inner_left.x, inner_left.y + cur_y_left, inner_left.width, 1);
+                    if let Some(target) = screen_for_section_name(&name) {
+                        let line_idx = left_lines.len();
+                        let display = if name == "__INSTALL_BUTTON__" {
+                            "[ Install ]".to_string()
+                        } else {
+                            name.clone()
+                        };
+                        header_meta.push((header_rect, target, 0, line_idx, display));
                     }
                 }
                 cur_y_left += sec.len() as u16;
                 left_lines.extend(sec);
             }
             1 => {
-                if let Some(_first_line) = sec.first() {
-                    if !name.is_empty() {
-                        let header_rect =
-                            Rect::new(inner_mid.x, inner_mid.y + cur_y_mid, inner_mid.width, 1);
-                        if let Some(target) = screen_for_section_name(&name) {
-                            app.install_click_targets.push((header_rect, target));
-                        }
+                if let Some(_first_line) = sec.first()
+                    && !name.is_empty()
+                {
+                    let header_rect =
+                        Rect::new(inner_mid.x, inner_mid.y + cur_y_mid, inner_mid.width, 1);
+                    if let Some(target) = screen_for_section_name(&name) {
+                        let line_idx = middle_lines.len();
+                        let display = if name == "__INSTALL_BUTTON__" {
+                            "[ Install ]".to_string()
+                        } else {
+                            name.clone()
+                        };
+                        header_meta.push((header_rect, target, 1, line_idx, display));
                     }
                 }
                 cur_y_mid += sec.len() as u16;
                 middle_lines.extend(sec);
             }
             _ => {
-                if let Some(_first_line) = sec.first() {
-                    if !name.is_empty() {
-                        let header_rect = Rect::new(
-                            inner_right.x,
-                            inner_right.y + cur_y_right,
-                            inner_right.width,
-                            1,
-                        );
-                        if let Some(target) = screen_for_section_name(&name) {
-                            app.install_click_targets.push((header_rect, target));
-                        }
+                if let Some(_first_line) = sec.first()
+                    && !name.is_empty()
+                {
+                    let header_rect = Rect::new(
+                        inner_right.x,
+                        inner_right.y + cur_y_right,
+                        inner_right.width,
+                        1,
+                    );
+                    if let Some(target) = screen_for_section_name(&name) {
+                        let line_idx = right_lines.len();
+                        let display = if name == "__INSTALL_BUTTON__" {
+                            "[ Install ]".to_string()
+                        } else {
+                            name.clone()
+                        };
+                        header_meta.push((header_rect, target, 2, line_idx, display));
                     }
                 }
                 cur_y_right += sec.len() as u16;
                 right_lines.extend(sec);
             }
         }
+    }
+
+    // Populate app.install_click_targets (for mouse) and highlight the focused header (for keyboard)
+    // Clamp focus index in case count changed this render
+    if app.install_focus_index >= header_meta.len() {
+        app.install_focus_index = header_meta.len().saturating_sub(1);
+    }
+    app.install_click_targets.clear();
+    for (idx, (rect, target, col, line_idx, display)) in header_meta.into_iter().enumerate() {
+        let is_focused = app.current_screen() == Screen::Install
+            && app.focus == Focus::Content
+            && idx == app.install_focus_index;
+        if is_focused {
+            let style = Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD | Modifier::UNDERLINED);
+            let styled = Line::from(Span::styled(display, style));
+            match col {
+                0 => {
+                    if line_idx < left_lines.len() {
+                        left_lines[line_idx] = styled;
+                    }
+                }
+                1 => {
+                    if line_idx < middle_lines.len() {
+                        middle_lines[line_idx] = styled;
+                    }
+                }
+                _ => {
+                    if line_idx < right_lines.len() {
+                        right_lines[line_idx] = styled;
+                    }
+                }
+            }
+        }
+        app.install_click_targets.push((rect, target));
     }
 
     let left_par = Paragraph::new(left_lines).wrap(Wrap { trim: false });
@@ -535,6 +596,8 @@ fn screen_for_section_name(name: &str) -> Option<crate::core::types::InstallClic
         "System" => ICT::Section(Screen::Hostname), // maps to first of system-related
         "User Accounts" => ICT::Section(Screen::UserAccount),
         "Experience" => ICT::Section(Screen::ExperienceMode),
+        "Experience Mode" => ICT::Section(Screen::ExperienceMode),
+        "Experience Packages" => ICT::Section(Screen::ExperienceMode),
         "Graphic Drivers" => ICT::Section(Screen::ExperienceMode),
         "Kernels" => ICT::Section(Screen::Kernels),
         "Network" => ICT::Section(Screen::NetworkConfiguration),

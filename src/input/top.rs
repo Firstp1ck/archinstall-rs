@@ -142,12 +142,14 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                 let x = column;
                 let y = row;
                 // Check click against computed targets
-                for (rect, target) in app.install_click_targets.clone() {
+                for (i, (rect, target)) in app.install_click_targets.clone().into_iter().enumerate()
+                {
                     if x >= rect.x
                         && x < rect.x + rect.width
                         && y >= rect.y
                         && y < rect.y + rect.height
                     {
+                        app.install_focus_index = i;
                         match target {
                             crate::core::types::InstallClickTarget::Section(screen) => {
                                 if let Some(idx) =
