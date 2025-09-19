@@ -46,9 +46,29 @@ fn run_loop(
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(250);
 
+    // For logging to file (only for non-dry-run)
+    let mut log_file = if !dry_run {
+        Some(std::fs::File::create("run.log").expect("Failed to create run.log"))
+    } else {
+        None
+    };
+    let mut last_logged_line: usize = 0;
+
     loop {
         // Drain any pending install logs before rendering
         app.drain_install_logs();
+
+        // Write new log lines to file if not dry_run
+        if let Some(file) = log_file.as_mut() {
+            while last_logged_line < app.install_log.len() {
+                if let Some(line) = app.install_log.get(last_logged_line) {
+                    use std::io::Write;
+                    let _ = writeln!(file, "{}", line);
+                }
+                last_logged_line += 1;
+            }
+        }
+
         terminal.draw(|frame| draw(frame, &mut app))?;
 
         let timeout = tick_rate

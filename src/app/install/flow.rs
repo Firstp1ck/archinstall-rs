@@ -52,11 +52,11 @@ impl AppState {
             // Resolve absolute log path up-front
             let log_path_buf = std::env::current_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join("run.log");
+                .join("dry-run.log");
             let log_path_display = log_path_buf.to_string_lossy().to_string();
 
             thread::spawn(move || {
-                // Prepare run.log: truncate at start of dry-run
+                // Prepare dry-run.log: truncate at start of dry-run
                 let mut log_file: Option<std::fs::File> = match std::fs::File::create(&log_path_buf)
                 {
                     Ok(f) => Some(f),
