@@ -1,4 +1,4 @@
 /target
 # archinstall-rs.config.toml
 *.log
-*RELEASE.md
+RELEASE*.md

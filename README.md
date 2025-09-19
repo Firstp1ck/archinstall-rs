@@ -22,6 +22,8 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - No Custom Server/Repos yet
 - No Unified Kernel Images (no Secure Boot)
 
+> ⚠️ Logview Bug at the end of installation: Installation finishes successfully, Logview does not complete. Press Ctrl + C to exit and Reboot.
+
 ## 🚦 Roadmap
 
 - [x] **v0.1.0** - MVP Installer
@@ -41,6 +43,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Root/user setup (passwords, sudoers, optional login manager)
   - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
   - [x] Installation progress view and log viewer
+  - [x] Manual partitioning partially implemented. Simple partitioning possible.
 
 - [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
   - [ ] Advanced partition editor
