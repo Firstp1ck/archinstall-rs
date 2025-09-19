@@ -9,6 +9,8 @@ use crate::core::types::{
 };
 
 pub struct AppState {
+    /// For visual indicator: last seen install_log length
+    pub last_install_log_len: Option<usize>,
     pub dry_run: bool,
     pub menu_entries: Vec<MenuEntry>,
     pub selected_index: usize,
@@ -361,6 +363,7 @@ impl AppState {
         list_state.select(Some(0));
 
         let mut s = Self {
+            last_install_log_len: None,
             dry_run,
             menu_entries,
             selected_index: 0,
@@ -715,6 +718,8 @@ impl AppState {
         for line in drained {
             self.append_install_log_line(line);
         }
+        // Update last_install_log_len for visual indicator
+        self.last_install_log_len = Some(self.install_log.len());
         if disconnected {
             self.install_running = false;
             self.install_log_rx = None;

@@ -1,3 +1,64 @@
+/// Draws the install progress (left) and command output (right) panes during installation.
+fn draw_install_split(frame: &mut Frame, app: &mut AppState, left: ratatui::layout::Rect, right: ratatui::layout::Rect) {
+    use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::text::{Line, Span};
+    // Left: Overall Progress
+    let mut left_lines: Vec<Line> = Vec::new();
+    left_lines.push(Line::from(Span::styled(
+        "Overall Progress",
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+    )));
+    left_lines.push(Line::from(""));
+    for (idx, title) in app.install_section_titles.iter().enumerate() {
+        let is_done = app.install_section_done.get(idx).copied().unwrap_or(false);
+        let is_current = app.install_current_section == Some(idx) && !is_done;
+        let marker = if is_done {
+            "[x]"
+        } else if is_current {
+            "[>]"
+        } else {
+            "[ ]"
+        };
+        let style = if is_current {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else if is_done {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default().fg(Color::White)
+        };
+        left_lines.push(Line::from(vec![
+            Span::styled(format!("{} ", marker), style),
+            Span::styled(title.clone(), style),
+        ]));
+    }
+    let left_block = Block::default().borders(Borders::ALL).title(" Installation in progress ");
+    let left_par = Paragraph::new(left_lines).block(left_block).wrap(Wrap { trim: false });
+    frame.render_widget(left_par, left);
+
+    // Right: Command Output
+    let right_block = Block::default().borders(Borders::ALL).title(" Command output ");
+    let inner_right = right_block.inner(right);
+    frame.render_widget(right_block, right);
+    let max_visible = inner_right.height.saturating_sub(2) as usize; // Reserve 1 line for indicator
+    let start = app.install_log.len().saturating_sub(max_visible);
+    let visible_lines = &app.install_log[start..];
+    let mut output = visible_lines.join("\n");
+    // Visual indicator: show if log is updating or frozen
+    let indicator = if let Some(prev) = app.last_install_log_len {
+        if app.install_log.len() > prev {
+            "[Log updating...]"
+        } else {
+            "[Log frozen!]"
+        }
+    } else {
+        "[Log updating...]"
+    };
+    output.push_str("\n");
+    output.push_str(indicator);
+    let right_par = Paragraph::new(output).wrap(Wrap { trim: false });
+    frame.render_widget(right_par, inner_right);
+}
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
@@ -13,62 +74,73 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
 
     // left (menu) | right (info + content) | keybinds (rightmost)
     // On Install screen, show the Main Menu as well
-    let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
-    // During install process, hide keybinds pane to maximize content area
-    let hide_keybinds = app.install_running;
-    let chunks = if hide_keybinds {
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([left_constraint, Constraint::Min(10)])
-            .split(size)
-    } else {
-        Layout::default()
+    if app.install_running {
+        // During installation, use a two-column layout: left (progress), right (command output)
+        let cols = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                left_constraint,
-                Constraint::Min(10),
-                Constraint::Length(KEYBINDS_WIDTH),
+                ratatui::layout::Constraint::Length(40),
+                ratatui::layout::Constraint::Min(10),
             ])
-            .split(size)
-    };
-
-    let left_menu_rect = chunks[0];
-    let right_rect = chunks[1];
-    let keybinds_rect = if hide_keybinds {
-        // dummy rect; will not be rendered
-        Rect::new(0, 0, 0, 0)
+            .split(size);
+        app.last_menu_rect = cols[0];
+        app.last_content_rect = cols[1];
+        draw_install_split(frame, app, cols[0], cols[1]);
     } else {
-        chunks[2]
-    };
+        let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
+        let hide_keybinds = app.install_running;
+        let chunks = if hide_keybinds {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([left_constraint, Constraint::Min(10)])
+                .split(size)
+        } else {
+            Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    left_constraint,
+                    Constraint::Min(10),
+                    Constraint::Length(KEYBINDS_WIDTH),
+                ])
+                .split(size)
+        };
 
-    // On ExperienceMode, split Info and Decision content evenly
-    // On Install, hide Info and give full height to Decision content
-    let right_constraints = if app.current_screen() == Screen::ExperienceMode {
-        [Constraint::Percentage(50), Constraint::Percentage(50)]
-    } else if app.current_screen() == Screen::Install {
-        [Constraint::Length(0), Constraint::Percentage(100)]
-    } else {
-        [Constraint::Length(INFOBOX_HEIGHT), Constraint::Min(5)]
-    };
-    let right_chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(right_constraints)
-        .split(right_rect);
+        let left_menu_rect = chunks[0];
+        let right_rect = chunks[1];
+        let keybinds_rect = if hide_keybinds {
+            Rect::new(0, 0, 0, 0)
+        } else {
+            chunks[2]
+        };
 
-    let infobox_rect: Rect = right_chunks[0];
-    let content_rect: Rect = right_chunks[1];
+        let right_constraints = if app.current_screen() == Screen::ExperienceMode {
+            [Constraint::Percentage(50), Constraint::Percentage(50)]
+        } else if app.current_screen() == Screen::Install {
+            [Constraint::Length(0), Constraint::Percentage(100)]
+        } else {
+            [Constraint::Length(INFOBOX_HEIGHT), Constraint::Min(5)]
+        };
+        let right_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(right_constraints)
+            .split(right_rect);
 
-    app.last_menu_rect = left_menu_rect;
-    app.last_infobox_rect = infobox_rect;
-    app.last_content_rect = content_rect;
+        let infobox_rect: Rect = right_chunks[0];
+        let content_rect: Rect = right_chunks[1];
 
-    // Render sections; keep Main Menu visible, but skip Info on Install
-    menu::draw_menu(frame, app, left_menu_rect);
-    if app.current_screen() != Screen::Install {
-        info::draw_info(frame, app, infobox_rect);
+        app.last_menu_rect = left_menu_rect;
+        app.last_infobox_rect = infobox_rect;
+        app.last_content_rect = content_rect;
+
+        if !app.install_running {
+            menu::draw_menu(frame, app, left_menu_rect);
+        }
+        if app.current_screen() != Screen::Install {
+            info::draw_info(frame, app, infobox_rect);
+        }
+        if !hide_keybinds {
+            keybinds::draw_keybinds(frame, keybinds_rect);
+        }
+        content::draw_content(frame, app, content_rect);
     }
-    if !hide_keybinds {
-        keybinds::draw_keybinds(frame, keybinds_rect);
-    }
-    content::draw_content(frame, app, content_rect);
 }

@@ -10,9 +10,10 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     app.install_click_targets.clear();
     // If installation is running (or has progress data), render a two-pane progress UI
     if app.install_running || !app.install_section_titles.is_empty() {
+        // Make left pane wider (40 cols) and right pane narrower during installation
         let cols = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([Constraint::Length(28), Constraint::Min(10)])
+            .constraints([Constraint::Length(40), Constraint::Min(10)])
             .split(area);
 
         // Left: overall progress by sections
