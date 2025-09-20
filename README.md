@@ -13,7 +13,6 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 ### What works at the moment:
 - 64bit system
 - UEFI Systems
-- View stuck at the end, but Install complete
 - Only Best-Effort Partitioning
 - Only Grub and Systemd Bootloader
 - Only NetworkManager available yet
