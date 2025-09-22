@@ -410,18 +410,6 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         sections.push(("Additional Packages".into(), apkg_sec));
     }
 
-    let button_style = match app.focus {
-        Focus::Content => Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD),
-        _ => Style::default(),
-    };
-    // Install button (clickable)
-    sections.push((
-        "__INSTALL_BUTTON__".into(),
-        vec![Line::from(Span::styled("[ Install ]", button_style))],
-    ));
-
     let title = match app.focus {
         Focus::Content => " Desicion Menu (focused) ",
         _ => " Desicion Menu ",
@@ -492,11 +480,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                         Rect::new(inner_left.x, inner_left.y + cur_y_left, inner_left.width, 1);
                     if let Some(target) = screen_for_section_name(&name) {
                         let line_idx = left_lines.len();
-                        let display = if name == "__INSTALL_BUTTON__" {
-                            "[ Install ]".to_string()
-                        } else {
-                            name.clone()
-                        };
+                        let display = name.clone();
                         header_meta.push((header_rect, target, 0, line_idx, display));
                     }
                 }
@@ -511,11 +495,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                         Rect::new(inner_mid.x, inner_mid.y + cur_y_mid, inner_mid.width, 1);
                     if let Some(target) = screen_for_section_name(&name) {
                         let line_idx = middle_lines.len();
-                        let display = if name == "__INSTALL_BUTTON__" {
-                            "[ Install ]".to_string()
-                        } else {
-                            name.clone()
-                        };
+                        let display = name.clone();
                         header_meta.push((header_rect, target, 1, line_idx, display));
                     }
                 }
@@ -534,11 +514,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                     );
                     if let Some(target) = screen_for_section_name(&name) {
                         let line_idx = right_lines.len();
-                        let display = if name == "__INSTALL_BUTTON__" {
-                            "[ Install ]".to_string()
-                        } else {
-                            name.clone()
-                        };
+                        let display = name.clone();
                         header_meta.push((header_rect, target, 2, line_idx, display));
                     }
                 }
@@ -548,12 +524,24 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         }
     }
 
+    // Reserve one line at the bottom-right for the Install button
+    let button_reserved_height: u16 = 1;
+    let right_content_height = inner_right.height.saturating_sub(button_reserved_height);
+    let button_rect = Rect::new(
+        inner_right.x,
+        inner_right.y + right_content_height,
+        inner_right.width,
+        button_reserved_height,
+    );
+
     // Populate app.install_click_targets (for mouse) and highlight the focused header (for keyboard)
-    // Clamp focus index in case count changed this render
-    if app.install_focus_index >= header_meta.len() {
-        app.install_focus_index = header_meta.len().saturating_sub(1);
+    // Clamp focus index including the footer button
+    let total_targets = header_meta.len().saturating_add(1);
+    if app.install_focus_index >= total_targets {
+        app.install_focus_index = total_targets.saturating_sub(1);
     }
     app.install_click_targets.clear();
+
     for (idx, (rect, target, col, line_idx, display)) in header_meta.into_iter().enumerate() {
         let is_focused = app.current_screen() == Screen::Install
             && app.focus == Focus::Content
@@ -584,12 +572,35 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         app.install_click_targets.push((rect, target));
     }
 
+    // Render columns; shrink right column to keep space for the footer button
     let left_par = Paragraph::new(left_lines).wrap(Wrap { trim: false });
     let middle_par = Paragraph::new(middle_lines).wrap(Wrap { trim: false });
     let right_par = Paragraph::new(right_lines).wrap(Wrap { trim: false });
-    frame.render_widget(left_par, cols[0]);
-    frame.render_widget(middle_par, cols[1]);
-    frame.render_widget(right_par, cols[2]);
+    frame.render_widget(left_par, inner_left);
+    frame.render_widget(middle_par, inner_mid);
+    let right_content_rect = Rect::new(inner_right.x, inner_right.y, inner_right.width, right_content_height);
+    frame.render_widget(right_par, right_content_rect);
+
+    // Draw the fixed Install button at the bottom-right
+    let is_button_focused = app.current_screen() == Screen::Install
+        && app.focus == Focus::Content
+        && app.install_focus_index == total_targets.saturating_sub(1);
+    let button_style = if is_button_focused {
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD | Modifier::REVERSED)
+    } else {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    };
+    let button_par = Paragraph::new(Line::from(Span::styled("[ Install ]", button_style)))
+        .wrap(Wrap { trim: false });
+    frame.render_widget(button_par, button_rect);
+
+    // Add click target for the footer button
+    app.install_click_targets
+        .push((button_rect, crate::core::types::InstallClickTarget::InstallButton));
 }
 
 fn screen_for_section_name(name: &str) -> Option<crate::core::types::InstallClickTarget> {

@@ -117,20 +117,36 @@ impl SysConfigService {
 
         // AUR setup (optional)
         if state.aur_selected {
-            // Ensure base-devel and git exist (redundant if pacstrap installed them)
-            cmds.push(chroot_cmd("sudo pacman -Syu --needed base-devel git"));
+            // Create an unprivileged build user and allow passwordless pacman for dependency install
+            cmds.push(chroot_cmd(
+                "id -u aurbuild >/dev/null 2>&1 || useradd -m -s /bin/bash aurbuild",
+            ));
+            cmds.push(chroot_cmd(
+                "install -d -m0755 /etc/sudoers.d && printf '%s\n' 'aurbuild ALL=(ALL) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/aurbuild && chmod 0440 /etc/sudoers.d/aurbuild",
+            ));
+
             match state.aur_helper_index {
                 Some(1) => {
-                    // paru
-                    cmds.push(chroot_cmd("git clone https://aur.archlinux.org/paru.git"));
-                    cmds.push(chroot_cmd("cd paru && makepkg -si --noconfirm"));
-                    cmds.push(chroot_cmd("paru -Syu"));
+                    // paru (Rust toolchain needed)
+                    cmds.push(chroot_cmd(
+                        "pacman -Syu --needed base-devel git rust cargo",
+                    ));
+                    cmds.push(chroot_cmd(
+                        "sudo -u aurbuild bash -lc 'cd /tmp && rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si --noconfirm'",
+                    ));
+                    cmds.push(chroot_cmd(
+                        "sudo -u aurbuild bash -lc 'paru -Syu --noconfirm'",
+                    ));
                 }
                 _ => {
-                    // yay (default)
-                    cmds.push(chroot_cmd("git clone https://aur.archlinux.org/yay.git"));
-                    cmds.push(chroot_cmd("cd yay && makepkg -si --noconfirm"));
-                    cmds.push(chroot_cmd("yay -Syu"));
+                    // yay (Go toolchain needed)
+                    cmds.push(chroot_cmd("pacman -Syu --needed base-devel git go"));
+                    cmds.push(chroot_cmd(
+                        "sudo -u aurbuild bash -lc 'cd /tmp && rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si --noconfirm'",
+                    ));
+                    cmds.push(chroot_cmd(
+                        "sudo -u aurbuild bash -lc 'yay -Syu --noconfirm'",
+                    ));
                 }
             }
         }
