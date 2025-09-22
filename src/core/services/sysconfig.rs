@@ -115,6 +115,26 @@ impl SysConfigService {
             }
         }
 
+        // AUR setup (optional)
+        if state.aur_selected {
+            // Ensure base-devel and git exist (redundant if pacstrap installed them)
+            cmds.push(chroot_cmd("sudo pacman -Syu --needed base-devel git"));
+            match state.aur_helper_index {
+                Some(1) => {
+                    // paru
+                    cmds.push(chroot_cmd("git clone https://aur.archlinux.org/paru.git"));
+                    cmds.push(chroot_cmd("cd paru && makepkg -si --noconfirm"));
+                    cmds.push(chroot_cmd("paru -Syu"));
+                }
+                _ => {
+                    // yay (default)
+                    cmds.push(chroot_cmd("git clone https://aur.archlinux.org/yay.git"));
+                    cmds.push(chroot_cmd("cd yay && makepkg -si --noconfirm"));
+                    cmds.push(chroot_cmd("yay -Syu"));
+                }
+            }
+        }
+
         SysConfigPlan::new(cmds)
     }
 }

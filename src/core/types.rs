@@ -88,6 +88,8 @@ pub enum PopupKind {
     // Additional Packages: groups
     AdditionalPackageGroupSelect,
     AdditionalPackageGroupPackages,
+    // New: AUR helper selection
+    AurHelperSelect,
 }
 
 #[derive(Clone)]

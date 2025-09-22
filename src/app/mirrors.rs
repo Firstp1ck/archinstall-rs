@@ -185,9 +185,29 @@ pub fn draw_mirrors_repos(frame: &mut ratatui::Frame, app: &mut AppState, area: 
         } else {
             Style::default().fg(Color::White)
         };
+        let mut text = label.to_string();
+        if label == "Optional repositories" {
+            let mut selected: Vec<String> = app
+                .optional_repos_selected
+                .iter()
+                .filter_map(|&i| app.optional_repos_options.get(i).cloned())
+                .collect();
+            selected.sort();
+            if !selected.is_empty() {
+                text.push_str(&format!("  ({})", selected.join(", ")));
+            }
+            if app.aur_selected {
+                let helper = match app.aur_helper_index {
+                    Some(0) => "yay",
+                    Some(1) => "paru",
+                    _ => "choose helper",
+                };
+                text.push_str(&format!(" — AUR: {}", helper));
+            }
+        }
         let line = Line::from(vec![
             Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(label.to_string(), label_style),
+            Span::styled(text, label_style),
         ]);
         lines.push(line);
     }

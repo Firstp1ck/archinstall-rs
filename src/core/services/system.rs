@@ -25,6 +25,12 @@ impl SystemService {
         // Optional repos from UI state
         let enable_multilib = state.optional_repos_selected.contains(&0); // index 0 used earlier
         let enable_testing = state.optional_repos_selected.contains(&1); // index 1 used earlier
+        let _enable_aur = state
+            .optional_repos_options
+            .iter()
+            .position(|s| s == "AUR")
+            .map(|idx| state.optional_repos_selected.contains(&idx))
+            .unwrap_or(false);
 
         if enable_multilib {
             // Uncomment [multilib] block

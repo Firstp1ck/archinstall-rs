@@ -128,6 +128,18 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         | Some(PopupKind::LocaleEncoding) => {
             app.apply_popup_selection();
         }
+        Some(PopupKind::OptionalRepos) => {
+            // Only close; do not open AUR helper popup on Enter
+            app.close_popup();
+        }
+        Some(PopupKind::AurHelperSelect) => {
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                app.aur_helper_index = Some(gi);
+            }
+            app.close_popup();
+            // Return to Optional repositories
+            app.open_optional_repos_popup();
+        }
         Some(PopupKind::NetworkInterfaces) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible)
                 && let Some(name) = app.popup_items.get(global_idx)
@@ -512,9 +524,6 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                     is_sudo: app.draft_user_is_sudo,
                 });
             }
-            app.close_popup();
-        }
-        Some(PopupKind::OptionalRepos) => {
             app.close_popup();
         }
         Some(PopupKind::MirrorsCustomServerInput) => {

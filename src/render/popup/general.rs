@@ -348,6 +348,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
     state.select(Some(app.popup_selected_visible));
     let list_title = match app.popup_kind {
         Some(PopupKind::AbortConfirm) => " Save choices before exit? ",
+        Some(PopupKind::AurHelperSelect) => " Choose AUR helper ",
         _ => " Options ",
     };
     let list = List::new(build_items(app))

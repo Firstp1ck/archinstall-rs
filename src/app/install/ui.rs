@@ -111,6 +111,14 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 .collect();
             names.sort();
             items.push(format!("Optional repos: {}", names.join(", ")));
+            if app.aur_selected {
+                let helper = match app.aur_helper_index {
+                    Some(0) => "yay",
+                    Some(1) => "paru",
+                    _ => "(helper not selected)",
+                };
+                items.push(format!("AUR helper: {}", helper));
+            }
         }
         if !app.mirrors_custom_servers.is_empty() {
             items.push(format!(

@@ -105,6 +105,9 @@ pub struct AppState {
     pub draft_repo_url: String,
     pub draft_repo_sig_index: usize,
     pub draft_repo_signopt_index: usize,
+    // AUR settings
+    pub aur_selected: bool,           // true if AUR repo option was chosen
+    pub aur_helper_index: Option<usize>, // 0: yay, 1: paru
 
     // Disk Encryption screen state
     pub diskenc_focus_index: usize,        // fields + Continue
@@ -220,7 +223,7 @@ pub struct AppState {
     pub addpkgs_selected: std::collections::BTreeSet<usize>,
     pub addpkgs_reopen_after_info: bool,
     // Additional Packages: groups
-    pub addpkgs_groups_focus: bool, // focus within groups vs main
+    pub addpkgs_group_focus: bool, // focus within groups vs main
     pub addpkgs_group_names: Vec<String>,
     pub addpkgs_group_index: usize,
     pub addpkgs_group_pkg_index: usize,
@@ -443,7 +446,11 @@ impl AppState {
             mirrors_regions_options: Vec::new(),
             mirrors_regions_selected: BTreeSet::new(),
             mirrors_loaded: false,
-            optional_repos_options: vec!["multilib".into(), "testing".into()],
+            optional_repos_options: vec![
+                "multilib".into(),
+                "testing".into(),
+                "AUR".into(),
+            ],
             optional_repos_selected: {
                 let mut s = BTreeSet::new();
                 s.insert(0);
@@ -456,6 +463,8 @@ impl AppState {
             draft_repo_url: String::new(),
             draft_repo_sig_index: 2,
             draft_repo_signopt_index: 0,
+            aur_selected: false,
+            aur_helper_index: None,
 
             diskenc_focus_index: 0,
             disk_encryption_type_index: 0,
@@ -567,7 +576,7 @@ impl AppState {
             addpkgs_selected_index: 0,
             addpkgs_selected: std::collections::BTreeSet::new(),
             addpkgs_reopen_after_info: false,
-            addpkgs_groups_focus: false,
+            addpkgs_group_focus: false,
             addpkgs_group_names: vec![
                 "Terminals".into(),
                 "Shells".into(),
@@ -756,5 +765,19 @@ impl AppState {
                 use std::io::Write;
                 writeln!(f, "[DEBUG {}] {}", ts, msg)
             });
+    }
+
+    // Open the AUR helper selection popup
+    pub fn open_aur_helper_popup(&mut self) {
+        self.popup_kind = Some(PopupKind::AurHelperSelect);
+        self.popup_items = vec![
+            "yay — Yet another yogurt. Pacman wrapper and AUR helper written in go.".into(),
+            "paru — Feature packed AUR helper written in Rust".into(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = 0;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        self.popup_open = true;
     }
 }

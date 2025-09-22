@@ -36,8 +36,9 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::NetworkIP)
             | Some(PopupKind::NetworkGateway)
             | Some(PopupKind::NetworkDNS)
+            | Some(PopupKind::AurHelperSelect)
     ) {
-        let w = area.width.clamp(24, 42);
+        let w = area.width.clamp(28, 56);
         let h = area.height.clamp(9, 12);
         (w, h)
     } else {
@@ -106,6 +107,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::UserSelectDelete) => " Select user to delete ",
         Some(PopupKind::UserEditUsername) => " Edit username ",
         Some(PopupKind::TimezoneSelect) => " Select Timezone ",
+        Some(PopupKind::AurHelperSelect) => " Choose AUR helper ",
         None => " Select ",
     };
 
@@ -169,6 +171,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::ManualPartitionFilesystem)
             | Some(PopupKind::ManualPartitionMountpoint)
             | Some(PopupKind::ManualPartitionEdit)
+            | Some(PopupKind::AurHelperSelect)
     );
     if !hide_search {
         let search_label = if app.popup_in_search { "/" } else { "" };

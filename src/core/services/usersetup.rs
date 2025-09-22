@@ -70,46 +70,6 @@ impl UserSetupService {
             cmds.push(format!("systemctl --root=/mnt enable {}", lm));
         }
 
-        // Hyprland keyboard layout configuration for each created user
-        if state.selected_desktop_envs.iter().any(|e| e == "Hyprland") {
-            let keymap_src = state
-                .keyboard_layout_options
-                .get(state.keyboard_layout_index)
-                .cloned()
-                .unwrap_or_else(|| "us".to_string());
-            let hypr_kb = if keymap_src.starts_with("de_CH") {
-                "ch".to_string()
-            } else {
-                keymap_src
-                    .chars()
-                    .filter(|c| c.is_ascii_alphabetic())
-                    .take(4)
-                    .collect()
-            };
-            for user in state.users.iter() {
-                if user.username.trim().is_empty() {
-                    continue;
-                }
-                cmds.push(chroot_cmd(&format!(
-                    "install -d -m 0755 -o {0} -g {0} /home/{0}/.config/hypr",
-                    user.username
-                )));
-                // If file exists, replace kb_layout; else create with kb_layout
-                cmds.push(chroot_cmd(&format!(
-                    "if [ -f /home/{0}/.config/hypr/hyprland.conf ]; then \
-                       sed -i 's/^\\s*kb_layout\\s*=.*/kb_layout = {1}/' /home/{0}/.config/hypr/hyprland.conf; \
-                     else \
-                       printf 'kb_layout = {1}\\n' > /home/{0}/.config/hypr/hyprland.conf; \
-                     fi",
-                    user.username, hypr_kb
-                )));
-                cmds.push(chroot_cmd(&format!(
-                    "chown -R {0}:{0} /home/{0}/.config",
-                    user.username
-                )));
-            }
-        }
-
         UserSetupPlan::new(cmds)
     }
 }
