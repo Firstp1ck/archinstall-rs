@@ -71,7 +71,15 @@ impl AppState {
                 let dbg = |msg: &str| {
                     if debug_enabled {
                         let now = chrono::Local::now();
-                        eprintln!("[DEBUG {}] {}: {}", now.format("%Y-%m-%d %H:%M:%S"), debug_tag, msg);
+                        let ts = now.format("%Y-%m-%d %H:%M:%S");
+                        let _ = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("debug.log")
+                            .and_then(|mut f| {
+                                use std::io::Write;
+                                writeln!(f, "[DEBUG {}] {}: {}", ts, debug_tag, msg)
+                            });
                     }
                 };
 
@@ -131,7 +139,15 @@ impl AppState {
             let dbg = |msg: &str| {
                 if debug_enabled {
                     let now = chrono::Local::now();
-                    eprintln!("[DEBUG {}] {}: {}", now.format("%Y-%m-%d %H:%M:%S"), debug_tag, msg);
+                    let ts = now.format("%Y-%m-%d %H:%M:%S");
+                    let _ = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open("debug.log")
+                        .and_then(|mut f| {
+                            use std::io::Write;
+                            writeln!(f, "[DEBUG {}] {}: {}", ts, debug_tag, msg)
+                        });
                 }
             };
             let thread_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
