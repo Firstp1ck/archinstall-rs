@@ -38,6 +38,17 @@ impl AppState {
             items.sort();
             self.mirrors_regions_options = items;
         }
+
+        // Fallback small list when reflector is unavailable (Windows/dry-run)
+        if (cfg!(windows) || self.dry_run) && self.mirrors_regions_options.is_empty() {
+            self.mirrors_regions_options = vec![
+                "United States          US   186".into(),
+                "Germany                DE   120".into(),
+                "France                 FR    80".into(),
+                "United Kingdom         GB    75".into(),
+            ];
+        }
+
         self.mirrors_loaded = true;
         Ok(())
     }

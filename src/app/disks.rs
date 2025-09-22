@@ -192,6 +192,22 @@ impl AppState {
                 }
             }
         }
+
+        // Fallback single fake device for Windows/dry-run when lsblk is unavailable
+        if (cfg!(windows) || self.dry_run) && self.disks_devices.is_empty() {
+            self.disks_devices = vec![DiskDevice {
+                model: "Virtual Disk".into(),
+                path: "/dev/sda".into(),
+                devtype: "disk".into(),
+                size: "64.0 GiB".into(),
+                freespace: "64.0 GiB".into(),
+                sector_size: "512 B".into(),
+                read_only: false,
+            }];
+            if self.disks_selected_device.is_none() {
+                self.disks_selected_device = Some("/dev/sda".into());
+            }
+        }
     }
 
     pub fn open_disks_device_list(&mut self) {

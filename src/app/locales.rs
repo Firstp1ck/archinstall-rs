@@ -213,6 +213,19 @@ impl AppState {
             self.locale_encoding_options = items;
         }
 
+        // Fallbacks for Windows/dry-run where above sources are unavailable
+        if (cfg!(windows) || self.dry_run) && self.keyboard_layout_options.is_empty() {
+            self.keyboard_layout_options = vec!["us".into()];
+        }
+        if (cfg!(windows) || self.dry_run) && self.locale_language_options.is_empty() {
+            self.locale_language_options = vec!["en_US.UTF-8".into()];
+            self.locale_language_to_encoding
+                .insert("en_US.UTF-8".into(), "UTF-8".into());
+        }
+        if (cfg!(windows) || self.dry_run) && self.locale_encoding_options.is_empty() {
+            self.locale_encoding_options = vec!["UTF-8".into()];
+        }
+
         self.locales_loaded = true;
         Ok(())
     }

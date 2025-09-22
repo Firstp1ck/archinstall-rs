@@ -6,22 +6,15 @@ use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
-use std::sync::mpsc;
 use std::thread;
 
 impl AppState {
     pub fn start_install(&mut self) {
-        // Prevent starting a second install while one is already running or staged
+        // Prevent starting a second install while one is already running
         if self.install_running {
             self.open_info_popup("Installation already running. Please wait...".into());
             return;
         }
-        // Also guard if we have an in-progress staged plan (section titles present but running=false)
-        if !self.install_section_titles.is_empty() && self.install_log_tx.is_some() {
-            self.open_info_popup("Installation is already in progress.".into());
-            return;
-        }
-
         // Validate required sections before proceeding
         if let Some(msg) = self.validate_install_requirements() {
             self.open_info_popup(msg);
@@ -35,7 +28,7 @@ impl AppState {
             return;
         };
         let sections = self.build_install_sections(&target);
-    if self.dry_run {
+        if self.dry_run {
             // Simulate the same install UI, but do not execute commands.
             // Stream the plan into the live log with a Dry-Run label.
             self.install_running = true;
@@ -43,8 +36,7 @@ impl AppState {
             self.install_section_done = vec![false; self.install_section_titles.len()];
             self.install_current_section = None;
 
-            let (tx, rx) = mpsc::channel::<String>();
-            self.install_log_tx = Some(tx.clone());
+            let (tx, rx) = std::sync::mpsc::channel::<String>();
             self.install_log_rx = Some(rx);
 
             // Resolve absolute log path up-front
@@ -53,14 +45,13 @@ impl AppState {
                 .join("dry-run.log");
             let log_path_display = log_path_buf.to_string_lossy().to_string();
 
+            let debug_enabled = self.debug_enabled;
             thread::spawn(move || {
-                let debug_tag = "[DEBUG] dry-run thread";
-                // Prepare dry-run.log: truncate at start of dry-run
+                let debug_tag = "dry-run thread";
                 let mut log_file: Option<std::fs::File> = match std::fs::File::create(&log_path_buf)
                 {
                     Ok(f) => Some(f),
                     Err(e) => {
-                        // Surface failure to user log stream
                         let _ = tx.send(format!(
                             "WARN: Could not create log file at {}: {}",
                             log_path_display, e
@@ -68,15 +59,19 @@ impl AppState {
                         None
                     }
                 };
-                // helper to send line and ignore errors if receiver dropped
-                let send = |tx: &mpsc::Sender<String>, s: String| {
+                let send = |tx: &std::sync::mpsc::Sender<String>, s: String| {
                     let _ = tx.send(s);
                 };
-
                 let write_log = |file: &mut Option<std::fs::File>, line: &str| {
                     if let Some(f) = file.as_mut() {
                         use std::io::Write as _;
                         let _ = writeln!(f, "{}", line);
+                    }
+                };
+                let dbg = |msg: &str| {
+                    if debug_enabled {
+                        let now = chrono::Local::now();
+                        eprintln!("[DEBUG {}] {}: {}", now.format("%Y-%m-%d %H:%M:%S"), debug_tag, msg);
                     }
                 };
 
@@ -104,7 +99,6 @@ impl AppState {
                         );
                         write_log(&mut log_file, &line);
                         send(&tx, line);
-                        // Pace output to avoid UI lag spikes; emulate real-time logs
                         std::thread::sleep(std::time::Duration::from_millis(8));
                     }
                     let done = format!("::section_done::{}", title);
@@ -117,8 +111,7 @@ impl AppState {
                 let complete = "Dry-run completed.".to_string();
                 write_log(&mut log_file, &complete);
                 send(&tx, complete);
-                eprintln!("{}: thread exiting normally", debug_tag);
-                // drop tx -> disconnect to signal completion to UI
+                dbg("thread exiting normally");
             });
             return;
         }
@@ -128,103 +121,106 @@ impl AppState {
         self.install_section_done = vec![false; self.install_section_titles.len()];
         self.install_current_section = None;
 
-        let (tx, rx) = mpsc::channel::<String>();
-        self.install_log_tx = Some(tx.clone());
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
         self.install_log_rx = Some(rx);
 
-        // Spawn background thread to execute the plan
+        let debug_enabled = self.debug_enabled;
         thread::spawn(move || {
-            let debug_tag = "[DEBUG] install thread";
+            let debug_tag = "install thread";
             let mut any_error: Option<String> = None;
-            let thread_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            // helper to send line and ignore errors if receiver dropped
-            let send = |tx: &mpsc::Sender<String>, s: String| {
-                let _ = tx.send(s);
+            let dbg = |msg: &str| {
+                if debug_enabled {
+                    let now = chrono::Local::now();
+                    eprintln!("[DEBUG {}] {}: {}", now.format("%Y-%m-%d %H:%M:%S"), debug_tag, msg);
+                }
             };
+            let thread_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let send = |tx: &std::sync::mpsc::Sender<String>, s: String| {
+                    let _ = tx.send(s);
+                };
 
-            send(&tx, "Starting installation...".to_string());
-            let thread_panicked = false;
-            'outer: for (title, cmds) in sections.into_iter() {
-                send(&tx, format!("::section_start::{}", title));
-                send(&tx, format!("=== {} ===", title));
-                for c in cmds {
-                    send(
-                        &tx,
-                        format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
-                    );
-                    let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
-                    let mut child = match Command::new("bash")
-                        .arg("-lc")
-                        .arg(&pipeline)
-                        .env("TERM", "dumb")
-                        .env("NO_COLOR", "1")
-                        .env("PACMAN_COLOR", "never")
-                        .env("SYSTEMD_PAGER", "cat")
-                        .env("SYSTEMD_COLORS", "0")
-                        .env("PAGER", "cat")
-                        .env("LESS", "FRX")
-                        .stdin(Stdio::null())
-                        .stdout(Stdio::piped())
-                        .spawn()
-                    {
-                        Ok(ch) => ch,
-                        Err(e) => {
-                            any_error = Some(format!("Failed to spawn: {} ({})", c, e));
-                            send(&tx, any_error.as_ref().unwrap().clone());
-                            eprintln!("{}: failed to spawn: {} ({})", debug_tag, c, e);
-                            break 'outer;
-                        }
-                    };
-                    if let Some(stdout) = child.stdout.take() {
-                        let reader = BufReader::new(stdout);
-                        for line in reader.lines() {
-                            match line {
-                                Ok(l) => {
-                                    let clean = crate::common::utils::sanitize_terminal_output_line(&l);
-                                    if !clean.is_empty() {
-                                        send(&tx, clean);
+                send(&tx, "Starting installation...".to_string());
+                let thread_panicked = false;
+                'outer: for (title, cmds) in sections.into_iter() {
+                    send(&tx, format!("::section_start::{}", title));
+                    send(&tx, format!("=== {} ===", title));
+                    for c in cmds {
+                        send(
+                            &tx,
+                            format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
+                        );
+                        let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
+                        let mut child = match Command::new("bash")
+                            .arg("-lc")
+                            .arg(&pipeline)
+                            .env("TERM", "dumb")
+                            .env("NO_COLOR", "1")
+                            .env("PACMAN_COLOR", "never")
+                            .env("SYSTEMD_PAGER", "cat")
+                            .env("SYSTEMD_COLORS", "0")
+                            .env("PAGER", "cat")
+                            .env("LESS", "FRX")
+                            .stdin(Stdio::null())
+                            .stdout(Stdio::piped())
+                            .spawn()
+                        {
+                            Ok(ch) => ch,
+                            Err(e) => {
+                                any_error = Some(format!("Failed to spawn: {} ({})", c, e));
+                                send(&tx, any_error.as_ref().unwrap().clone());
+                                dbg(&format!("failed to spawn: {} ({})", c, e));
+                                break 'outer;
+                            }
+                        };
+                        if let Some(stdout) = child.stdout.take() {
+                            let reader = BufReader::new(stdout);
+                            for line in reader.lines() {
+                                match line {
+                                    Ok(l) => {
+                                        let clean = crate::common::utils::sanitize_terminal_output_line(&l);
+                                        if !clean.is_empty() {
+                                            send(&tx, clean);
+                                        }
                                     }
-                                }
-                                Err(e) => {
-                                    eprintln!("{}: error reading child stdout: {}", debug_tag, e);
-                                    break;
+                                    Err(e) => {
+                                        dbg(&format!("error reading child stdout: {}", e));
+                                        break;
+                                    }
                                 }
                             }
                         }
-                    }
-                    match child.wait() {
-                        Ok(st) if st.success() => {}
-                        Ok(st) => {
-                            any_error = Some(format!(
-                                "Command failed (exit {}): {}",
-                                st.code().unwrap_or(-1),
-                                c
-                            ));
-                            send(&tx, any_error.as_ref().unwrap().clone());
-                            eprintln!("{}: command failed (exit {}): {}", debug_tag, st.code().unwrap_or(-1), c);
-                            break 'outer;
+                        match child.wait() {
+                            Ok(st) if st.success() => {}
+                            Ok(st) => {
+                                any_error = Some(format!(
+                                    "Command failed (exit {}): {}",
+                                    st.code().unwrap_or(-1),
+                                    c
+                                ));
+                                send(&tx, any_error.as_ref().unwrap().clone());
+                                dbg(&format!("command failed (exit {}): {}", st.code().unwrap_or(-1), c));
+                                break 'outer;
+                            }
+                            Err(e) => {
+                                any_error = Some(format!("Failed to wait: {} ({})", c, e));
+                                send(&tx, any_error.as_ref().unwrap().clone());
+                                dbg(&format!("failed to wait: {} ({})", c, e));
+                                break 'outer;
+                            }
                         }
-                        Err(e) => {
-                            any_error = Some(format!("Failed to wait: {} ({})", c, e));
-                            send(&tx, any_error.as_ref().unwrap().clone());
-                            eprintln!("{}: failed to wait: {} ({})", debug_tag, c, e);
-                            break 'outer;
-                        }
                     }
+                    send(&tx, format!("::section_done::{}", title));
+                    send(&tx, String::new());
                 }
-                send(&tx, format!("::section_done::{}", title));
-                send(&tx, String::new());
-            }
-            if any_error.is_none() {
-                send(&tx, "Installation completed.".to_string());
-            }
-            thread_panicked
-        }));
+                if any_error.is_none() {
+                    send(&tx, "Installation completed.".to_string());
+                }
+                thread_panicked
+            }));
             match thread_result {
-                Ok(_) => eprintln!("{}: thread exiting normally", debug_tag),
-                Err(e) => eprintln!("{}: thread panicked: {:?}", debug_tag, e),
+                Ok(_) => dbg("thread exiting normally"),
+                Err(e) => dbg(&format!("thread panicked: {:?}", e)),
             }
-            // drop tx -> disconnect to signal completion to UI
         });
     }
 

@@ -13,7 +13,7 @@ use crate::input::handle_event;
 use crate::render::draw;
 use std::process::Command;
 
-pub fn run(dry_run: bool) -> io::Result<()> {
+pub fn run_with_debug(dry_run: bool, debug_enabled: bool) -> io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     // Clear the primary screen so preflight output doesn't persist when exiting the TUI
@@ -24,8 +24,7 @@ pub fn run(dry_run: bool) -> io::Result<()> {
     // Ensure the alternate screen starts clean, especially on Linux TTYs
     terminal.clear()?;
 
-    // TODO(v0.5.0): Add unattended/automation mode that bypasses TUI and executes a config.
-    let res = run_loop(&mut terminal, dry_run);
+    let res = run_loop_with_debug(&mut terminal, dry_run, debug_enabled);
 
     disable_raw_mode()?;
     execute!(
@@ -38,16 +37,29 @@ pub fn run(dry_run: bool) -> io::Result<()> {
     res
 }
 
-fn run_loop(
+pub fn run(dry_run: bool) -> io::Result<()> {
+    run_with_debug(dry_run, false)
+}
+
+fn run_loop_with_debug(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     dry_run: bool,
+    debug_enabled: bool,
 ) -> io::Result<()> {
     let mut app = AppState::new(dry_run);
+    app.debug_enabled = debug_enabled;
+    run_loop_inner(terminal, &mut app)
+}
+
+fn run_loop_inner(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    app: &mut AppState,
+) -> io::Result<()> {
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(250);
 
     // For logging to file (only for non-dry-run)
-    let mut log_file = if !dry_run {
+    let mut log_file = if !app.dry_run {
         Some(std::fs::File::create("run.log").expect("Failed to create run.log"))
     } else {
         None
@@ -91,7 +103,7 @@ fn run_loop(
             }
         }
 
-        terminal.draw(|frame| draw(frame, &mut app))?;
+        terminal.draw(|frame| draw(frame, app))?;
 
         let timeout = tick_rate
             .checked_sub(last_tick.elapsed())
@@ -115,7 +127,7 @@ fn run_loop(
                         _ => {}
                     }
                 }
-            } else if handle_event(&mut app, ev) {
+            } else if handle_event(app, ev) {
                 break;
             }
         }

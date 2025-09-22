@@ -17,6 +17,8 @@ pub struct AppState {
     /// For visual indicator: last seen install_log length
     pub last_install_log_len: Option<usize>,
     pub dry_run: bool,
+    /// Enable extra debug logging to debug.log
+    pub debug_enabled: bool,
     pub menu_entries: Vec<MenuEntry>,
     pub selected_index: usize,
     pub info_message: String,
@@ -373,6 +375,7 @@ impl AppState {
             reboot_confirmed: None,
             last_install_log_len: None,
             dry_run,
+            debug_enabled: false,
             menu_entries,
             selected_index: 0,
             info_message: String::new(),
@@ -706,33 +709,19 @@ impl AppState {
     pub fn drain_install_logs(&mut self) {
         let Some(rx) = self.install_log_rx.take() else {
             if self.install_running {
-                let _ = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open("debug.log")
-                    .and_then(|mut f| {
-                        use std::io::Write;
-                        writeln!(f, "[DEBUG] drain_install_logs: no install_log_rx")
-                    });
+                self.debug_log("drain_install_logs: no install_log_rx");
             }
             return;
         };
-    let mut drained: Vec<String> = Vec::new();
-    let mut disconnected = false;
+        let mut drained: Vec<String> = Vec::new();
+        let mut disconnected = false;
         loop {
             match rx.try_recv() {
                 Ok(line) => drained.push(line),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     disconnected = true;
-                    let _ = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open("debug.log")
-                        .and_then(|mut f| {
-                            use std::io::Write;
-                            writeln!(f, "[DEBUG] drain_install_logs: channel disconnected, will set install_running = false")
-                        });
+                    self.debug_log("drain_install_logs: channel disconnected, will set install_running = false");
                     break;
                 }
             }
@@ -746,19 +735,26 @@ impl AppState {
             self.install_running = false;
             self.install_log_rx = None;
             self.install_log_tx = None;
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open("debug.log")
-                .and_then(|mut f| {
-                    use std::io::Write;
-                    writeln!(f, "[DEBUG] drain_install_logs: install_running set to false")
-                });
+            self.debug_log("drain_install_logs: install_running set to false");
             // Show a message in the TUI log output when channel is disconnected
             self.install_log
                 .push("[Install process ended: no more output will be received.]".to_string());
         } else {
             self.install_log_rx = Some(rx);
         }
+    }
+
+    fn debug_log(&self, msg: &str) {
+        if !self.debug_enabled { return; }
+        let now = chrono::Local::now();
+        let ts = now.format("%Y-%m-%d %H:%M:%S");
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("debug.log")
+            .and_then(|mut f| {
+                use std::io::Write;
+                writeln!(f, "[DEBUG {}] {}", ts, msg)
+            });
     }
 }
