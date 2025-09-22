@@ -1,3 +1,5 @@
+users = []
+
 [locales]
 keyboard_layout = "de_CH-latin1"
 locale_language = "de_CH.UTF-8"
@@ -10,7 +12,7 @@ custom_servers = []
 custom_repos = []
 
 [disks]
-mode = "Manual Partitioning"
+mode = "Best-effort partition layout"
 selected_device = "/dev/sdb"
 selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
@@ -21,32 +23,7 @@ selected_device_read_only = false
 label = "gpt"
 wipe = true
 align = "1MiB"
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "BOOT"
-fs = "fat32"
-start = "0"
-size = "1073741824"
-flags = []
-mountpoint = "/boot"
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "SWAP"
-fs = "linux-swap"
-start = "1073741824"
-size = "4294967296"
-flags = []
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "ROOT"
-fs = "btrfs"
-start = "5368709120"
-size = "1995012308992"
-flags = []
-mountpoint = "/"
+partitions = []
 
 [disk_encryption]
 encryption_type = "None"
@@ -55,7 +32,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "grub"
+kind = "systemd-boot"
 
 [system]
 hostname = "Archlinux"
@@ -74,7 +51,7 @@ kind = "pipewire"
 
 [experience]
 mode = "Desktop"
-desktop_envs = ["KDE Plasma"]
+desktop_envs = ["Hyprland"]
 server_types = []
 xorg_types = []
 login_manager = "sddm"
@@ -94,22 +71,28 @@ graphic_drivers = [
 ]
 
 [experience.desktop_env_packages]
-"KDE Plasma" = [
-    "ark",
+Hyprland = [
     "dolphin",
+    "dunst",
+    "grim",
     "htop",
+    "hyprland",
     "iwd",
-    "kate",
-    "konsole",
+    "kitty",
     "nano",
     "openssh",
-    "plasma-meta",
-    "plasma-workspace",
+    "polkit",
+    "polkit-kde-agent",
+    "qt5-wayland",
+    "qt6-wayland",
+    "slurp",
     "smartmontools",
     "vim",
     "wget",
     "wireless_tools",
+    "wofi",
     "wpa_supplicant",
+    "xdg-desktop-portal-hyprland",
     "xdg-utils",
 ]
 
@@ -117,30 +100,19 @@ graphic_drivers = [
 
 [experience.xorg_packages]
 
-[[users]]
-username = "firstpick"
-password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
-is_sudo = true
-
 [network]
 mode = "NetworkManager"
 
 [[additional_packages]]
 repo = "extra"
-name = "kitty"
-version = "0.42.2-1"
-description = "A modern, hackable, featureful, OpenGL-based terminal emulator"
-
-[[additional_packages]]
-repo = "extra"
 name = "fish"
-version = "4.0.6-1"
+version = "4.0.8-1"
 description = "Smart and user friendly shell intended mostly for interactive use"
 
 [[additional_packages]]
 repo = "extra"
 name = "firefox"
-version = "143.0-1"
+version = "143.0.1-1"
 description = "Fast, Private & Safe Web Browser"
 
 [[additional_packages]]
@@ -154,15 +126,3 @@ repo = "extra"
 name = "stow"
 version = "2.4.1-1"
 description = "Manage installation of multiple softwares in the same directory tree"
-
-[[additional_packages]]
-repo = "core"
-name = "nano"
-version = "8.6-1"
-description = "Pico editor clone with enhancements"
-
-[[additional_packages]]
-repo = ""
-name = "vim"
-version = ""
-description = "Selected from package groups"
