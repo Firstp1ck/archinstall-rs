@@ -14,6 +14,7 @@ pub struct ConfigLocales {
 pub struct ConfigMirrors {
     pub regions: Vec<String>,
     pub optional_repos: Vec<String>,
+    pub aur_helper: Option<String>,
     pub custom_servers: Vec<String>,
     pub custom_repos: Vec<CustomRepoConfig>,
 }

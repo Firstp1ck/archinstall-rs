@@ -151,6 +151,10 @@ impl SysConfigService {
                     ));
                 }
             }
+            // Cleanup temporary build user and artifacts
+            cmds.push(chroot_cmd("rm -rf /tmp/yay /tmp/paru || true"));
+            cmds.push(chroot_cmd("rm -f /etc/sudoers.d/aurbuild || true"));
+            cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
         SysConfigPlan::new(cmds)

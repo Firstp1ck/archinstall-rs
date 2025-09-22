@@ -51,6 +51,7 @@ impl AppState {
                 .iter()
                 .filter_map(|&i| self.optional_repos_options.get(i).cloned())
                 .collect(),
+            aur_helper: self.aur_helper_index.map(|i| if i == 1 { "paru".into() } else { "yay".into() }),
             custom_servers: self.mirrors_custom_servers.clone(),
             custom_repos: self
                 .custom_repos
@@ -362,6 +363,11 @@ impl AppState {
             if let Some(idx) = self.optional_repos_options.iter().position(|s| s == &name) {
                 self.optional_repos_selected.insert(idx);
             }
+        }
+        // Load aur_helper
+        if let Some(helper) = cfg.mirrors.aur_helper.clone() {
+            self.aur_selected = true;
+            self.aur_helper_index = Some(if helper.eq_ignore_ascii_case("paru") { 1 } else { 0 });
         }
         if cfg.mirrors.custom_servers.is_empty() {
             self.last_load_missing_sections
