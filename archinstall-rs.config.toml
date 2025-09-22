@@ -7,7 +7,10 @@ locale_encoding = "UTF-8"
 
 [mirrors]
 regions = ["Switzerland            CH    26"]
-optional_repos = ["multilib"]
+optional_repos = [
+    "multilib",
+    "AUR",
+]
 custom_servers = []
 custom_repos = []
 
@@ -32,7 +35,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "Archlinux"

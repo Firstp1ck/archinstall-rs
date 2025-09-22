@@ -129,7 +129,7 @@ impl SysConfigService {
                 Some(1) => {
                     // paru (Rust toolchain needed)
                     cmds.push(chroot_cmd(
-                        "pacman -Syu --needed base-devel git rust cargo",
+                        "pacman -Syu --noconfirm --needed base-devel git rust",
                     ));
                     cmds.push(chroot_cmd(
                         "sudo -u aurbuild bash -lc 'cd /tmp && rm -rf paru && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si --noconfirm'",
@@ -140,7 +140,9 @@ impl SysConfigService {
                 }
                 _ => {
                     // yay (Go toolchain needed)
-                    cmds.push(chroot_cmd("pacman -Syu --needed base-devel git go"));
+                    cmds.push(chroot_cmd(
+                        "pacman -Syu --noconfirm --needed base-devel git go",
+                    ));
                     cmds.push(chroot_cmd(
                         "sudo -u aurbuild bash -lc 'cd /tmp && rm -rf yay && git clone https://aur.archlinux.org/yay.git && cd yay && makepkg -si --noconfirm'",
                     ));
