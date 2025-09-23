@@ -29,18 +29,20 @@ pub(crate) fn handle_space(app: &mut AppState) -> bool {
                 if app.optional_repos_selected.contains(&global_idx) {
                     app.optional_repos_selected.remove(&global_idx);
                     if let Some(label) = app.optional_repos_options.get(global_idx)
-                        && label == "AUR" {
-                            app.aur_selected = false;
-                            app.aur_helper_index = None;
-                        }
+                        && label == "AUR"
+                    {
+                        app.aur_selected = false;
+                        app.aur_helper_index = None;
+                    }
                 } else {
                     app.optional_repos_selected.insert(global_idx);
                     if let Some(label) = app.optional_repos_options.get(global_idx)
-                        && label == "AUR" {
-                            app.aur_selected = true;
-                            // Immediately prompt for helper selection
-                            app.open_aur_helper_popup();
-                        }
+                        && label == "AUR"
+                    {
+                        app.aur_selected = true;
+                        // Immediately prompt for helper selection
+                        app.open_aur_helper_popup();
+                    }
                 }
             }
         }
