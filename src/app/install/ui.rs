@@ -578,7 +578,12 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     let right_par = Paragraph::new(right_lines).wrap(Wrap { trim: false });
     frame.render_widget(left_par, inner_left);
     frame.render_widget(middle_par, inner_mid);
-    let right_content_rect = Rect::new(inner_right.x, inner_right.y, inner_right.width, right_content_height);
+    let right_content_rect = Rect::new(
+        inner_right.x,
+        inner_right.y,
+        inner_right.width,
+        right_content_height,
+    );
     frame.render_widget(right_par, right_content_rect);
 
     // Draw the fixed Install button at the bottom-right
@@ -599,8 +604,10 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     frame.render_widget(button_par, button_rect);
 
     // Add click target for the footer button
-    app.install_click_targets
-        .push((button_rect, crate::core::types::InstallClickTarget::InstallButton));
+    app.install_click_targets.push((
+        button_rect,
+        crate::core::types::InstallClickTarget::InstallButton,
+    ));
 }
 
 fn screen_for_section_name(name: &str) -> Option<crate::core::types::InstallClickTarget> {

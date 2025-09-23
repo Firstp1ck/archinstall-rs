@@ -193,7 +193,8 @@ impl AppState {
                             for line in reader.lines() {
                                 match line {
                                     Ok(l) => {
-                                        let clean = crate::common::utils::sanitize_terminal_output_line(&l);
+                                        let clean =
+                                            crate::common::utils::sanitize_terminal_output_line(&l);
                                         if !clean.is_empty() {
                                             send(&tx, clean);
                                         }
@@ -214,7 +215,11 @@ impl AppState {
                                     c
                                 ));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("command failed (exit {}): {}", st.code().unwrap_or(-1), c));
+                                dbg(&format!(
+                                    "command failed (exit {}): {}",
+                                    st.code().unwrap_or(-1),
+                                    c
+                                ));
                                 break 'outer;
                             }
                             Err(e) => {

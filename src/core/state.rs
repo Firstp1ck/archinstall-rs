@@ -106,7 +106,7 @@ pub struct AppState {
     pub draft_repo_sig_index: usize,
     pub draft_repo_signopt_index: usize,
     // AUR settings
-    pub aur_selected: bool,           // true if AUR repo option was chosen
+    pub aur_selected: bool,              // true if AUR repo option was chosen
     pub aur_helper_index: Option<usize>, // 0: yay, 1: paru
 
     // Disk Encryption screen state
@@ -446,11 +446,7 @@ impl AppState {
             mirrors_regions_options: Vec::new(),
             mirrors_regions_selected: BTreeSet::new(),
             mirrors_loaded: false,
-            optional_repos_options: vec![
-                "multilib".into(),
-                "testing".into(),
-                "AUR".into(),
-            ],
+            optional_repos_options: vec!["multilib".into(), "testing".into(), "AUR".into()],
             optional_repos_selected: {
                 let mut s = BTreeSet::new();
                 s.insert(0);
@@ -754,7 +750,9 @@ impl AppState {
     }
 
     fn debug_log(&self, msg: &str) {
-        if !self.debug_enabled { return; }
+        if !self.debug_enabled {
+            return;
+        }
         let now = chrono::Local::now();
         let ts = now.format("%Y-%m-%d %H:%M:%S");
         let _ = std::fs::OpenOptions::new()
