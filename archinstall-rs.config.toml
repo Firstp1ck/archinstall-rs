@@ -1,27 +1,26 @@
-users = []
-
 [locales]
-keyboard_layout = "de_CH-latin1"
-locale_language = "de_CH.UTF-8"
+keyboard_layout = "us"
+locale_language = "en_US.UTF-8"
 locale_encoding = "UTF-8"
 
 [mirrors]
-regions = ["Switzerland            CH    26"]
+regions = ["United States          US   186"]
 optional_repos = [
     "multilib",
     "AUR",
 ]
+aur_helper = "paru"
 custom_servers = []
 custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
-selected_device = "/dev/sdb"
-selected_device_model = "ST2000DM006-2DM164"
+selected_device = "/dev/sda"
+selected_device_model = "Virtual Disk"
 selected_device_devtype = "disk"
-selected_device_size = "1.8 TiB"
-selected_device_freespace = "1.8 TiB"
-selected_device_sector_size = "512/4096 B"
+selected_device_size = "64.0 GiB"
+selected_device_freespace = "64.0 GiB"
+selected_device_sector_size = "512 B"
 selected_device_read_only = false
 label = "gpt"
 wipe = true
@@ -41,7 +40,7 @@ kind = "grub"
 hostname = "Archlinux"
 root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 automatic_time_sync = true
-timezone = "Europe/Zurich"
+timezone = "Europe/London"
 
 [unified_kernel_images]
 enabled = false
@@ -54,7 +53,7 @@ kind = "pipewire"
 
 [experience]
 mode = "Desktop"
-desktop_envs = ["Hyprland"]
+desktop_envs = ["KDE Plasma"]
 server_types = []
 xorg_types = []
 login_manager = "sddm"
@@ -74,28 +73,22 @@ graphic_drivers = [
 ]
 
 [experience.desktop_env_packages]
-Hyprland = [
+"KDE Plasma" = [
+    "ark",
     "dolphin",
-    "dunst",
-    "grim",
     "htop",
-    "hyprland",
     "iwd",
-    "kitty",
+    "kate",
+    "konsole",
     "nano",
     "openssh",
-    "polkit",
-    "polkit-kde-agent",
-    "qt5-wayland",
-    "qt6-wayland",
-    "slurp",
+    "plasma-meta",
+    "plasma-workspace",
     "smartmontools",
     "vim",
     "wget",
     "wireless_tools",
-    "wofi",
     "wpa_supplicant",
-    "xdg-desktop-portal-hyprland",
     "xdg-utils",
 ]
 
@@ -103,29 +96,40 @@ Hyprland = [
 
 [experience.xorg_packages]
 
+[[users]]
+username = "firstpick"
+password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+is_sudo = true
+
 [network]
 mode = "NetworkManager"
 
 [[additional_packages]]
-repo = "extra"
+repo = ""
+name = "alacritty"
+version = ""
+description = "Selected from package groups"
+
+[[additional_packages]]
+repo = ""
 name = "fish"
-version = "4.0.8-1"
-description = "Smart and user friendly shell intended mostly for interactive use"
+version = ""
+description = "Selected from package groups"
 
 [[additional_packages]]
-repo = "extra"
+repo = ""
 name = "firefox"
-version = "143.0.1-1"
-description = "Fast, Private & Safe Web Browser"
+version = ""
+description = "Selected from package groups"
 
 [[additional_packages]]
-repo = "extra"
+repo = ""
 name = "neovim"
-version = "0.11.4-1"
-description = "Fork of Vim aiming to improve user experience, plugins, and GUIs"
+version = ""
+description = "Selected from package groups"
 
 [[additional_packages]]
-repo = "extra"
+repo = ""
 name = "stow"
-version = "2.4.1-1"
-description = "Manage installation of multiple softwares in the same directory tree"
+version = ""
+description = "Selected from package groups"
