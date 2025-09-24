@@ -269,9 +269,9 @@ impl SystemService {
             if !final_pkgs.is_empty() {
                 let joined = final_pkgs.join(" ");
                 // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
-                // Use PACMAN env to disable progress bar and confirmations to avoid TUI artifacts
+                // PACMAN flags are provided via environment by the runner; avoid inline env assignment (breaks stdbuf)
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
+                    "pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }
@@ -279,8 +279,9 @@ impl SystemService {
             // In non-dry-run mode, skip pre-validation to reduce TUI lag; let pacstrap handle errors
             if !packages.is_empty() {
                 let joined = packages.join(" ");
+                // PACMAN flags are provided via environment by the runner; avoid inline env assignment (breaks stdbuf)
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
+                    "pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }

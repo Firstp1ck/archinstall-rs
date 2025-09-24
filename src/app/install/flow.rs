@@ -205,6 +205,7 @@ impl AppState {
                             .env("SYSTEMD_COLORS", "0")
                             .env("PAGER", "cat")
                             .env("LESS", "FRX")
+                            .env("PACMAN", "pacman --noconfirm --noprogressbar --color never")
                             .stdin(Stdio::null())
                             .stdout(Stdio::piped())
                             .spawn()
