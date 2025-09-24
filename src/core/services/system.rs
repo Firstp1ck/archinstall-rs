@@ -112,7 +112,7 @@ impl SystemService {
         let mut cmds: Vec<String> = Vec::new();
         // TODO(v0.3.0+): Add AUR helper support.
         // Update DB to use new mirrors (force refresh)
-        cmds.push("pacman -Syy --noconfirm --noprogressbar".into());
+        cmds.push("pacman -Syy --noconfirm --noprogressbar --color never".into());
 
         use std::collections::BTreeSet;
         let mut package_set: BTreeSet<String> = BTreeSet::new();
@@ -271,7 +271,7 @@ impl SystemService {
                 // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
                 // Use PACMAN env to disable progress bar and confirmations to avoid TUI artifacts
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar && PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} )",
+                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }
@@ -280,7 +280,7 @@ impl SystemService {
             if !packages.is_empty() {
                 let joined = packages.join(" ");
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar && PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} )",
+                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }

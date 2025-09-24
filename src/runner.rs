@@ -247,8 +247,19 @@ fn run_loop_inner(
             );
             // Ensure normal terminal restored
             disable_raw_mode()?;
-            execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen)?;
+            // Ensure we disable mouse capture and leave alt screen cleanly
+            execute!(terminal.backend_mut(), DisableMouseCapture, terminal::LeaveAlternateScreen)?;
             terminal.show_cursor()?;
+
+            // Hard clear and reset primary screen to avoid leftover TUI borders/artifacts
+            use crossterm::{cursor, style::ResetColor};
+            let mut out = io::stdout();
+            execute!(
+                out,
+                ResetColor,
+                terminal::Clear(terminal::ClearType::All),
+                cursor::MoveTo(0, 0)
+            )?;
 
             println!("Starting installation...\n");
             let mut any_error = None::<String>;
