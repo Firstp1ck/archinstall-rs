@@ -55,14 +55,14 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - [ ] **v0.3.0** - Enhanced User Experience
   - [x] Installation progress visualization
   - [ ] Log viewer
-  - [ ] Help system with contextual information
+  - [x] Help system with contextual information
   - [ ] Multi-language UI support
   - [x] AUR helper integration
 
 - [ ] **v0.4.0** - Advanced Features
   - [x] Profile system (Desktop, Server, Minimal)
   - [x] Post-installation script support
-  - [ ] Configuration validation
+  - [x] Configuration validation
   - [ ] Network installation support
 
 - [ ] **v0.5.0** - Automation
