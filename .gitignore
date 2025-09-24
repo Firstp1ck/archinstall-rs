@@ -1,5 +1,5 @@
 /target
 # archinstall-rs.config.toml
-*.log
+# *.log
 RELEASE*.md
 possible_debug.md
