@@ -29,4 +29,4 @@ pub mod user_account;
 
 pub const LEFT_MENU_WIDTH: u16 = 30;
 pub const INFOBOX_HEIGHT: u16 = 12;
-pub const KEYBINDS_WIDTH: u16 = 56;
+pub const KEYBINDS_WIDTH: u16 = 44;

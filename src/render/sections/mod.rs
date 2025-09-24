@@ -69,7 +69,7 @@ fn draw_install_split(
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::app::{AppState, INFOBOX_HEIGHT, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, Screen};
+use crate::app::{AppState, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, Screen};
 
 pub mod content;
 pub mod info;
@@ -151,12 +151,11 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             chunks[2]
         };
 
-        let right_constraints = if app.current_screen() == Screen::ExperienceMode {
-            [Constraint::Percentage(50), Constraint::Percentage(50)]
-        } else if app.current_screen() == Screen::Install {
+        // Always split right pane 50/50 between Infobox and Decision Menu for non-Install screens
+        let right_constraints = if app.current_screen() == Screen::Install {
             [Constraint::Length(0), Constraint::Percentage(100)]
         } else {
-            [Constraint::Length(INFOBOX_HEIGHT), Constraint::Min(5)]
+            [Constraint::Percentage(50), Constraint::Percentage(50)]
         };
         let right_chunks = Layout::default()
             .direction(Direction::Vertical)
