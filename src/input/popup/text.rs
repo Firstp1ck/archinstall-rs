@@ -1,5 +1,10 @@
 use crate::app::{AppState, PopupKind};
 
+fn should_log_len(len: usize) -> bool {
+    // Log for len 0..=2 and then every 5th character to reduce noise
+    len <= 2 || len % 5 == 0
+}
+
 pub(crate) fn handle_text_backspace(app: &mut AppState) -> bool {
     if matches!(
         app.popup_kind,
@@ -29,10 +34,13 @@ pub(crate) fn handle_text_backspace(app: &mut AppState) -> bool {
             return false;
         }
         app.custom_input_buffer.pop();
-        app.debug_log(&format!(
-            "popup:text backspace (len={})",
-            app.custom_input_buffer.len()
-        ));
+        let len = app.custom_input_buffer.len();
+        if should_log_len(len) {
+            app.debug_log(&format!(
+                "popup:text backspace (len={})",
+                len
+            ));
+        }
         return true;
     }
     false
@@ -68,18 +76,24 @@ pub(crate) fn handle_text_char(app: &mut AppState, c: char) -> bool {
             // Size field: digits only, swallow other chars (including j/k)
             if c.is_ascii_digit() {
                 app.custom_input_buffer.push(c);
-                app.debug_log(&format!(
-                    "popup:text char digit (len={})",
-                    app.custom_input_buffer.len()
-                ));
+                let len = app.custom_input_buffer.len();
+                if should_log_len(len) {
+                    app.debug_log(&format!(
+                        "popup:text char digit (len={})",
+                        len
+                    ));
+                }
             }
             return true;
         } else {
             app.custom_input_buffer.push(c);
-            app.debug_log(&format!(
-                "popup:text char (len={})",
-                app.custom_input_buffer.len()
-            ));
+            let len = app.custom_input_buffer.len();
+            if should_log_len(len) {
+                app.debug_log(&format!(
+                    "popup:text char (len={})",
+                    len
+                ));
+            }
             return true;
         }
     }

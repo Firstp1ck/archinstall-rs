@@ -29,7 +29,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             }
             // When popup is open, handle popup keys only
             _ if app.popup_open => {
-                app.debug_log("handle_event: popup_open branch");
+                // noisy: removed per-key debug log "handle_event: popup_open branch"
                 return handle_popup_keys(app, key.code);
             }
             // When command line is open, handle only command keys

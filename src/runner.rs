@@ -105,6 +105,11 @@ fn run_loop_inner(
     let mut last_tick = Instant::now();
     let tick_rate = Duration::from_millis(250);
 
+    // Throttle Resize logs
+    let mut last_resize_log_ts = Instant::now();
+    let mut last_resize_w: u16 = 0;
+    let mut last_resize_h: u16 = 0;
+
     // For logging to file (only for non-dry-run)
     let mut log_file = if !app.dry_run {
         debug_log(app.debug_enabled, "run.log: creating run.log");
@@ -180,9 +185,19 @@ fn run_loop_inner(
 
         if event::poll(timeout)? {
             let ev: Event = event::read()?;
-            // Remove key/mouse event debug noise; keep resize logging only
+            // Reduce noisy Resize spam: log first and then at most twice per second and only on meaningful change
             if let Event::Resize(w, h) = &ev {
-                debug_log(app.debug_enabled, &format!("event: Resize {}x{}", w, h));
+                let significant = (i32::from(*w) - i32::from(last_resize_w)).abs()
+                    + (i32::from(*h) - i32::from(last_resize_h)).abs()
+                    >= 5;
+                if last_resize_w == 0 && last_resize_h == 0
+                    || (significant && last_resize_log_ts.elapsed() > Duration::from_millis(500))
+                {
+                    debug_log(app.debug_enabled, &format!("event: Resize {}x{}", w, h));
+                    last_resize_log_ts = Instant::now();
+                    last_resize_w = *w;
+                    last_resize_h = *h;
+                }
             }
 
             // If reboot prompt is open, handle Y/N keys
