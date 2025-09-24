@@ -214,9 +214,14 @@ impl AppState {
             login_manager: self.selected_login_manager.clone(),
             login_manager_user_set: self.login_manager_user_set,
             graphic_drivers: {
-                let mut v: Vec<String> = self.selected_graphic_drivers.iter().cloned().collect();
-                v.sort();
-                v
+                // Save no drivers only for Minimal; otherwise persist selection
+                if self.experience_mode_index == 1 {
+                    Vec::new()
+                } else {
+                    let mut v: Vec<String> = self.selected_graphic_drivers.iter().cloned().collect();
+                    v.sort();
+                    v
+                }
             },
         };
         let users: Vec<ConfigUser> = self
@@ -596,6 +601,13 @@ impl AppState {
         };
 
         // Experience
+        self.experience_mode_index = match cfg.experience.mode.as_str() {
+            "Desktop" => 0,
+            "Minimal" => 1,
+            "Server" => 2,
+            "Xorg" => 3,
+            _ => 0,
+        };
         self.selected_desktop_envs = cfg.experience.desktop_envs.into_iter().collect();
         self.selected_server_types = cfg.experience.server_types.into_iter().collect();
         self.selected_xorg_types = cfg.experience.xorg_types.into_iter().collect();
@@ -619,7 +631,12 @@ impl AppState {
             .collect();
         self.selected_login_manager = cfg.experience.login_manager;
         self.login_manager_user_set = cfg.experience.login_manager_user_set;
-        self.selected_graphic_drivers = cfg.experience.graphic_drivers.into_iter().collect();
+        self.selected_graphic_drivers = if self.experience_mode_index == 1 {
+            // Minimal mode: do not load any graphics drivers from config
+            std::collections::BTreeSet::new()
+        } else {
+            cfg.experience.graphic_drivers.into_iter().collect()
+        };
 
         // Users
         self.users = cfg

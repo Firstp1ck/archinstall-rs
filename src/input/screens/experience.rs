@@ -36,6 +36,24 @@ pub(crate) fn change_experience_value(app: &mut AppState, _next: bool) {
 pub(crate) fn handle_enter_experience(app: &mut AppState) {
     if app.experience_focus_index == 0 {
         app.experience_mode_index = 0;
+        // If graphics drivers were cleared (e.g., after Minimal), seed defaults for Desktop
+        if app.selected_graphic_drivers.is_empty() {
+            for k in [
+                "intel-media-driver",
+                "libva-intel-driver",
+                "mesa",
+                "vulkan-intel",
+                "vulkan-nouveau",
+                "vulkan-radeon",
+                "xf86-video-amdgpu",
+                "xf86-video-ati",
+                "xf86-video-nouveau",
+                "xorg-server",
+                "xorg-xinit",
+            ] {
+                app.selected_graphic_drivers.insert(k.into());
+            }
+        }
         app.open_desktop_environment_popup();
     } else if app.experience_focus_index <= 3 {
         if app.experience_focus_index == 1 {
@@ -51,12 +69,32 @@ pub(crate) fn handle_enter_experience(app: &mut AppState) {
                 app.selected_env_packages.clear();
                 app.selected_login_manager = None;
                 app.login_manager_user_set = false;
+                // Also clear any previously selected graphics drivers for Minimal
+                app.selected_graphic_drivers.clear();
             }
         } else if app.experience_focus_index == 2 {
             app.experience_mode_index = 2;
             app.open_server_type_popup();
         } else if app.experience_focus_index == 3 {
             app.experience_mode_index = 3;
+            // If graphics drivers were cleared (e.g., after Minimal), seed defaults for Xorg
+            if app.selected_graphic_drivers.is_empty() {
+                for k in [
+                    "intel-media-driver",
+                    "libva-intel-driver",
+                    "mesa",
+                    "vulkan-intel",
+                    "vulkan-nouveau",
+                    "vulkan-radeon",
+                    "xf86-video-amdgpu",
+                    "xf86-video-ati",
+                    "xf86-video-nouveau",
+                    "xorg-server",
+                    "xorg-xinit",
+                ] {
+                    app.selected_graphic_drivers.insert(k.into());
+                }
+            }
             app.open_xorg_type_popup();
         } else {
             app.experience_mode_index = app.experience_focus_index;

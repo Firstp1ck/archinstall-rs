@@ -216,9 +216,11 @@ impl SystemService {
             }
         }
 
-        // Graphics drivers
-        for d in state.selected_graphic_drivers.iter() {
-            package_set.insert(d.clone());
+        // Graphics drivers (skip for Minimal experience)
+        if state.experience_mode_index != 1 {
+            for d in state.selected_graphic_drivers.iter() {
+                package_set.insert(d.clone());
+            }
         }
 
         // CPU microcode (detect via /proc/cpuinfo)
