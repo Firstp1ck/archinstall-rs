@@ -8,14 +8,6 @@ fn draw_install_split(
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::text::{Line, Span};
     use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-    // Debug
-    app.debug_log(&format!(
-        "render: install_split left={:?} right={:?} sections={} current={:?}",
-        left,
-        right,
-        app.install_section_titles.len(),
-        app.install_current_section
-    ));
     // Left: Overall Progress
     let mut left_lines: Vec<Line> = Vec::new();
     left_lines.push(Line::from(Span::styled(
@@ -100,10 +92,6 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             .split(size);
         app.last_menu_rect = cols[0];
         app.last_content_rect = cols[1];
-        app.debug_log(&format!(
-            "render: install view shown menu_rect={:?} content_rect={:?}",
-            app.last_menu_rect, app.last_content_rect
-        ));
         draw_install_split(frame, app, cols[0], cols[1]);
     } else if app.reboot_prompt_open {
         // Draw reboot prompt popup
@@ -116,7 +104,6 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             width: size.width / 2,
             height: 7,
         };
-        app.debug_log(&format!("render: reboot prompt area={:?}", area));
         let block = Block::default()
             .borders(Borders::ALL)
             .title(" Reboot now? ");

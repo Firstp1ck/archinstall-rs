@@ -23,7 +23,6 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
 
     if app.cmdline_open && app.focus == crate::app::Focus::Content {
         let area = app.last_content_rect;
-        app.debug_log(&format!("render: drawing cmdline at area={:?}", area));
         cmdline::draw_cmdline(frame, app, area);
     }
 }
