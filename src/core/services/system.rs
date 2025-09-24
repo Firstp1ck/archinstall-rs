@@ -260,9 +260,9 @@ impl SystemService {
             if !final_pkgs.is_empty() {
                 let joined = final_pkgs.join(" ");
                 // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
-                // Reduce noisy output/progress bars by injecting pacman opts via PACMAN env
+                // Avoid PACMAN env injection as pacstrap expects a binary path there
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar && PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} )",
+                    "pacstrap -K /mnt {} || (pacman -Syy --noconfirm && pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }
@@ -271,7 +271,7 @@ impl SystemService {
             if !packages.is_empty() {
                 let joined = packages.join(" ");
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar && PACMAN=\"pacman --noconfirm --noprogressbar\" pacstrap -K /mnt {} )",
+                    "pacstrap -K /mnt {} || (pacman -Syy --noconfirm && pacstrap -K /mnt {} )",
                     joined, joined
                 ));
             }
