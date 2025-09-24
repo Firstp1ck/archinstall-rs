@@ -194,7 +194,10 @@ impl AppState {
                         let red = crate::common::utils::redact_command_for_logging(&c);
                         send(&tx, format!("$ {}", red));
                         dbg(&format!("spawn: '{}'", red));
-                        let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
+                        // Force all output through our pipe using `script` to avoid /dev/tty writes.
+                        // -q: quiet (no start/stop banner), -f: flush, -e: return child status, -c: command
+                        let escaped = c.replace('"', "\\\"");
+                        let pipeline = format!("script -qfec \"{}\" /dev/stdout 2>&1", escaped);
                         let mut child = match Command::new("bash")
                             .arg("-lc")
                             .arg(&pipeline)
