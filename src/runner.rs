@@ -269,20 +269,36 @@ fn run_loop_inner(
             }
         }
 
-        // After reboot prompt, exit TUI and perform reboot if confirmed
-        if let Some(confirmed) = app.reboot_confirmed {
-            debug_log(
-                app.debug_enabled,
-                &format!("post-tui: reboot decision confirmed={}", confirmed),
-            );
-            if confirmed {
-                // Exit TUI and reboot
-                break;
-            } else {
-                // Exit TUI, no reboot
-                break;
+        // Handle reboot decision without tearing down the TUI
+        if let Some(true) = app.reboot_confirmed {
+            debug_log(app.debug_enabled, "reboot: attempting reboot without TUI teardown");
+            // Try to reboot. Do not leave the alternate screen; the system should reboot shortly.
+            match Command::new("bash").arg("-lc").arg("reboot").status() {
+                Ok(st) if st.success() => {
+                    debug_log(app.debug_enabled, "reboot: command succeeded");
+                }
+                Ok(st) => {
+                    debug_log(
+                        app.debug_enabled,
+                        &format!("reboot: command exited with code {:?}", st.code()),
+                    );
+                    // If reboot failed, clear the decision so user can try again
+                    app.reboot_confirmed = None;
+                    // Optionally, reopen the prompt
+                    app.reboot_prompt_open = true;
+                }
+                Err(e) => {
+                    debug_log(app.debug_enabled, &format!("reboot: command error: {}", e));
+                    app.reboot_confirmed = None;
+                    app.reboot_prompt_open = true;
+                }
             }
+        } else if let Some(false) = app.reboot_confirmed {
+            // User chose not to reboot; keep TUI running and clear decision
+            debug_log(app.debug_enabled, "reboot: canceled by user, keeping TUI active");
+            app.reboot_confirmed = None;
         }
+
         if app.exit_tui_after_install {
             debug_log(
                 app.debug_enabled,
@@ -379,7 +395,7 @@ fn run_loop_inner(
         }
     }
 
-    // After TUI closes, perform reboot if confirmed
+    // After TUI closes, perform reboot if confirmed (fallback)
     if let Some(true) = app.reboot_confirmed {
         debug_log(app.debug_enabled, "post-tui: attempting reboot");
         let res = Command::new("bash").arg("-lc").arg("reboot").status();
