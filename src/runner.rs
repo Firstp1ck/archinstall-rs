@@ -29,6 +29,45 @@ fn debug_log(enabled: bool, msg: &str) {
         });
 }
 
+// Prettify noisy pacman/pacstrap output for run.log
+fn format_runlog_line(raw: &str) -> Option<String> {
+    let s = raw.trim();
+    if s.is_empty() {
+        return Some(String::new());
+    }
+    // Collapse pacman download lines: "<pkg> downloading..."
+    if let Some(pos) = s.find(" downloading...") {
+        let pkg = s[..pos].trim();
+        if !pkg.is_empty() {
+            return Some(format!("download: {}", pkg));
+        }
+    }
+    // Collapse pacman installing lines: "installing <pkg>..."
+    let sl = s.to_lowercase();
+    if let Some(rest) = sl.strip_prefix("installing ") {
+        // Find token up to dots or space
+        let end = rest.find(' ').or_else(|| rest.find('.')).unwrap_or(rest.len());
+        let pkg = &s["installing ".len()..("installing ".len() + end)];
+        return Some(format!("install: {}", pkg));
+    }
+    // Warnings
+    if sl.starts_with("warning:") {
+        return Some(format!("warn: {}", s[8..].trim()));
+    }
+    // Total sizes
+    if let Some(rest) = s.strip_prefix("Total Download Size:") {
+        return Some(format!("download size:{}", rest));
+    }
+    if let Some(rest) = s.strip_prefix("Total Installed Size:") {
+        return Some(format!("installed size:{}", rest));
+    }
+    // Proceed question is irrelevant in non-interactive mode
+    if s.starts_with(":: Proceed with installation?") {
+        return None;
+    }
+    Some(raw.to_string())
+}
+
 pub fn run_with_debug(dry_run: bool, debug_enabled: bool) -> io::Result<()> {
     debug_log(debug_enabled, "TUI init: enable_raw_mode");
     enable_raw_mode()?;
@@ -119,6 +158,7 @@ fn run_loop_inner(
     };
     let mut last_logged_line: usize = 0;
     let mut first_log_write_done = false;
+    let mut prev_runlog_line: Option<String> = None;
 
     let mut install_was_running = false;
     debug_log(app.debug_enabled, "run_loop_inner: start main loop");
@@ -162,13 +202,18 @@ fn run_loop_inner(
 
         // Write new log lines to file if not dry_run
         if let Some(file) = log_file.as_mut() {
+            use std::io::Write;
             while last_logged_line < app.install_log.len() {
                 if let Some(line) = app.install_log.get(last_logged_line) {
-                    use std::io::Write;
-                    let _ = writeln!(file, "{}", line);
-                    if !first_log_write_done {
-                        debug_log(app.debug_enabled, "run.log: first write");
-                        first_log_write_done = true;
+                    if let Some(pretty) = format_runlog_line(line) {
+                        if prev_runlog_line.as_deref() != Some(pretty.as_str()) {
+                            let _ = writeln!(file, "{}", pretty);
+                            prev_runlog_line = Some(pretty);
+                            if !first_log_write_done {
+                                debug_log(app.debug_enabled, "run.log: first write");
+                                first_log_write_done = true;
+                            }
+                        }
                     }
                 }
                 last_logged_line += 1;

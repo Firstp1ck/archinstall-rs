@@ -160,6 +160,87 @@ impl AppState {
             self.install_section_titles.len()
         ));
         thread::spawn(move || {
+            // Lightweight formatter to compact pacstrap logs
+            struct LogFormatter {
+                dl_count: usize,
+                inst_count: usize,
+                total_pkgs: Option<usize>,
+            }
+            impl LogFormatter {
+                fn new() -> Self {
+                    Self { dl_count: 0, inst_count: 0, total_pkgs: None }
+                }
+                // Returns true if the line was consumed (i.e., do not forward raw)
+                fn handle_line<F: FnMut(String)>(
+                    &mut self,
+                    line: &str,
+                    mut send: F,
+                ) -> bool {
+                    let t = line.trim_start();
+                    // Parse total package hint: "Packages (780) ..."
+                    if self.total_pkgs.is_none() && t.starts_with("Packages (") {
+                        // extract number until ')'
+                        if let Some(end) = t.find(')') {
+                            if let Some(start) = t.find('(') {
+                                let num = &t[start + 1..end];
+                                if let Ok(n) = num.trim().parse::<usize>() {
+                                    self.total_pkgs = Some(n);
+                                }
+                            }
+                        }
+                        // still forward the header line
+                        return false;
+                    }
+
+                    // Match downloading lines: "<pkg> ... downloading..."
+                    if t.ends_with("downloading...") {
+                        self.dl_count += 1;
+                        // Show every 20th download to reduce noise
+                        if self.dl_count % 20 == 0 {
+                            if let Some(total) = self.total_pkgs {
+                                send(format!("Downloading: {} / {}", self.dl_count, total));
+                            } else {
+                                send(format!("Downloading: {} packages", self.dl_count));
+                            }
+                        }
+                        return true; // consume raw line
+                    }
+
+                    // Match installing lines: "installing <pkg>..."
+                    let ti = t.to_lowercase();
+                    if ti.starts_with("installing ") {
+                        self.inst_count += 1;
+                        // Show every 10th install
+                        if self.inst_count % 10 == 0 {
+                            if let Some(total) = self.total_pkgs {
+                                send(format!("Installing: {} / {}", self.inst_count, total));
+                            } else {
+                                send(format!("Installing: {} packages", self.inst_count));
+                            }
+                        }
+                        return true; // consume raw line
+                    }
+
+                    false
+                }
+                fn flush<F: FnMut(String)>(&self, mut send: F) {
+                    if self.dl_count > 0 {
+                        if let Some(total) = self.total_pkgs {
+                            send(format!("Downloaded: {} / {}", self.dl_count, total));
+                        } else {
+                            send(format!("Downloaded: {} packages", self.dl_count));
+                        }
+                    }
+                    if self.inst_count > 0 {
+                        if let Some(total) = self.total_pkgs {
+                            send(format!("Installed: {} / {}", self.inst_count, total));
+                        } else {
+                            send(format!("Installed: {} packages", self.inst_count));
+                        }
+                    }
+                }
+            }
+
             let debug_tag = "install thread";
             let mut any_error: Option<String> = None;
             let dbg = |msg: &str| {
@@ -221,6 +302,8 @@ impl AppState {
                                 break 'outer;
                             }
                         };
+                        let thin_pacstrap = c.contains("pacstrap");
+                        let mut fmt = LogFormatter::new();
                         if let Some(stdout) = child.stdout.take() {
                             let reader = BufReader::new(stdout);
                             for line in reader.lines() {
@@ -228,9 +311,23 @@ impl AppState {
                                     Ok(l) => {
                                         let clean =
                                             crate::common::utils::sanitize_terminal_output_line(&l);
-                                        if !clean.is_empty() {
-                                            send(&tx, clean);
+                                        if clean.is_empty() {
+                                            continue;
                                         }
+                                        if thin_pacstrap {
+                                            let mut sent = false;
+                                            if fmt.handle_line(&clean, |msg| {
+                                                sent = true;
+                                                send(&tx, msg);
+                                            }) {
+                                                // consumed, skip raw
+                                                continue;
+                                            }
+                                            if sent {
+                                                continue;
+                                            }
+                                        }
+                                        send(&tx, clean);
                                     }
                                     Err(e) => {
                                         dbg(&format!("error reading child stdout: {}", e));
@@ -240,6 +337,9 @@ impl AppState {
                             }
                         } else {
                             dbg("stdout piping unavailable (child.stdout None)");
+                        }
+                        if thin_pacstrap {
+                            fmt.flush(|msg| send(&tx, msg));
                         }
                         match child.wait() {
                             Ok(st) if st.success() => {}
