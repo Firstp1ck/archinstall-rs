@@ -168,26 +168,25 @@ impl AppState {
             }
             impl LogFormatter {
                 fn new() -> Self {
-                    Self { dl_count: 0, inst_count: 0, total_pkgs: None }
+                    Self {
+                        dl_count: 0,
+                        inst_count: 0,
+                        total_pkgs: None,
+                    }
                 }
                 // Returns true if the line was consumed (i.e., do not forward raw)
-                fn handle_line<F: FnMut(String)>(
-                    &mut self,
-                    line: &str,
-                    mut send: F,
-                ) -> bool {
+                fn handle_line<F: FnMut(String)>(&mut self, line: &str, mut send: F) -> bool {
                     let t = line.trim_start();
                     // Parse total package hint: "Packages (780) ..."
                     if self.total_pkgs.is_none() && t.starts_with("Packages (") {
                         // extract number until ')'
-                        if let Some(end) = t.find(')') {
-                            if let Some(start) = t.find('(') {
+                        if let Some(end) = t.find(')')
+                            && let Some(start) = t.find('(') {
                                 let num = &t[start + 1..end];
                                 if let Ok(n) = num.trim().parse::<usize>() {
                                     self.total_pkgs = Some(n);
                                 }
                             }
-                        }
                         // still forward the header line
                         return false;
                     }
@@ -196,7 +195,7 @@ impl AppState {
                     if t.ends_with("downloading...") {
                         self.dl_count += 1;
                         // Show every 20th download to reduce noise
-                        if self.dl_count % 20 == 0 {
+                        if self.dl_count.is_multiple_of(20) {
                             if let Some(total) = self.total_pkgs {
                                 send(format!("Downloading: {} / {}", self.dl_count, total));
                             } else {
@@ -211,7 +210,7 @@ impl AppState {
                     if ti.starts_with("installing ") {
                         self.inst_count += 1;
                         // Show every 10th install
-                        if self.inst_count % 10 == 0 {
+                        if self.inst_count.is_multiple_of(10) {
                             if let Some(total) = self.total_pkgs {
                                 send(format!("Installing: {} / {}", self.inst_count, total));
                             } else {
@@ -289,7 +288,10 @@ impl AppState {
                             .env("SYSTEMD_COLORS", "0")
                             .env("PAGER", "cat")
                             .env("LESS", "FRX")
-                            .env("PACMAN", "pacman --noconfirm --noprogressbar --color never --quiet")
+                            .env(
+                                "PACMAN",
+                                "pacman --noconfirm --noprogressbar --color never --quiet",
+                            )
                             .stdin(Stdio::null())
                             .stdout(Stdio::piped())
                             .spawn()

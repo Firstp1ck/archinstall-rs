@@ -17,10 +17,14 @@ mod xorg;
 
 pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
     let area = frame.area();
-    let (width, height) = if matches!(
+    let (width, height) = if matches!(app.popup_kind, Some(PopupKind::Info)) {
+        // Make Info popups (e.g., "Reboot now?") a bit larger
+        let w = area.width.clamp(36, 72);
+        let h = area.height.clamp(11, 16);
+        (w, h)
+    } else if matches!(
         app.popup_kind,
         Some(PopupKind::AbortConfirm)
-            | Some(PopupKind::Info)
             | Some(PopupKind::HostnameInput)
             | Some(PopupKind::RootPassword)
             | Some(PopupKind::RootPasswordConfirm)

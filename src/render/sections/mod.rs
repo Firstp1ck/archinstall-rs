@@ -43,7 +43,11 @@ fn draw_install_split(
     }
     let left_block = Block::default()
         .borders(Borders::ALL)
-        .title(if app.install_running { " Installation in progress " } else { " Installation status " });
+        .title(if app.install_running {
+            " Installation in progress "
+        } else {
+            " Installation status "
+        });
     let left_par = Paragraph::new(left_lines)
         .block(left_block)
         .wrap(Wrap { trim: true });
@@ -61,9 +65,7 @@ fn draw_install_split(
     let start = app.install_log.len().saturating_sub(max_visible);
     let visible_lines = &app.install_log[start..];
     // Truncate each line to the inner width to avoid wrap artifacts
-    let max_width = inner_right
-        .width
-        .saturating_sub(1) as usize; // keep 1 col margin
+    let max_width = inner_right.width.saturating_sub(1) as usize; // keep 1 col margin
     let mut output = String::new();
     for (i, line) in visible_lines.iter().enumerate() {
         let mut truncated = String::new();

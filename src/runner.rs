@@ -46,7 +46,10 @@ fn format_runlog_line(raw: &str) -> Option<String> {
     let sl = s.to_lowercase();
     if let Some(rest) = sl.strip_prefix("installing ") {
         // Find token up to dots or space
-        let end = rest.find(' ').or_else(|| rest.find('.')).unwrap_or(rest.len());
+        let end = rest
+            .find(' ')
+            .or_else(|| rest.find('.'))
+            .unwrap_or(rest.len());
         let pkg = &s["installing ".len()..("installing ".len() + end)];
         return Some(format!("install: {}", pkg));
     }
@@ -204,9 +207,9 @@ fn run_loop_inner(
         if let Some(file) = log_file.as_mut() {
             use std::io::Write;
             while last_logged_line < app.install_log.len() {
-                if let Some(line) = app.install_log.get(last_logged_line) {
-                    if let Some(pretty) = format_runlog_line(line) {
-                        if prev_runlog_line.as_deref() != Some(pretty.as_str()) {
+                if let Some(line) = app.install_log.get(last_logged_line)
+                    && let Some(pretty) = format_runlog_line(line)
+                        && prev_runlog_line.as_deref() != Some(pretty.as_str()) {
                             let _ = writeln!(file, "{}", pretty);
                             prev_runlog_line = Some(pretty);
                             if !first_log_write_done {
@@ -214,8 +217,6 @@ fn run_loop_inner(
                                 first_log_write_done = true;
                             }
                         }
-                    }
-                }
                 last_logged_line += 1;
             }
         }
@@ -271,7 +272,10 @@ fn run_loop_inner(
 
         // Handle reboot decision without tearing down the TUI
         if let Some(true) = app.reboot_confirmed {
-            debug_log(app.debug_enabled, "reboot: attempting reboot without TUI teardown");
+            debug_log(
+                app.debug_enabled,
+                "reboot: attempting reboot without TUI teardown",
+            );
             // Try to reboot. Do not leave the alternate screen; the system should reboot shortly.
             match Command::new("bash").arg("-lc").arg("reboot").status() {
                 Ok(st) if st.success() => {
@@ -295,7 +299,10 @@ fn run_loop_inner(
             }
         } else if let Some(false) = app.reboot_confirmed {
             // User chose not to reboot; keep TUI running and keep decision to avoid reopening prompt.
-            debug_log(app.debug_enabled, "reboot: canceled by user, keeping TUI active");
+            debug_log(
+                app.debug_enabled,
+                "reboot: canceled by user, keeping TUI active",
+            );
             // Do not reset reboot_confirmed to None to prevent re-opening the prompt.
             // Ensure the prompt remains closed.
             app.reboot_prompt_open = false;

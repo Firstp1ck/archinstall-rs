@@ -218,7 +218,8 @@ impl AppState {
                 if self.experience_mode_index == 1 {
                     Vec::new()
                 } else {
-                    let mut v: Vec<String> = self.selected_graphic_drivers.iter().cloned().collect();
+                    let mut v: Vec<String> =
+                        self.selected_graphic_drivers.iter().cloned().collect();
                     v.sort();
                     v
                 }

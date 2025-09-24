@@ -2,7 +2,7 @@ use crate::app::{AppState, PopupKind};
 
 fn should_log_len(len: usize) -> bool {
     // Log for len 0..=2 and then every 5th character to reduce noise
-    len <= 2 || len % 5 == 0
+    len <= 2 || len.is_multiple_of(5)
 }
 
 pub(crate) fn handle_text_backspace(app: &mut AppState) -> bool {
@@ -36,10 +36,7 @@ pub(crate) fn handle_text_backspace(app: &mut AppState) -> bool {
         app.custom_input_buffer.pop();
         let len = app.custom_input_buffer.len();
         if should_log_len(len) {
-            app.debug_log(&format!(
-                "popup:text backspace (len={})",
-                len
-            ));
+            app.debug_log(&format!("popup:text backspace (len={})", len));
         }
         return true;
     }
@@ -78,10 +75,7 @@ pub(crate) fn handle_text_char(app: &mut AppState, c: char) -> bool {
                 app.custom_input_buffer.push(c);
                 let len = app.custom_input_buffer.len();
                 if should_log_len(len) {
-                    app.debug_log(&format!(
-                        "popup:text char digit (len={})",
-                        len
-                    ));
+                    app.debug_log(&format!("popup:text char digit (len={})", len));
                 }
             }
             return true;
@@ -89,10 +83,7 @@ pub(crate) fn handle_text_char(app: &mut AppState, c: char) -> bool {
             app.custom_input_buffer.push(c);
             let len = app.custom_input_buffer.len();
             if should_log_len(len) {
-                app.debug_log(&format!(
-                    "popup:text char (len={})",
-                    len
-                ));
+                app.debug_log(&format!("popup:text char (len={})", len));
             }
             return true;
         }
