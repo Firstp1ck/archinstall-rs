@@ -46,7 +46,7 @@ fn draw_install_split(
         .title(" Installation in progress ");
     let left_par = Paragraph::new(left_lines)
         .block(left_block)
-        .wrap(Wrap { trim: false });
+        .wrap(Wrap { trim: true });
     frame.render_widget(left_par, left);
 
     // Right: Command Output
@@ -55,15 +55,31 @@ fn draw_install_split(
         .title(" Command output ");
     let inner_right = right_block.inner(right);
     frame.render_widget(right_block, right);
+    // Explicit clear to avoid leftover characters
+    frame.render_widget(ratatui::widgets::Clear, inner_right);
     let max_visible = inner_right.height.saturating_sub(2) as usize; // Reserve 1 line for indicator
     let start = app.install_log.len().saturating_sub(max_visible);
     let visible_lines = &app.install_log[start..];
-    let mut output = visible_lines.join("\n");
+    // Truncate each line to the inner width to avoid wrap artifacts
+    let max_width = inner_right
+        .width
+        .saturating_sub(1) as usize; // keep 1 col margin
+    let mut output = String::new();
+    for (i, line) in visible_lines.iter().enumerate() {
+        let mut truncated = String::new();
+        for ch in line.chars().take(max_width) {
+            truncated.push(ch);
+        }
+        if i > 0 {
+            output.push('\n');
+        }
+        output.push_str(&truncated);
+    }
     // Visual indicator: show only if process ended
     if !app.install_running {
         output.push_str("\n[Install process ended]");
     }
-    let right_par = Paragraph::new(output).wrap(Wrap { trim: false });
+    let right_par = Paragraph::new(output).wrap(Wrap { trim: true });
     frame.render_widget(right_par, inner_right);
 }
 use ratatui::Frame;

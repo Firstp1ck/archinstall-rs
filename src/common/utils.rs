@@ -102,7 +102,7 @@ pub fn strip_ansi_escape_codes(input: &str) -> String {
                             break;
                         }
                         if bytes[i] == 0x1B && i + 1 < len && bytes[i + 1] == b'\\' {
-                            i += 2; // consume ESC \
+                            i += 2; // consume ESC \\
                             break;
                         }
                         i += 1;
@@ -133,8 +133,27 @@ pub fn strip_ansi_escape_codes(input: &str) -> String {
 }
 
 /// Sanitize a terminal output line for safe rendering inside the TUI.
-/// Removes carriage returns and ANSI escape sequences.
+/// Removes carriage returns, backspaces and ANSI escape sequences.
 pub fn sanitize_terminal_output_line(input: &str) -> String {
-    let no_cr = input.replace('\r', "");
-    strip_ansi_escape_codes(&no_cr)
+    // 1) Drop carriage returns and BEL
+    let mut tmp = input.replace('\r', "");
+    tmp = tmp.replace('\x07', "");
+
+    // 2) Interpret backspaces by removing the previous visible char
+    let mut buf = String::with_capacity(tmp.len());
+    for ch in tmp.chars() {
+        match ch {
+            '\u{0008}' => {
+                buf.pop();
+            }
+            // Replace tabs with a single space to avoid layout issues
+            '\t' => buf.push(' '),
+            // Skip other non-printable C0 controls
+            c if c < ' ' => {}
+            c => buf.push(c),
+        }
+    }
+
+    // 3) Strip ANSI sequences last
+    strip_ansi_escape_codes(&buf)
 }
