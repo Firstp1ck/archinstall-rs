@@ -278,7 +278,7 @@ impl AppState {
                         // Force all output through our pipe using `script` to avoid /dev/tty writes.
                         // -q: quiet (no start/stop banner), -f: flush, -e: return child status, -c: command
                         let escaped = c.replace('"', "\\\"");
-                        let pipeline = format!("script -qfec \"{}\" /dev/stdout 2>&1", escaped);
+                        let pipeline = format!("script -qfec \"{}\" /dev/null 2>&1", escaped);
                         let mut child = match Command::new("bash")
                             .arg("-lc")
                             .arg(&pipeline)
@@ -289,7 +289,7 @@ impl AppState {
                             .env("SYSTEMD_COLORS", "0")
                             .env("PAGER", "cat")
                             .env("LESS", "FRX")
-                            .env("PACMAN", "pacman --noconfirm --noprogressbar --color never")
+                            .env("PACMAN", "pacman --noconfirm --noprogressbar --color never --quiet")
                             .stdin(Stdio::null())
                             .stdout(Stdio::piped())
                             .spawn()
