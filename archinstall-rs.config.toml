@@ -1,26 +1,28 @@
+users = []
+
 [locales]
-keyboard_layout = "us"
-locale_language = "en_US.UTF-8"
+keyboard_layout = "de_CH-latin1"
+locale_language = "de_CH.UTF-8"
 locale_encoding = "UTF-8"
 
 [mirrors]
-regions = ["United States          US   186"]
+regions = ["Switzerland            CH    26"]
 optional_repos = [
     "multilib",
     "AUR",
 ]
-aur_helper = "paru"
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
-selected_device = "/dev/sda"
-selected_device_model = "Virtual Disk"
+selected_device = "/dev/sdb"
+selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
-selected_device_size = "64.0 GiB"
-selected_device_freespace = "64.0 GiB"
-selected_device_sector_size = "512 B"
+selected_device_size = "1.8 TiB"
+selected_device_freespace = "1.8 TiB"
+selected_device_sector_size = "512/4096 B"
 selected_device_read_only = false
 label = "gpt"
 wipe = true
@@ -40,7 +42,7 @@ kind = "grub"
 hostname = "Archlinux"
 root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 automatic_time_sync = true
-timezone = "Europe/London"
+timezone = "Europe/Zurich"
 
 [unified_kernel_images]
 enabled = false
@@ -53,7 +55,10 @@ kind = "pipewire"
 
 [experience]
 mode = "Desktop"
-desktop_envs = ["KDE Plasma"]
+desktop_envs = [
+    "Hyprland",
+    "KDE Plasma",
+]
 server_types = []
 xorg_types = []
 login_manager = "sddm"
@@ -73,6 +78,30 @@ graphic_drivers = [
 ]
 
 [experience.desktop_env_packages]
+Hyprland = [
+    "dolphin",
+    "dunst",
+    "grim",
+    "htop",
+    "hyprland",
+    "iwd",
+    "kitty",
+    "nano",
+    "openssh",
+    "polkit",
+    "polkit-kde-agent",
+    "qt5-wayland",
+    "qt6-wayland",
+    "slurp",
+    "smartmontools",
+    "vim",
+    "wget",
+    "wireless_tools",
+    "wofi",
+    "wpa_supplicant",
+    "xdg-desktop-portal-hyprland",
+    "xdg-utils",
+]
 "KDE Plasma" = [
     "ark",
     "dolphin",
@@ -95,11 +124,6 @@ graphic_drivers = [
 [experience.server_packages]
 
 [experience.xorg_packages]
-
-[[users]]
-username = "firstpick"
-password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
-is_sudo = true
 
 [network]
 mode = "NetworkManager"
