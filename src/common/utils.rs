@@ -135,8 +135,8 @@ pub fn strip_ansi_escape_codes(input: &str) -> String {
 /// Sanitize a terminal output line for safe rendering inside the TUI.
 /// Removes carriage returns, backspaces and ANSI escape sequences.
 pub fn sanitize_terminal_output_line(input: &str) -> String {
-    // 1) Drop carriage returns and BEL
-    let mut tmp = input.replace('\r', "");
+    // 1) Turn carriage returns into newlines so progress updates become separate lines; drop BEL
+    let mut tmp = input.replace('\r', "\n");
     tmp = tmp.replace('\x07', "");
 
     // 2) Interpret backspaces by removing the previous visible char
@@ -148,8 +148,8 @@ pub fn sanitize_terminal_output_line(input: &str) -> String {
             }
             // Replace tabs with a single space to avoid layout issues
             '\t' => buf.push(' '),
-            // Skip other non-printable C0 controls
-            c if c < ' ' => {}
+            // Skip other non-printable C0 controls (except newline which we keep)
+            c if (c < ' ' && c != '\n') => {}
             c => buf.push(c),
         }
     }
