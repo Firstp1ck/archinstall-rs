@@ -43,7 +43,7 @@ fn draw_install_split(
     }
     let left_block = Block::default()
         .borders(Borders::ALL)
-        .title(" Installation in progress ");
+        .title(if app.install_running { " Installation in progress " } else { " Installation status " });
     let left_par = Paragraph::new(left_lines)
         .block(left_block)
         .wrap(Wrap { trim: true });
@@ -95,10 +95,9 @@ pub mod menu;
 pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
     let size = frame.area();
 
-    // left (menu) | right (info + content) | keybinds (rightmost)
-    // On Install screen, show the Main Menu as well
-    if app.install_running {
-        // During installation, use a two-column layout: left (progress), right (command output)
+    // Draw background content first
+    if app.install_running || !app.install_section_titles.is_empty() {
+        // During or after installation, use a two-column layout: left (progress), right (command output)
         let cols = ratatui::layout::Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
@@ -109,37 +108,6 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         app.last_menu_rect = cols[0];
         app.last_content_rect = cols[1];
         draw_install_split(frame, app, cols[0], cols[1]);
-    } else if app.reboot_prompt_open {
-        // Draw reboot prompt popup
-        use ratatui::style::{Color, Modifier, Style};
-        use ratatui::text::{Line, Span};
-        use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-        let area = ratatui::layout::Rect {
-            x: size.width / 4,
-            y: size.height / 3,
-            width: size.width / 2,
-            height: 7,
-        };
-        let block = Block::default()
-            .borders(Borders::ALL)
-            .title(" Reboot now? ");
-        let text = vec![
-            Line::from(Span::styled(
-                "Installation completed.",
-                Style::default()
-                    .fg(Color::Green)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            Line::from(""),
-            Line::from("Do you want to reboot now? [Y/n]"),
-            Line::from(""),
-            Line::from(Span::styled(
-                "Press Y/Enter to reboot, N/Esc to cancel.",
-                Style::default().fg(Color::Yellow),
-            )),
-        ];
-        let par = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
-        frame.render_widget(par, area);
     } else {
         let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
         let hide_keybinds = app.install_running;
@@ -195,5 +163,38 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             keybinds::draw_keybinds(frame, keybinds_rect);
         }
         content::draw_content(frame, app, content_rect);
+    }
+
+    // Then overlay the reboot prompt if open (without clearing the background)
+    if app.reboot_prompt_open {
+        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::text::{Line, Span};
+        use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+        let area = ratatui::layout::Rect {
+            x: size.width / 4,
+            y: size.height / 3,
+            width: size.width / 2,
+            height: 7,
+        };
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .title(" Reboot now? ");
+        let text = vec![
+            Line::from(Span::styled(
+                "Installation completed.",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            )),
+            Line::from(""),
+            Line::from("Do you want to reboot now? [Y/n]"),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Press Y/Enter to reboot, N/Esc to cancel.",
+                Style::default().fg(Color::Yellow),
+            )),
+        ];
+        let par = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
+        frame.render_widget(par, area);
     }
 }

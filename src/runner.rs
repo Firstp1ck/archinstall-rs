@@ -294,9 +294,11 @@ fn run_loop_inner(
                 }
             }
         } else if let Some(false) = app.reboot_confirmed {
-            // User chose not to reboot; keep TUI running and clear decision
+            // User chose not to reboot; keep TUI running and keep decision to avoid reopening prompt.
             debug_log(app.debug_enabled, "reboot: canceled by user, keeping TUI active");
-            app.reboot_confirmed = None;
+            // Do not reset reboot_confirmed to None to prevent re-opening the prompt.
+            // Ensure the prompt remains closed.
+            app.reboot_prompt_open = false;
         }
 
         if app.exit_tui_after_install {
