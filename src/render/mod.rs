@@ -14,6 +14,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
     frame.render_widget(Clear, full_area);
     let bg = Block::default().style(Style::default().bg(Color::Black));
     frame.render_widget(bg, full_area);
+    // Render sections
     sections::draw_sections(frame, app);
 
     if app.popup_open {
@@ -22,6 +23,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
 
     if app.cmdline_open && app.focus == crate::app::Focus::Content {
         let area = app.last_content_rect;
+        app.debug_log(&format!("render: drawing cmdline at area={:?}", area));
         cmdline::draw_cmdline(frame, app, area);
     }
 }

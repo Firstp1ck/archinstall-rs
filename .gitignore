@@ -2,3 +2,4 @@
 # archinstall-rs.config.toml
 *.log
 RELEASE*.md
+possible_debug.md

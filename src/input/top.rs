@@ -16,19 +16,27 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => return true,
             KeyCode::Esc | KeyCode::Char('q') => {
                 if app.popup_open {
+                    app.debug_log("handle_event: ESC/q in popup -> close_popup");
                     app.close_popup();
                 } else if app.focus == Focus::Content {
                     if app.current_screen() == Screen::Locales {
                         app.discard_locales_edit();
                     }
+                    app.debug_log("handle_event: ESC/q -> focus Menu");
                     app.focus = Focus::Menu;
                 }
                 return false;
             }
             // When popup is open, handle popup keys only
-            _ if app.popup_open => return handle_popup_keys(app, key.code),
+            _ if app.popup_open => {
+                app.debug_log("handle_event: popup_open branch");
+                return handle_popup_keys(app, key.code);
+            }
             // When command line is open, handle only command keys
-            _ if app.cmdline_open => return handle_cmdline_keys(app, key.code),
+            _ if app.cmdline_open => {
+                app.debug_log("handle_event: cmdline_open branch");
+                return handle_cmdline_keys(app, key.code);
+            }
             // Vim motions for menu and decision navigation
             KeyCode::Up => {
                 if app.focus == Focus::Menu {
@@ -72,6 +80,14 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             }
 
             KeyCode::Enter => {
+                // On Install screen, log the current selection and if dispatcher will start install
+                if app.current_screen() == Screen::Install {
+                    let will_start_install = true; // dispatcher::handle_enter may start it based on focus
+                    app.debug_log(&format!(
+                        "handle_event: Enter on Install screen (will_start_install={})",
+                        will_start_install
+                    ));
+                }
                 super::screens::handle_enter(app);
             }
             KeyCode::Tab => super::screens::move_locales_focus(app, true),
@@ -125,6 +141,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             // Open command line (Locales)
             KeyCode::Char(':') => {
                 if app.focus == Focus::Content {
+                    app.debug_log("handle_event: entering cmdline");
                     app.cmdline_open = true;
                     app.cmdline_buffer.clear();
                 }
@@ -141,6 +158,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             if app.current_screen() == Screen::Install && !app.popup_open {
                 let x = column;
                 let y = row;
+                app.debug_log(&format!("handle_event: mouse click at ({}, {})", x, y));
                 // Check click against computed targets
                 for (i, (rect, target)) in app.install_click_targets.clone().into_iter().enumerate()
                 {
@@ -150,8 +168,13 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                         && y < rect.y + rect.height
                     {
                         app.install_focus_index = i;
+                        app.debug_log(&format!("handle_event: install_focus_index -> {}", i));
                         match target {
                             crate::core::types::InstallClickTarget::Section(screen) => {
+                                app.debug_log(&format!(
+                                    "handle_event: click matched Section({:?})",
+                                    screen
+                                ));
                                 if let Some(idx) =
                                     app.menu_entries.iter().position(|m| m.screen == screen)
                                 {
@@ -161,6 +184,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                                 }
                             }
                             crate::core::types::InstallClickTarget::InstallButton => {
+                                app.debug_log("handle_event: click matched InstallButton");
                                 super::screens::dispatcher::handle_enter(app);
                             }
                         }

@@ -82,6 +82,20 @@ impl BootloaderService {
             _ => {}
         }
 
+        // Debug summary
+        state.debug_log(&format!(
+            "bootloader: choice={} mode={} (uefi={})",
+            match state.bootloader_index {
+                0 => "systemd-boot",
+                1 => "grub",
+                2 => "efistub",
+                3 => "limine",
+                _ => "unknown",
+            },
+            if state.is_uefi() { "UEFI" } else { "BIOS" },
+            state.is_uefi()
+        ));
+
         BootloaderPlan::new(cmds)
     }
 }

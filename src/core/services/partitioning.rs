@@ -28,6 +28,44 @@ impl PartitioningService {
             Self::build_automatic_partition_plan(state, device, &mut part_cmds);
         }
 
+        // Debug summary (no raw command strings)
+        let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
+        let align = state.disks_align.clone().unwrap_or_else(|| "1MiB".into());
+        if is_manual_mode {
+            let mut specs = Vec::new();
+            for p in state.disks_partitions.iter() {
+                if let Some(spec_device) = &p.name
+                    && spec_device != device
+                {
+                    continue;
+                }
+                let role = p.role.clone().unwrap_or_else(|| "OTHER".into());
+                let fs = p.fs.clone().unwrap_or_else(|| "ext4".into());
+                let size = p.size.clone().unwrap_or_else(|| "?".into());
+                specs.push(format!("{}:{}:{}", role, fs, size));
+            }
+            state.debug_log(&format!(
+                "partitioning: manual device={} label={} wipe={} align={} specs_count={} [{}]",
+                device,
+                label,
+                state.disks_wipe,
+                align,
+                specs.len(),
+                specs.join(", ")
+            ));
+        } else {
+            state.debug_log(&format!(
+                "partitioning: auto device={} label={} wipe={} align={} uefi={} swap={} luks={}",
+                device,
+                label,
+                state.disks_wipe,
+                align,
+                state.is_uefi(),
+                state.swap_enabled,
+                state.disk_encryption_type_index == 1
+            ));
+        }
+
         PartitionPlan::new(part_cmds)
     }
 

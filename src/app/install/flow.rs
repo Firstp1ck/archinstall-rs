@@ -12,22 +12,31 @@ impl AppState {
     pub fn start_install(&mut self) {
         // Prevent starting a second install while one is already running
         if self.install_running {
+            self.debug_log("start_install: rejected, install already running");
             self.open_info_popup("Installation already running. Please wait...".into());
             return;
         }
         // Validate required sections before proceeding
         if let Some(msg) = self.validate_install_requirements() {
+            self.debug_log("start_install: rejected, requirements not met");
             self.open_info_popup(msg);
             return;
         }
+        self.debug_log("start_install: starting install flow");
         self.start_install_flow();
     }
 
     pub fn start_install_flow(&mut self) {
         let Some(target) = self.select_target_and_run_prechecks() else {
+            self.debug_log("start_install_flow: target selection/prechecks returned None");
             return;
         };
         let sections = self.build_install_sections(&target);
+        self.debug_log(&format!(
+            "start_install_flow: target='{}' sections={}",
+            target,
+            sections.len()
+        ));
         if self.dry_run {
             // Simulate the same install UI, but do not execute commands.
             // Stream the plan into the live log with a Dry-Run label.
@@ -44,6 +53,11 @@ impl AppState {
                 .unwrap_or_else(|_| std::path::PathBuf::from("."))
                 .join("dry-run.log");
             let log_path_display = log_path_buf.to_string_lossy().to_string();
+            self.debug_log(&format!(
+                "dry-run: will write log to {} and stream {} sections",
+                log_path_display,
+                self.install_section_titles.len()
+            ));
 
             let debug_enabled = self.debug_enabled;
             thread::spawn(move || {
@@ -83,6 +97,12 @@ impl AppState {
                     }
                 };
 
+                dbg(&format!(
+                    "log path created={}, sections to stream={}",
+                    log_path_display,
+                    /* sections len not moved here, will infer from loop */ "unknown"
+                ));
+
                 let start_msg = "Starting dry-run (no commands will be executed)...".to_string();
                 write_log(&mut log_file, &start_msg);
                 send(&tx, start_msg);
@@ -92,6 +112,7 @@ impl AppState {
                 send(&tx, path_msg);
                 std::thread::sleep(std::time::Duration::from_millis(15));
                 for (title, cmds) in sections.into_iter() {
+                    dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
                     let marker = format!("::section_start::{}", title);
                     write_log(&mut log_file, &marker);
                     send(&tx, marker);
@@ -110,6 +131,7 @@ impl AppState {
                         std::thread::sleep(std::time::Duration::from_millis(8));
                     }
                     let done = format!("::section_done::{}", title);
+                    dbg(&format!("section_done: '{}'", title));
                     write_log(&mut log_file, &done);
                     send(&tx, done);
                     write_log(&mut log_file, "");
@@ -133,6 +155,10 @@ impl AppState {
         self.install_log_rx = Some(rx);
 
         let debug_enabled = self.debug_enabled;
+        self.debug_log(&format!(
+            "install thread: spawning (sections={})",
+            self.install_section_titles.len()
+        ));
         thread::spawn(move || {
             let debug_tag = "install thread";
             let mut any_error: Option<String> = None;
@@ -156,15 +182,18 @@ impl AppState {
                 };
 
                 send(&tx, "Starting installation...".to_string());
+                dbg(
+                    "env: TERM=dumb NO_COLOR=1 PACMAN_COLOR=never SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 PAGER=cat LESS=FRX",
+                );
                 let thread_panicked = false;
                 'outer: for (title, cmds) in sections.into_iter() {
+                    dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
                     send(&tx, format!("::section_start::{}", title));
                     send(&tx, format!("=== {} ===", title));
                     for c in cmds {
-                        send(
-                            &tx,
-                            format!("$ {}", crate::common::utils::redact_command_for_logging(&c)),
-                        );
+                        let red = crate::common::utils::redact_command_for_logging(&c);
+                        send(&tx, format!("$ {}", red));
+                        dbg(&format!("spawn: '{}'", red));
                         let pipeline = format!("stdbuf -oL -eL {} 2>&1", c);
                         let mut child = match Command::new("bash")
                             .arg("-lc")
@@ -182,9 +211,9 @@ impl AppState {
                         {
                             Ok(ch) => ch,
                             Err(e) => {
-                                any_error = Some(format!("Failed to spawn: {} ({})", c, e));
+                                any_error = Some(format!("Failed to spawn: {} ({})", red, e));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("failed to spawn: {} ({})", c, e));
+                                dbg(&format!("failed to spawn: {} ({})", red, e));
                                 break 'outer;
                             }
                         };
@@ -205,31 +234,28 @@ impl AppState {
                                     }
                                 }
                             }
+                        } else {
+                            dbg("stdout piping unavailable (child.stdout None)");
                         }
                         match child.wait() {
                             Ok(st) if st.success() => {}
                             Ok(st) => {
-                                any_error = Some(format!(
-                                    "Command failed (exit {}): {}",
-                                    st.code().unwrap_or(-1),
-                                    c
-                                ));
+                                let code = st.code().unwrap_or(-1);
+                                any_error =
+                                    Some(format!("Command failed (exit {}): {}", code, red));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!(
-                                    "command failed (exit {}): {}",
-                                    st.code().unwrap_or(-1),
-                                    c
-                                ));
+                                dbg(&format!("command failed (exit {}): {}", code, red));
                                 break 'outer;
                             }
                             Err(e) => {
-                                any_error = Some(format!("Failed to wait: {} ({})", c, e));
+                                any_error = Some(format!("Failed to wait: {} ({})", red, e));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("failed to wait: {} ({})", c, e));
+                                dbg(&format!("failed to wait: {} ({})", red, e));
                                 break 'outer;
                             }
                         }
                     }
+                    dbg(&format!("section_done: '{}'", title));
                     send(&tx, format!("::section_done::{}", title));
                     send(&tx, String::new());
                 }
@@ -249,12 +275,21 @@ impl AppState {
         let target = match &self.disks_selected_device {
             Some(p) => p.clone(),
             None => {
+                self.debug_log("select_target_and_run_prechecks: no target selected");
                 self.open_info_popup("No target disk selected.".into());
                 return None;
             }
         };
+        self.debug_log(&format!(
+            "select_target_and_run_prechecks: target='{}'",
+            target
+        ));
 
         if self.disk_has_mounted_partitions(&target) {
+            self.debug_log(&format!(
+                "select_target_and_run_prechecks: mounted partitions detected on {}",
+                target
+            ));
             self.open_info_popup(format!(
                 "Device {} has mounted partitions. Unmount before proceeding.",
                 target
@@ -263,6 +298,9 @@ impl AppState {
         }
 
         if !self.disks_wipe && self.disk_freespace_low(&target) {
+            self.debug_log(
+                "select_target_and_run_prechecks: low free space and wipe disabled -> opening WipeConfirm",
+            );
             self.popup_kind = Some(PopupKind::WipeConfirm);
             self.popup_open = true;
             self.popup_items = vec!["Yes, wipe the device".into(), "No, cancel".into()];
@@ -320,8 +358,13 @@ impl AppState {
         }
 
         if issues.is_empty() {
+            self.debug_log("validate_install_requirements: ok (no issues)");
             None
         } else {
+            self.debug_log(&format!(
+                "validate_install_requirements: issues_found={}",
+                issues.len()
+            ));
             Some(format!(
                 "Please complete the following before installing:\n- {}",
                 issues.join("\n- ")
@@ -382,6 +425,17 @@ impl AppState {
         sections.push((
             "User setup".into(),
             crate::core::services::usersetup::UserSetupService::build_plan(self).commands,
+        ));
+        // Log assembled sections summary
+        let summary: String = sections
+            .iter()
+            .map(|(name, cmds)| format!("{}({})", name, cmds.len()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        self.debug_log(&format!(
+            "build_install_sections: count={} [{}]",
+            sections.len(),
+            summary
         ));
         sections
     }
@@ -480,7 +534,7 @@ impl AppState {
                 let mut line = String::from("Server = ");
                 line.push_str(url);
                 // Simple quote escape for rare cases
-                let safe = line.replace('\'', "'\\''");
+                let safe = line.replace('\'', "'\\\''");
                 if !first {
                     printf_cmd_host.push(' ');
                     printf_cmd_target.push(' ');

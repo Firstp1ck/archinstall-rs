@@ -10,6 +10,7 @@ mod text;
 pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
     match code {
         KeyCode::Esc | KeyCode::Char('q') => {
+            app.debug_log("popup: close (ESC/q)");
             app.close_popup();
             return false;
         }
@@ -19,9 +20,11 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
         // Text input editing for specific popups
         KeyCode::Backspace => {
             if text::handle_text_backspace(app) {
+                app.debug_log("popup: text backspace");
                 return false;
             }
             if text::handle_search_backspace(app) {
+                app.debug_log("popup: search backspace");
                 return false;
             }
         }
@@ -40,6 +43,7 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
                     return false;
                 }
             } else if text::handle_search_slash(app) {
+                app.debug_log("popup: enter search mode");
                 return false;
             }
         }
@@ -48,9 +52,14 @@ pub(crate) fn handle_popup_keys(app: &mut AppState, code: KeyCode) -> bool {
         }
         KeyCode::Char(c) => {
             if text::handle_text_char(app, c) {
+                // do not log text content
                 return false;
             }
             if text::handle_search_char(app, c) {
+                app.debug_log(&format!(
+                    "popup: search char (query_len={})",
+                    app.popup_search_query.len()
+                ));
                 return false;
             }
             match c {

@@ -70,6 +70,23 @@ impl UserSetupService {
             cmds.push(format!("systemctl --root=/mnt enable {}", lm));
         }
 
+        // Debug summary
+        let sudo_users: Vec<String> = state
+            .users
+            .iter()
+            .filter(|u| u.is_sudo)
+            .map(|u| u.username.clone())
+            .collect();
+        state.debug_log(&format!(
+            "usersetup: users={} sudo=[{}] login_manager={}",
+            state.users.len(),
+            sudo_users.join(", "),
+            state
+                .selected_login_manager
+                .clone()
+                .unwrap_or_else(|| "none".into())
+        ));
+
         UserSetupPlan::new(cmds)
     }
 }

@@ -292,8 +292,54 @@ impl AppState {
 
     pub fn save_config(&self) {
         let cfg = self.build_config();
+        let path = Self::config_path();
+        // Summary without secrets
+        let regions_count = self.mirrors_regions_selected.len();
+        let repos_count = self.optional_repos_selected.len();
+        let custom_servers = self.mirrors_custom_servers.len();
+        let custom_repos = self.custom_repos.len();
+        let users_count = self.users.len();
+        let sudo_count = self.users.iter().filter(|u| u.is_sudo).count();
+        let addpkgs_count = self.additional_packages.len();
+        let experience_mode = match self.experience_mode_index {
+            0 => "Desktop",
+            1 => "Minimal",
+            2 => "Server",
+            3 => "Xorg",
+            _ => "Desktop",
+        };
+        let bootloader_kind = match self.bootloader_index {
+            0 => "systemd-boot",
+            1 => "grub",
+            2 => "efistub",
+            _ => "limine",
+        };
+        let has_root_hash = self.root_password_hash.is_some()
+            || (!self.root_password.is_empty()
+                && !self.root_password_confirm.is_empty()
+                && self.root_password == self.root_password_confirm);
+        let has_diskenc_hash =
+            self.disk_encryption_type_index == 1 && !self.disk_encryption_password.is_empty();
+        self.debug_log(&format!(
+            "save_config: path={} regions={} repos={} custom_servers={} custom_repos={} users={} (sudo={}) addpkgs={} experience={} bootloader={} hashes: root={} diskenc={}",
+            path.display(),
+            regions_count,
+            repos_count,
+            custom_servers,
+            custom_repos,
+            users_count,
+            sudo_count,
+            addpkgs_count,
+            experience_mode,
+            bootloader_kind,
+            has_root_hash,
+            has_diskenc_hash
+        ));
         if let Ok(toml) = toml::to_string_pretty(&cfg) {
-            let _ = fs::write(Self::config_path(), toml);
+            let _ = fs::write(&path, toml);
+            self.debug_log(&format!("save_config: wrote config to {}", path.display()));
+        } else {
+            self.debug_log("save_config: failed to serialize config to TOML");
         }
     }
 
@@ -303,8 +349,16 @@ impl AppState {
         let _ = self.load_mirrors_options();
 
         let path = Self::config_path();
-        let text = std::fs::read_to_string(path).map_err(|_| ConfigLoadError::ReadFile)?;
-        let cfg: AppConfig = toml::from_str(&text).map_err(|_| ConfigLoadError::ParseToml)?;
+        self.debug_log(&format!("load_config: path={}", path.display()));
+        let text = std::fs::read_to_string(&path).map_err(|e| {
+            self.debug_log(&format!("load_config: read error: {}", e));
+            ConfigLoadError::ReadFile
+        })?;
+        let cfg: AppConfig = toml::from_str(&text).map_err(|e| {
+            self.debug_log(&format!("load_config: parse error: {}", e));
+            ConfigLoadError::ParseToml
+        })?;
+        self.debug_log("load_config: parse ok");
         self.last_load_missing_sections.clear();
 
         // Locales
@@ -498,117 +552,102 @@ impl AppState {
             self.last_load_missing_sections
                 .push("Bootloader: kind".into());
         }
-        self.bootloader_index = match cfg.bootloader.kind.as_str() {
+        let bootloader_kind = cfg.bootloader.kind.clone();
+        self.bootloader_index = match bootloader_kind.as_str() {
+            "systemd-boot" => 0,
             "grub" => 1,
             "efistub" => 2,
-            "limine" => 3,
-            _ => 0, // systemd-boot default
+            _ => 3,
         };
-        // System (hostname and root password hash)
-        self.hostname_value = cfg.system.hostname;
-        if self.hostname_value.is_empty() {
+
+        // System
+        if cfg.system.hostname.is_empty() {
             self.last_load_missing_sections
                 .push("System: hostname".into());
         }
-        // Preserve hash for use during install (no plaintext in memory)
-        self.root_password_hash = cfg.system.root_password_hash;
+        self.hostname_value = cfg.system.hostname;
+        self.root_password_hash = cfg.system.root_password_hash; // keep as hash only
         if self.root_password_hash.is_none() {
             self.last_load_missing_sections
                 .push("System: root_password_hash".into());
         }
         self.ats_enabled = cfg.system.automatic_time_sync;
-        self.timezone_value = cfg.system.timezone;
-        if self.timezone_value.is_empty() {
+        if cfg.system.timezone.is_empty() {
             self.last_load_missing_sections
                 .push("System: timezone".into());
         }
+        self.timezone_value = cfg.system.timezone;
 
         // Unified Kernel Images
         self.uki_enabled = cfg.unified_kernel_images.enabled;
 
         // Kernels
-        self.selected_kernels.clear();
-        if cfg.kernels.selected.is_empty() {
+        self.selected_kernels = cfg.kernels.selected.into_iter().collect();
+        if self.selected_kernels.is_empty() {
             self.last_load_missing_sections
                 .push("Kernels: selected".into());
         }
-        for name in cfg.kernels.selected {
-            match name.as_str() {
-                "linux" | "linux-hardened" | "linux-lts" | "linux-zen" => {
-                    self.selected_kernels.insert(name);
-                }
-                _ => {}
-            }
-        }
 
         // Audio
-        if cfg.audio.kind.is_empty() {
-            self.last_load_missing_sections.push("Audio: kind".into());
-        }
-        self.audio_index = match cfg.audio.kind.to_lowercase().as_str() {
-            "none" | "no audio server" => 0,
+        self.audio_index = match cfg.audio.kind.as_str() {
             "pipewire" => 1,
             "pulseaudio" => 2,
             _ => 0,
         };
 
-        // Experience Mode and selections
-        self.experience_mode_index = match cfg.experience.mode.as_str() {
-            "Minimal" => 1,
-            "Server" => 2,
-            "Xorg" => 3,
-            _ => 0, // Desktop
-        };
+        // Experience
         self.selected_desktop_envs = cfg.experience.desktop_envs.into_iter().collect();
         self.selected_server_types = cfg.experience.server_types.into_iter().collect();
         self.selected_xorg_types = cfg.experience.xorg_types.into_iter().collect();
-        let vec_map_to_set = |m: BTreeMap<String, Vec<String>>| -> std::collections::BTreeMap<
-            String,
-            std::collections::BTreeSet<String>,
-        > {
-            let mut out: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
-                std::collections::BTreeMap::new();
-            for (k, v) in m.into_iter() {
-                let mut set = std::collections::BTreeSet::new();
-                for item in v.into_iter() {
-                    set.insert(item);
-                }
-                out.insert(k, set);
-            }
-            out
-        };
-        self.selected_env_packages = vec_map_to_set(cfg.experience.desktop_env_packages);
-        self.selected_server_packages = vec_map_to_set(cfg.experience.server_packages);
-        self.selected_xorg_packages = vec_map_to_set(cfg.experience.xorg_packages);
+        self.selected_env_packages = cfg
+            .experience
+            .desktop_env_packages
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect();
+        self.selected_server_packages = cfg
+            .experience
+            .server_packages
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect();
+        self.selected_xorg_packages = cfg
+            .experience
+            .xorg_packages
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect();
         self.selected_login_manager = cfg.experience.login_manager;
         self.login_manager_user_set = cfg.experience.login_manager_user_set;
         self.selected_graphic_drivers = cfg.experience.graphic_drivers.into_iter().collect();
+
+        // Users
+        self.users = cfg
+            .users
+            .into_iter()
+            .map(|u| UserAccount {
+                username: u.username,
+                password: String::new(), // do not load plaintext
+                password_hash: if u.password_hash.is_empty() {
+                    None
+                } else {
+                    Some(u.password_hash)
+                },
+                is_sudo: u.is_sudo,
+            })
+            .collect();
+        if self.users.is_empty() {
+            self.last_load_missing_sections.push("Users: list".into());
+        }
+
         // Network
         self.network_mode_index = match cfg.network.mode.as_str() {
             "CopyISO" => 0,
             "Manual" => 1,
             _ => 2,
         };
-        // Users (keep only hash; plaintext is not loaded)
-        self.users = cfg
-            .users
-            .into_iter()
-            .map(|c| UserAccount {
-                username: c.username,
-                password: String::new(),
-                password_hash: if c.password_hash.is_empty() {
-                    None
-                } else {
-                    Some(c.password_hash)
-                },
-                is_sudo: c.is_sudo,
-            })
-            .collect();
-        if self.users.is_empty() {
-            self.last_load_missing_sections
-                .push("UserAccount: users".into());
-        }
-        // Additional Packages
+
+        // Additional packages
         self.additional_packages = cfg
             .additional_packages
             .into_iter()
@@ -619,10 +658,25 @@ impl AppState {
                 description: p.description,
             })
             .collect();
-        if self.additional_packages.is_empty() {
-            self.last_load_missing_sections
-                .push("AdditionalPackages: additional_packages".into());
+
+        // Final summary
+        self.debug_log(&format!(
+            "load_config: summary regions={} repos={} custom_servers={} custom_repos={} users={} addpkgs={} missing_sections={}",
+            self.mirrors_regions_selected.len(),
+            self.optional_repos_selected.len(),
+            self.mirrors_custom_servers.len(),
+            self.custom_repos.len(),
+            self.users.len(),
+            self.additional_packages.len(),
+            self.last_load_missing_sections.len()
+        ));
+        if !self.last_load_missing_sections.is_empty() {
+            self.debug_log(&format!(
+                "load_config: missing sections -> [{}]",
+                self.last_load_missing_sections.join(", ")
+            ));
         }
+
         Ok(())
     }
 }

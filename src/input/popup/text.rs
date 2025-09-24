@@ -29,6 +29,10 @@ pub(crate) fn handle_text_backspace(app: &mut AppState) -> bool {
             return false;
         }
         app.custom_input_buffer.pop();
+        app.debug_log(&format!(
+            "popup:text backspace (len={})",
+            app.custom_input_buffer.len()
+        ));
         return true;
     }
     false
@@ -64,10 +68,18 @@ pub(crate) fn handle_text_char(app: &mut AppState, c: char) -> bool {
             // Size field: digits only, swallow other chars (including j/k)
             if c.is_ascii_digit() {
                 app.custom_input_buffer.push(c);
+                app.debug_log(&format!(
+                    "popup:text char digit (len={})",
+                    app.custom_input_buffer.len()
+                ));
             }
             return true;
         } else {
             app.custom_input_buffer.push(c);
+            app.debug_log(&format!(
+                "popup:text char (len={})",
+                app.custom_input_buffer.len()
+            ));
             return true;
         }
     }
@@ -76,6 +88,7 @@ pub(crate) fn handle_text_char(app: &mut AppState, c: char) -> bool {
 
 pub(crate) fn handle_search_slash(app: &mut AppState) -> bool {
     app.popup_in_search = true;
+    app.debug_log("popup: search enter");
     true
 }
 
@@ -83,6 +96,10 @@ pub(crate) fn handle_search_backspace(app: &mut AppState) -> bool {
     if app.popup_in_search {
         app.popup_search_query.pop();
         app.filter_popup();
+        app.debug_log(&format!(
+            "popup: search backspace (len={})",
+            app.popup_search_query.len()
+        ));
         return true;
     }
     false
@@ -92,6 +109,10 @@ pub(crate) fn handle_search_char(app: &mut AppState, c: char) -> bool {
     if app.popup_in_search {
         app.popup_search_query.push(c);
         app.filter_popup();
+        app.debug_log(&format!(
+            "popup: search char (len={})",
+            app.popup_search_query.len()
+        ));
         return true;
     }
     false

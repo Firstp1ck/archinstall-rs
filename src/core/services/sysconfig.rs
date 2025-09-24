@@ -157,6 +157,22 @@ impl SysConfigService {
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
+        // Debug summary (log only, do not add to command list)
+        state.debug_log(&format!(
+            "sysconfig: hostname={} timezone={} ats={} kernels={} addpkgs={} sudoers_edits={} aur_selected={} aur_helper={}",
+            hostname,
+            timezone,
+            state.ats_enabled,
+            state.selected_kernels.len(),
+            state.additional_packages.len(),
+            if state.aur_selected { 1 } else { 0 },
+            state.aur_selected,
+            state
+                .aur_helper_index
+                .map(|i| if i == 1 { "paru" } else { "yay" })
+                .unwrap_or("none")
+        ));
+
         SysConfigPlan::new(cmds)
     }
 }

@@ -34,6 +34,18 @@ impl MountingService {
         if state.swap_enabled {
             cmds.push(format!("swapon {}2", device));
         }
+        // Debug summary
+        state.debug_log(&format!(
+            "mounting: root={} uefi={} esp=/mnt/boot swap={} luks={}",
+            if luks {
+                "/dev/mapper/cryptroot"
+            } else {
+                &format!("{}3", device)
+            },
+            state.is_uefi(),
+            state.swap_enabled,
+            luks
+        ));
         MountPlan::new(cmds)
     }
 }

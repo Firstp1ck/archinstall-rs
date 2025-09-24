@@ -97,6 +97,14 @@ impl SystemService {
             }
         }
 
+        // Debug summary
+        state.debug_log(&format!(
+            "system: pre-install multilib={} testing={} custom_repos={}",
+            enable_multilib,
+            enable_testing,
+            state.custom_repos.len()
+        ));
+
         SystemPlan::new(cmds)
     }
 
@@ -233,6 +241,7 @@ impl SystemService {
 
         // Convert to vec for validation
         let packages: Vec<String> = package_set.into_iter().collect();
+        let packages_len = packages.len();
 
         if state.dry_run {
             // Validate packages in dry-run to show accurate preview and missing ones
@@ -276,6 +285,22 @@ impl SystemService {
                 ));
             }
         }
+
+        // Debug summary
+        state.debug_log(&format!(
+            "system: pacstrap packages={} missing={} uefi={} bootloader_index={} nm={} audio={} desktops={} servers={} xorg={} drivers={} addpkgs={}",
+            packages_len,
+            missing.len(),
+            state.is_uefi(),
+            state.bootloader_index,
+            state.network_mode_index == 2,
+            state.audio_index,
+            state.selected_desktop_envs.len(),
+            state.selected_server_types.len(),
+            state.selected_xorg_types.len(),
+            state.selected_graphic_drivers.len(),
+            state.additional_packages.len()
+        ));
 
         SystemPlan::new(cmds)
     }

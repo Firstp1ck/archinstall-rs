@@ -684,6 +684,10 @@ impl AppState {
         if let Some(rest) = line.strip_prefix("::section_start::") {
             if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
                 self.install_current_section = Some(idx);
+                self.debug_log(&format!(
+                    "append_install_log_line: section_start '{}' idx={}",
+                    rest, idx
+                ));
             }
             return;
         }
@@ -692,6 +696,10 @@ impl AppState {
                 && idx < self.install_section_done.len()
             {
                 self.install_section_done[idx] = true;
+                self.debug_log(&format!(
+                    "append_install_log_line: section_done '{}' idx={}",
+                    rest, idx
+                ));
             }
             return;
         }
@@ -708,6 +716,7 @@ impl AppState {
             } else {
                 self.popup_items[0] = body;
             }
+            // Do not spam per-line here; drain_install_logs will log summary of updates
         }
     }
 
@@ -731,11 +740,23 @@ impl AppState {
                 }
             }
         }
+        let drained_count = drained.len();
         for line in drained {
             self.append_install_log_line(line);
         }
         // Update last_install_log_len for visual indicator
         self.last_install_log_len = Some(self.install_log.len());
+        // Summarize this drain cycle
+        if drained_count > 0 {
+            self.debug_log(&format!(
+                "drain_install_logs: drained {} line(s) this cycle (total_log_len={})",
+                drained_count,
+                self.install_log.len()
+            ));
+            if self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info)) {
+                self.debug_log("drain_install_logs: info popup body updated");
+            }
+        }
         if disconnected {
             self.install_running = false;
             self.install_log_rx = None;
@@ -749,7 +770,7 @@ impl AppState {
         }
     }
 
-    fn debug_log(&self, msg: &str) {
+    pub(crate) fn debug_log(&self, msg: &str) {
         if !self.debug_enabled {
             return;
         }
@@ -763,6 +784,67 @@ impl AppState {
                 use std::io::Write;
                 writeln!(f, "[DEBUG {}] {}", ts, msg)
             });
+    }
+
+    // Helper mutators with debug logging
+    pub fn set_selected_index(&mut self, idx: usize) {
+        if self.selected_index != idx {
+            self.debug_log(&format!(
+                "state: selected_index {} -> {} (screen={:?})",
+                self.selected_index, idx, self.menu_entries[idx].screen
+            ));
+            self.selected_index = idx;
+            self.list_state.select(Some(idx));
+        }
+    }
+
+    pub fn set_focus(&mut self, new_focus: Focus) {
+        if self.focus != new_focus {
+            self.debug_log(&format!("state: focus {:?} -> {:?}", self.focus, new_focus));
+            self.focus = new_focus;
+        }
+    }
+
+    pub fn set_popup_open(&mut self, open: bool) {
+        if self.popup_open != open {
+            self.debug_log(&format!(
+                "state: popup_open {} -> {}",
+                self.popup_open, open
+            ));
+            self.popup_open = open;
+        }
+    }
+
+    pub fn set_popup_kind(&mut self, kind: Option<PopupKind>) {
+        if self.popup_kind != kind {
+            self.debug_log(&format!(
+                "state: popup_kind {:?} -> {:?}",
+                self.popup_kind, kind
+            ));
+            self.popup_kind = kind;
+        }
+    }
+
+    pub fn set_popup_in_search(&mut self, in_search: bool) {
+        if self.popup_in_search != in_search {
+            self.debug_log(&format!(
+                "state: popup_in_search {} -> {}",
+                self.popup_in_search, in_search
+            ));
+            self.popup_in_search = in_search;
+        }
+    }
+
+    pub fn reset_install_progress(&mut self, titles: Vec<String>) {
+        self.install_section_titles = titles.clone();
+        self.install_section_done = vec![false; titles.len()];
+        self.install_current_section = None;
+        let summary = titles.join(", ");
+        self.debug_log(&format!(
+            "state: install_* initialized count={} [{}]",
+            titles.len(),
+            summary
+        ));
     }
 
     // Open the AUR helper selection popup
