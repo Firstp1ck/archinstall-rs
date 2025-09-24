@@ -1,5 +1,5 @@
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Rect, Layout, Direction, Constraint};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
@@ -31,20 +31,23 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box shown above Info for Locales
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Locales are used by glibc and other locale-aware programs or libraries for rendering text, correctly displaying regional monetary values, time and date formats, alphabetic idiosyncrasies, and other locale-specific standards."));
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(45),
-                Constraint::Percentage(55),
-            ])
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -120,20 +123,23 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box shown above Info for Mirrors & Repositories (analog to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("An Arch Linux mirror is a server that copies official repositories, letting users download packages and updates efficiently. Repositories are organized collections of software for installation. Custom mirrors store user-managed package copies, often for local or organizational use, while custom repositories let users or groups provide their own curated package sets."));
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(45),
-                Constraint::Percentage(55),
-            ])
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -144,11 +150,23 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         return;
     } else if app.current_screen() == Screen::DiskEncryption {
         // Build Info summary
-        let enc_type = if app.disk_encryption_type_index == 1 { "LUKS" } else { "None" };
+        let enc_type = if app.disk_encryption_type_index == 1 {
+            "LUKS"
+        } else {
+            "None"
+        };
         info_lines.push(Line::from(format!("Type: {}", enc_type)));
         if app.disk_encryption_type_index == 1 {
-            let pwd_set = if app.disk_encryption_password.is_empty() { "(not set)" } else { "(set)" };
-            let pwd_conf = if app.disk_encryption_password_confirm.is_empty() { "(not set)" } else { "(set)" };
+            let pwd_set = if app.disk_encryption_password.is_empty() {
+                "(not set)"
+            } else {
+                "(set)"
+            };
+            let pwd_conf = if app.disk_encryption_password_confirm.is_empty() {
+                "(not set)"
+            } else {
+                "(set)"
+            };
             info_lines.push(Line::from(format!("Password: {}", pwd_set)));
             info_lines.push(Line::from(format!("Confirm: {}", pwd_conf)));
             let part = app
@@ -161,7 +179,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Disk encryption protects data by converting the contents of a drive into unreadable code, accessible only with a key or password. This ensures sensitive information remains secure even if the device is lost or stolen, safeguarding system and user data against unauthorized access."));
 
@@ -171,7 +191,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -190,7 +214,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box (shown above Info/Partitions)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Disk partitioning divides a storage device into independent sections for system management. The root partition (/) holds essential OS files, home (/home) stores user data, boot (/boot) contains files needed to start the system, and swap ([SWAP]) provides virtual memory to supplement RAM, aiding stability and hibernation."));
 
@@ -202,7 +228,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .split(area);
 
             let description = Paragraph::new(desc_lines)
-                .block(Block::default().borders(Borders::ALL).title(" Description "))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" Description "),
+                )
                 .wrap(Wrap { trim: true });
             frame.render_widget(description, vchunks[0]);
 
@@ -249,7 +279,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                     p.flags.join(",")
                 };
                 let mp = p.mountpoint.clone().unwrap_or_default();
-                let enc = if p.encrypt.unwrap_or(false) { " enc" } else { "" };
+                let enc = if p.encrypt.unwrap_or(false) {
+                    " enc"
+                } else {
+                    ""
+                };
                 let mut line = String::new();
                 if !role.is_empty() {
                     line.push_str(&format!("({}) ", role));
@@ -305,7 +339,8 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                             }
                             let name = ch.get("name").and_then(|v| v.as_str()).unwrap_or("");
                             let size_b = ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
-                            let start_sectors = ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
+                            let start_sectors =
+                                ch.get("start").and_then(|v| v.as_u64()).unwrap_or(0);
                             let start_b = start_sectors.saturating_mul(sector_size);
                             let end_b = start_b.saturating_add(size_b);
                             let fs = ch.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
@@ -364,14 +399,22 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
             } else {
                 info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
                 if app.swap_enabled {
                     info_lines.push(Line::from("- swap: 4GiB"));
                 }
-                let enc = if app.disk_encryption_type_index == 1 { " (LUKS)" } else { "" };
+                let enc = if app.disk_encryption_type_index == 1 {
+                    " (LUKS)"
+                } else {
+                    ""
+                };
                 info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
                 if bl != "GRUB" && bl != "Limine" {
                     info_lines.push(Line::from("Warning: Selected bootloader requires UEFI; choose GRUB or Limine for BIOS."));
@@ -385,7 +428,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .split(area);
 
             let description = Paragraph::new(desc_lines)
-                .block(Block::default().borders(Borders::ALL).title(" Description "))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" Description "),
+                )
                 .wrap(Wrap { trim: true });
             frame.render_widget(description, chunks[0]);
 
@@ -402,7 +449,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .split(area);
 
             let description = Paragraph::new(desc_lines)
-                .block(Block::default().borders(Borders::ALL).title(" Description "))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(" Description "),
+                )
                 .wrap(Wrap { trim: true });
             frame.render_widget(description, chunks[0]);
 
@@ -432,7 +483,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("A swap partition in Linux acts as an extension of physical memory (RAM), using disk space to store inactive memory pages when RAM is full. It helps prevent system crashes under heavy load, enables hibernation by saving the RAM state to disk, and allows the operating system to run more applications than would otherwise fit in physical memory."));
 
@@ -442,7 +495,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -463,7 +520,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("A bootloader is a program that starts at system boot, loading the Operating System kernel and initializing hardware. Systemd-boot is simple, UEFI-only, and uses separate text files for each boot entry, making it easy to maintain, but offers minimal features and customization. GRUB2 is more complex, working on both BIOS and UEFI, supporting advanced features, graphical menus, multi-OS setups, and custom scripts, making it ideal for diverse or complex boot needs."));
 
@@ -473,7 +532,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -492,7 +555,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("A hostname is a unique, human-readable label assigned to a computer on a network, making it easier to identify and connect to devices. Unlike usernames, which specify individuals accessing the system, or root, the administrative account, a hostname names the machine itself for use in local networks or as part of internet addresses, helping organize and distinguish devices within larger environments."));
 
@@ -502,7 +567,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -513,15 +582,25 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         return;
     } else if app.current_screen() == Screen::RootPassword {
         // Build Info summary
-        let pwd_set = if app.root_password.is_empty() { "(not set)" } else { "(set)" };
-        let conf_set = if app.root_password_confirm.is_empty() { "(not set)" } else { "(set)" };
+        let pwd_set = if app.root_password.is_empty() {
+            "(not set)"
+        } else {
+            "(set)"
+        };
+        let conf_set = if app.root_password_confirm.is_empty() {
+            "(not set)"
+        } else {
+            "(set)"
+        };
         info_lines.push(Line::from(format!("Password: {}", pwd_set)));
         info_lines.push(Line::from(format!("Confirm: {}", conf_set)));
 
         // Description box above Info (analogous to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("The root password is the secret phrase set for the root (superuser) account on Unix or Linux systems. It grants full administrative control, allowing changes to system files, configurations, and user management. Protecting the root password is crucial because anyone with it has unrestricted access and can impact system security and stability."));
 
@@ -531,7 +610,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -550,7 +633,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Timezone determines the local time setting for your Arch Linux system, ensuring logs, scheduled tasks, and timestamps match your region. Setting the correct timezone keeps your system aligned with your geographic location, helping maintain accuracy for daily operations and network interactions."));
 
@@ -560,7 +645,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -580,7 +669,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("A Unified Kernel Image (UKI) is a single UEFI-compatible file containing the Linux kernel, initramfs, boot stub, and extra resources bundled together. It can be booted directly by UEFI firmware or by a bootloader, simplifies configuration and signing for Secure Boot, and ensures all essential boot components are packaged, enabling secure and streamlined Linux startup."));
 
@@ -590,7 +681,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -608,7 +703,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Automatic Time Sync (NTP) keeps your system clock accurate by synchronizing it with internet time servers. This process ensures logs, scheduled tasks, and time-sensitive functions stay reliable and consistent, helping prevent errors caused by time drift on Arch Linux systems."));
 
@@ -618,7 +715,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -639,7 +740,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Kernels are the core component of Arch Linux, responsible for managing hardware, system resources, and communication between software and hardware. Arch Linux provides several kernel options, including the latest stable, LTS (Long Term Support), and specialized kernels like zen or hardened, each offering different features and performance characteristics. Users can easily install, switch, or maintain multiple kernels via the package manager. Recommended are at least two Kernels to install."));
 
@@ -649,7 +752,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -685,20 +792,23 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Additional packages let users customize their system by selecting individual software or groups during installation. You can add specific packages, like terminals or text editors, or choose from predefined groups for easier setup. This allows tailoring the installation with preferred tools and utilities beyond the default selection, supporting various use cases and workflows."));
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(45),
-                Constraint::Percentage(55),
-            ])
+            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -713,7 +823,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Audio lets you choose between PipeWire, a modern multimedia framework with support for audio, video, and low latency, or PulseAudio, a traditional sound server for managing audio streams and devices. You can also opt for no audio server for minimal systems. PipeWire aims to eventually replace PulseAudio with broader features and compatibility."));
 
@@ -723,7 +835,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -761,7 +877,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Network configuration in Arch Linux sets up wired or wireless connections, assigns IP addresses (dynamic by DHCP or manually), and manages DNS. Tools like systemd-networkd, NetworkManager, or iproute2 can be used, but only one network manager should be active at a time to avoid conflicts."));
 
@@ -771,7 +889,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -797,7 +919,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to Locales)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("A user account in Arch Linux is an identity used to log in and interact with the system, providing access to files, directories, and system resources based on permissions. Each user has a unique username, a home directory, and configurable group memberships for access control. User information is stored in /etc/passwd, while passwords are managed securely in /etc/shadow."));
 
@@ -807,7 +931,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -1163,7 +1291,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info for Experience Mode (analogous to others)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Experience Mode allows selecting a predefined system role during installation, such as Desktop, Minimal, Server, or Xorg. Each mode determines which desktop environments, window managers, drivers, and login managers are installed, tailoring the system for general use, lightweight setups, server purposes, or just graphical infrastructure."));
 
@@ -1173,7 +1303,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
@@ -1199,7 +1333,9 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
         // Description box above Info (analogous to other sections)
         let mut desc_lines = vec![Line::from(Span::styled(
             "Description",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         ))];
         desc_lines.push(Line::from("Configuration lets you save or load your installation setup for Arch Linux, making it easy to reuse or share selections across multiple installs. When you load a configuration, sensitive data like passwords and certain custom settings need to be re-entered, ensuring security while streamlining system setup and consistency."));
 
@@ -1209,7 +1345,11 @@ pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .split(area);
 
         let description = Paragraph::new(desc_lines)
-            .block(Block::default().borders(Borders::ALL).title(" Description "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Description "),
+            )
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
