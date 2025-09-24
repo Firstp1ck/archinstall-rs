@@ -165,7 +165,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         content::draw_content(frame, app, content_rect);
     }
 
-    // Then overlay the reboot prompt if open (without clearing the background)
+    // Then overlay the reboot prompt if open (clear the area first so underlying text doesn't bleed through)
     if app.reboot_prompt_open {
         use ratatui::style::{Color, Modifier, Style};
         use ratatui::text::{Line, Span};
@@ -176,6 +176,8 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             width: size.width / 2,
             height: 7,
         };
+        // Clear popup area to avoid background artifacts
+        frame.render_widget(ratatui::widgets::Clear, area);
         let block = Block::default()
             .borders(Borders::ALL)
             .title(" Reboot now? ");
