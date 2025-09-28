@@ -164,3 +164,43 @@ nvim .config/hypr/hyprland.conf
 1. Reboot the system
 2. Log in with your user account
 3. Start configuring your desktop environment
+
+## Limine Bootloade Setup
+
+```bash
+# Install Limine Bootloader
+pacman -S limine
+
+mkdir -p /boot/EFI/limine
+cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/
+
+efibootmgr \
+    --create \
+    --disk /dev/vda \
+    --part 1 \
+    --label "Arch Linux Limine Bootloader" \
+    --loader '\EFI\limine\BOOTX64.EFI' \
+    --unicode
+
+nvim /boot/EFI/limine/limine.conf
+    timeout: 5
+
+    /Arch Linux
+        protocol: linux
+        path: boot():/vmlinuz-linux
+        cmdline: root=UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx rw # Check UUID with 'blkid | grep vda3 >> UUID.txt'
+        module_path: boot():/initramfs-linux.img
+
+mkdir -p /etc/pacman.d/hooks
+
+nvim /etc/pacman.d/hooks/99-limine.hook
+    [Trigger]
+    Operation = Install
+    Operation = Upgrade
+    Type = Package
+    Target = limine              
+
+    [Action]
+    Description = Deploying Limine after upgrade...
+    When = PostTransaction
+    Exec = /usr/bin/cp /usr/share/limine/BOOTX64.EFI boot/EFI/limine/

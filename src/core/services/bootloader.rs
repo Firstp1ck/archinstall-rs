@@ -101,7 +101,7 @@ impl BootloaderService {
                 }
                 // Compute cmdline inside chroot and write the config with variable expansion
                 let write_conf_cmd = format!(
-                    "install -d -m0755 /boot/limine; \
+                    "install -d -m0755 /boot/EFI/limine /boot/limine; \
 root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
 root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
 partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
@@ -117,7 +117,7 @@ else \
   elif [ -n \"$root_src\" ]; then cmdline=\"root=$root_src rw\"; \
   else cmdline=\"root=/dev/root rw\"; fi; \
 fi; \
-cat > /boot/limine/limine.conf <<EOF\ntimeout 4\n{entries}\nEOF",
+cat > /boot/EFI/limine/limine.conf <<EOF\ntimeout: 5\n{entries}\nEOF",
                     entries = entries_tpl,
                 );
                 cmds.push(chroot_cmd(&write_conf_cmd));
@@ -129,7 +129,7 @@ cat > /boot/limine/limine.conf <<EOF\ntimeout 4\n{entries}\nEOF",
                     cmds.push(chroot_cmd("if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi"));
                     // Fallback BOOT path
                     cmds.push(chroot_cmd("cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true"));
-                    cmds.push(chroot_cmd("cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true"));
+                    cmds.push(chroot_cmd("cp /boot/EFI/limine/limine.conf /boot/EFI/BOOT/limine.conf || true"));
                     // Try to add NVRAM entry
                     cmds.push(chroot_cmd(
                         "dev=$(findmnt -n -o SOURCE /boot) || true; \
@@ -143,6 +143,11 @@ if [ -n \"$dev\" ]; then \
     fi; \
   fi; \
 fi"
+                    ));
+                    // Pacman hook to redeploy BOOTX64.EFI after limine upgrades
+                    cmds.push(chroot_cmd("install -d -m0755 /etc/pacman.d/hooks"));
+                    cmds.push(chroot_cmd(
+                        "cat > /etc/pacman.d/hooks/99-limine.hook <<EOF\n[Trigger]\nOperation = Install\nOperation = Upgrade\nType = Package\nTarget = limine\n\n[Action]\nDescription = Deploying Limine after upgrade...\nWhen = PostTransaction\nExec = /usr/bin/cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/\nEOF"
                     ));
                 } else {
                     // BIOS
