@@ -100,26 +100,47 @@ impl BootloaderService {
                     ));
                 }
                 // Compute cmdline inside chroot and write the config with variable expansion
-                let write_conf_cmd = format!(
-                    "install -d -m0755 /boot/EFI/limine /boot/limine; \
-root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
-root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
-partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
-if [ -e /dev/mapper/cryptroot ]; then \
-  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
-  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
-  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
-  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
-  [ -n \"$luks_uuid\" ] && cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; \
-else \
-  if [ -n \"$partuuid\" ]; then cmdline=\"root=PARTUUID=$partuuid rw\"; \
-  elif [ -n \"$root_uuid\" ]; then cmdline=\"root=UUID=$root_uuid rw\"; \
-  elif [ -n \"$root_src\" ]; then cmdline=\"root=$root_src rw\"; \
-  else cmdline=\"root=/dev/root rw\"; fi; \
+                let script_tpl = r#"install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine; \
+root_spec=$(awk '($1 !~ /^#/ && $2=="/"){print $1; exit}' /etc/fstab 2>/dev/null || true); \
+root_opts=$(awk '($1 !~ /^#/ && $2=="/"){print $4; exit}' /etc/fstab 2>/dev/null || true); \
+cmdline=""; \
+if [ -n "$root_spec" ]; then \
+  case "$root_spec" in \
+    UUID=*|PARTUUID=*|LABEL=*|/dev/*) cmdline="root=$root_spec rw" ;; \
+    *) cmdline="root=$root_spec rw" ;; \
+  esac; \
 fi; \
-cat > /boot/EFI/limine/limine.conf <<EOF\ntimeout: 5\n{entries}\nEOF",
-                    entries = entries_tpl,
-                );
+if [ -z "$cmdline" ]; then \
+  root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+  root_uuid=$([ -n "$root_src" ] && blkid -s UUID -o value "$root_src" 2>/dev/null || true); \
+  partuuid=$([ -n "$root_src" ] && blkid -s PARTUUID -o value "$root_src" 2>/dev/null || true); \
+  if [ -e /dev/mapper/cryptroot ]; then \
+    luks_dev=$(lsblk -no pkname "$root_src" 2>/dev/null | head -n1); \
+    case "$luks_dev" in /*) ;; *) [ -n "$luks_dev" ] && luks_dev=/dev/"$luks_dev" ;; esac; \
+    luks_uuid=""; [ -n "$luks_dev" ] && luks_uuid=$(blkid -s UUID -o value "$luks_dev" 2>/dev/null || true); \
+    cmdline="root=/dev/mapper/cryptroot rw"; \
+    [ -n "$luks_uuid" ] && cmdline="cryptdevice=UUID=$luks_uuid:cryptroot $cmdline"; \
+  else \
+    if [ -n "$partuuid" ]; then cmdline="root=PARTUUID=$partuuid rw"; \
+    elif [ -n "$root_uuid" ]; then cmdline="root=UUID=$root_uuid rw"; \
+    elif [ -n "$root_src" ]; then cmdline="root=$root_src rw"; \
+    else cmdline="root=/dev/root rw"; fi; \
+  fi; \
+fi; \
+# Final safety: if still empty, try blkid on / and default to /dev/root \
+if [ -z "$cmdline" ]; then \
+  tmp=$(blkid -s UUID -o value $(findmnt -n -o SOURCE / 2>/dev/null) 2>/dev/null || true); \
+  if [ -n "$tmp" ]; then cmdline="root=UUID=$tmp rw"; else cmdline="root=/dev/root rw"; fi; \
+fi; \
+subvol=$(printf %s "$root_opts" | tr ',' '\n' | grep -E '^(subvol(=|id=).*)$' -m1 2>/dev/null || true); \
+if [ -n "$subvol" ]; then cmdline="$cmdline rootflags=$subvol"; fi; \
+cat > /boot/EFI/limine/limine.conf <<EOF\n# resolved cmdline: $cmdline\ntimeout: 5\n__ENTRIES__\nEOF\ncp /boot/EFI/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; \
+cp /boot/EFI/limine/limine.conf /boot/limine/limine.conf || true; \
+# Also provide limine.cfg for broader compatibility \
+cp /boot/EFI/limine/limine.conf /boot/EFI/limine/limine.cfg || true; \
+cp /boot/EFI/limine/limine.conf /boot/EFI/BOOT/limine.cfg || true; \
+cp /boot/EFI/limine/limine.conf /boot/limine/limine.cfg || true;"#;
+                let write_conf_cmd = script_tpl.replace("__ENTRIES__", &entries_tpl);
                 cmds.push(chroot_cmd(&write_conf_cmd));
                 // Install Limine binaries and copy config
                 if state.is_uefi() {
