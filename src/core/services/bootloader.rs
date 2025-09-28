@@ -98,11 +98,11 @@ impl BootloaderService {
 
                 // Build a verification snippet to confirm /boot is a mountpoint and kernel files exist
                 let mut verify_snippet: String = String::from(
-                    "if mountpoint -q /boot; then echo 'OK: /boot is a mountpoint (ESP)'; else echo 'WARN: /boot is not a mountpoint' >&2; fi; ",
+                    "if mountpoint -q /boot; then printf '%s\\n' 'OK: /boot is a mountpoint (ESP)'; else printf '%s\\n' 'WARN: /boot is not a mountpoint' >&2; fi; ",
                 );
                 for k in &kernels {
                     verify_snippet.push_str(&format!(
-                        "for f in \"/boot/vmlinuz-{k}\" \"/boot/initramfs-{k}.img\"; do if [ ! -f \"$f\" ]; then echo \"WARN: missing $f\" >&2; fi; done; "
+                        "for f in '/boot/vmlinuz-{k}' '/boot/initramfs-{k}.img'; do [ -f \"$f\" ] || printf '%s %s\\n' 'WARN: missing' \"$f\" >&2; done; "
                     ));
                 }
 
@@ -121,22 +121,30 @@ impl BootloaderService {
 
                     // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
-                        "rootdev=$(findmnt -n -o SOURCE / || true); \
+                        "root_src=$(lsblk -nr -o PATH,MOUNTPOINT | awk '$2==\"/\"{{print $1; exit}}'); \
+[ -z \"$root_src\" ] && root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
+partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
 if [ {enc} -eq 1 ]; then \
-  luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); \
-  if [ -n \"$luksdev\" ]; then \
-    luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); \
-    cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; \
-  else \
-    root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-    cmdline=\"root=UUID=$root_uuid rw\"; \
-  fi; \
+  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
+  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
+  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
+  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
+  if [ -n \"$luks_uuid\" ]; then cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; fi; \
 else \
-  root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-  cmdline=\"root=UUID=$root_uuid rw\"; \
+  if [ -n \"$partuuid\" ]; then \
+    cmdline=\"root=PARTUUID=$partuuid rw\"; \
+  elif [ -n \"$root_uuid\" ]; then \
+    cmdline=\"root=UUID=$root_uuid rw\"; \
+  elif [ -n \"$root_src\" ]; then \
+    cmdline=\"root=$root_src rw\"; \
+  else \
+    cmdline=\"root=/dev/root rw\"; \
+  fi; \
 fi; \
 : > /boot/limine/limine.conf; \
-{entries}",
+{entries} \
+echo \"limine: root_src='$root_src' root_uuid='$root_uuid' partuuid='$partuuid' cmdline='$cmdline'\"",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
@@ -169,22 +177,30 @@ cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
 
                     // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
-                        "rootdev=$(findmnt -n -o SOURCE / || true); \
+                        "root_src=$(lsblk -nr -o PATH,MOUNTPOINT | awk '$2==\"/\"{{print $1; exit}}'); \
+[ -z \"$root_src\" ] && root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
+partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
 if [ {enc} -eq 1 ]; then \
-  luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); \
-  if [ -n \"$luksdev\" ]; then \
-    luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); \
-    cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; \
-  else \
-    root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-    cmdline=\"root=UUID=$root_uuid rw\"; \
-  fi; \
+  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
+  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
+  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
+  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
+  if [ -n \"$luks_uuid\" ]; then cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; fi; \
 else \
-  root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-  cmdline=\"root=UUID=$root_uuid rw\"; \
+  if [ -n \"$partuuid\" ]; then \
+    cmdline=\"root=PARTUUID=$partuuid rw\"; \
+  elif [ -n \"$root_uuid\" ]; then \
+    cmdline=\"root=UUID=$root_uuid rw\"; \
+  elif [ -n \"$root_src\" ]; then \
+    cmdline=\"root=$root_src rw\"; \
+  else \
+    cmdline=\"root=/dev/root rw\"; \
+  fi; \
 fi; \
 : > /boot/limine/limine.conf; \
-{entries}",
+{entries} \
+echo \"limine: root_src='$root_src' root_uuid='$root_uuid' partuuid='$partuuid' cmdline='$cmdline'\"",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
