@@ -1,6 +1,4 @@
 use crate::core::state::AppState;
-use std::fs::{File, create_dir_all};
-use std::io::Write;
 use std::process::Command;
 
 #[derive(Clone, Debug)]
@@ -97,24 +95,13 @@ impl BootloaderService {
                         "/Arch Linux ({k})\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}.img\n\n/Arch Linux ({k}) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}-fallback.img\n\n"
                     ));
                 }
-                // Ensure directory exists and write limine.conf on target root
-                if let Err(e) = create_dir_all("/mnt/boot/limine") {
-                    state.debug_log(&format!("WARN: create_dir_all(/mnt/boot/limine) failed: {}", e));
-                }
-                let limine_conf_path = "/mnt/boot/limine/limine.conf";
-                match File::create(limine_conf_path).and_then(|mut f| f.write_all(limine_conf.as_bytes())) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        state.debug_log(&format!("WARN: writing {} failed on host: {} — falling back to chroot write", limine_conf_path, e));
-                        // Fallback: write inside chroot with a quoted heredoc (no expansion)
-                        let heredoc_cmd = format!(
-                            "install -d -m0755 /boot/limine; cat > /boot/limine/limine.conf <<'EOF'\n{}\nEOF",
-                            limine_conf
-                        );
-                        cmds.push(chroot_cmd(&heredoc_cmd));
-                    }
-                }
-                // Install Limine binaries as before
+                // Always write limine.conf inside chroot at execution time
+                let write_conf_cmd = format!(
+                    "install -d -m0755 /boot/limine; cat > /boot/limine/limine.conf <<'EOF'\n{}\nEOF",
+                    limine_conf
+                );
+                cmds.push(chroot_cmd(&write_conf_cmd));
+                // Install Limine binaries and copy config
                 if state.is_uefi() {
                     cmds.push(chroot_cmd("install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine"));
                     cmds.push(chroot_cmd("if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi"));
