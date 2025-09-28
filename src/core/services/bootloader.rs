@@ -121,8 +121,7 @@ impl BootloaderService {
 
                     // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
-                        "root_src=$(lsblk -nr -o PATH,MOUNTPOINT | awk '$2==\"/\"{{print $1; exit}}'); \
-[ -z \"$root_src\" ] && root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+                        "root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
 root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
 partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
 if [ {enc} -eq 1 ]; then \
@@ -143,8 +142,7 @@ else \
   fi; \
 fi; \
 : > /boot/limine/limine.conf; \
-{entries} \
-echo \"limine: root_src='$root_src' root_uuid='$root_uuid' partuuid='$partuuid' cmdline='$cmdline'\"",
+{entries}",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
@@ -177,8 +175,7 @@ cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
 
                     // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
-                        "root_src=$(lsblk -nr -o PATH,MOUNTPOINT | awk '$2==\"/\"{{print $1; exit}}'); \
-[ -z \"$root_src\" ] && root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+                        "root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
 root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
 partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
 if [ {enc} -eq 1 ]; then \
@@ -199,8 +196,7 @@ else \
   fi; \
 fi; \
 : > /boot/limine/limine.conf; \
-{entries} \
-echo \"limine: root_src='$root_src' root_uuid='$root_uuid' partuuid='$partuuid' cmdline='$cmdline'\"",
+{entries}",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
