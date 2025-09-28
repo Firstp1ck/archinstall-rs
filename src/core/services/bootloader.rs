@@ -1,5 +1,5 @@
 use crate::core::state::AppState;
-use std::fs::File;
+use std::fs::{File, create_dir_all};
 use std::io::Write;
 use std::process::Command;
 
@@ -90,21 +90,30 @@ impl BootloaderService {
                 if kernels.is_empty() {
                     kernels.push("linux".to_string());
                 }
-                let cmdline = detect_root_cmdline();
+                let cmdline = detect_root_cmdline(state);
                 let mut limine_conf = String::from("timeout 4\n");
                 for k in &kernels {
                     limine_conf.push_str(&format!(
                         "/Arch Linux ({k})\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}.img\n\n/Arch Linux ({k}) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}-fallback.img\n\n"
                     ));
                 }
-                // Write limine.conf in chroot
-                let limine_conf_path = if state.is_uefi() {
-                    "/mnt/boot/limine/limine.conf"
-                } else {
-                    "/mnt/boot/limine/limine.conf"
-                };
-                let mut file = File::create(limine_conf_path).expect("Failed to create limine.conf");
-                file.write_all(limine_conf.as_bytes()).expect("Failed to write limine.conf");
+                // Ensure directory exists and write limine.conf on target root
+                if let Err(e) = create_dir_all("/mnt/boot/limine") {
+                    state.debug_log(&format!("WARN: create_dir_all(/mnt/boot/limine) failed: {}", e));
+                }
+                let limine_conf_path = "/mnt/boot/limine/limine.conf";
+                match File::create(limine_conf_path).and_then(|mut f| f.write_all(limine_conf.as_bytes())) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        state.debug_log(&format!("WARN: writing {} failed on host: {} — falling back to chroot write", limine_conf_path, e));
+                        // Fallback: write inside chroot with a quoted heredoc (no expansion)
+                        let heredoc_cmd = format!(
+                            "install -d -m0755 /boot/limine; cat > /boot/limine/limine.conf <<'EOF'\n{}\nEOF",
+                            limine_conf
+                        );
+                        cmds.push(chroot_cmd(&heredoc_cmd));
+                    }
+                }
                 // Install Limine binaries as before
                 if state.is_uefi() {
                     cmds.push(chroot_cmd("install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine"));
@@ -146,35 +155,37 @@ fn get_cmd_output(cmd: &mut Command) -> Option<String> {
     if s.is_empty() { None } else { Some(s) }
 }
 
-fn detect_root_cmdline() -> String {
-    // Try to detect root device and encryption
-    let root_src = get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/"]));
-    let root_src = root_src.unwrap_or_else(|| "/dev/root".to_string());
+fn detect_root_cmdline(state: &AppState) -> String {
+    // Detect the device mounted at /mnt (target root)
+    let root_src = get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/mnt"]))
+        .or_else(|| get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/"])) )
+        .unwrap_or_else(|| "/dev/root".to_string());
+
+    // Prefer PARTUUID, else UUID, else device path
     let partuuid = get_cmd_output(Command::new("blkid").args(["-s", "PARTUUID", "-o", "value", &root_src]));
     let root_uuid = get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", &root_src]));
-    // Check for LUKS
-    let luks_dev = get_cmd_output(Command::new("lsblk").args(["-no", "pkname", &root_src]));
-    let luks_dev_path = luks_dev.as_ref().map(|d| if d.starts_with("/dev/") { d.clone() } else { format!("/dev/{}", d) });
-    let luks_uuid = luks_dev_path.as_ref().and_then(|dev| get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", dev])));
-    // Compose cmdline
-    if let Some(luks_uuid) = luks_uuid {
-        format!("cryptdevice=UUID={}:cryptroot root=/dev/mapper/cryptroot rw", luks_uuid)
-    } else if let Some(partuuid) = partuuid {
-        format!("root=PARTUUID={} rw", partuuid)
-    } else if let Some(root_uuid) = root_uuid {
-        format!("root=UUID={} rw", root_uuid)
-    } else if !root_src.is_empty() {
-        format!("root={} rw", root_src)
-    } else {
-        // Fallback: try /etc/fstab
-        if let Ok(fstab) = std::fs::read_to_string("/etc/fstab") {
-            for line in fstab.lines() {
-                let fields: Vec<&str> = line.split_whitespace().collect();
-                if fields.len() >= 2 && fields[1] == "/" {
-                    return format!("root={} rw", fields[0]);
+
+    // If encryption is used, attempt to derive cryptdevice spec from the parent block device
+    let mut crypt_cmd: Option<String> = None;
+    if state.disk_encryption_type_index == 1 {
+        if let Some(pkname) = get_cmd_output(Command::new("lsblk").args(["-no", "pkname", &root_src])) {
+            let dev = if pkname.starts_with("/dev/") { pkname } else { format!("/dev/{}", pkname) };
+            let typ = get_cmd_output(Command::new("blkid").args(["-s", "TYPE", "-o", "value", &dev]));
+            if matches!(typ.as_deref(), Some("crypto_LUKS")) {
+                if let Some(luks_uuid) = get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", &dev])) {
+                    crypt_cmd = Some(format!("cryptdevice=UUID={}:cryptroot ", luks_uuid));
                 }
             }
         }
-        "root=/dev/root rw".to_string()
+    }
+
+    // Compose final kernel cmdline
+    let root_arg = if let Some(pu) = partuuid { format!("root=PARTUUID={} rw", pu) }
+                   else if let Some(ru) = root_uuid { format!("root=UUID={} rw", ru) }
+                   else { format!("root={} rw", root_src) };
+
+    match crypt_cmd {
+        Some(prefix) => format!("{}root=/dev/mapper/cryptroot rw", prefix),
+        None => root_arg,
     }
 }
