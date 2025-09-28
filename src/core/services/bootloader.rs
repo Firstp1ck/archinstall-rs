@@ -88,12 +88,24 @@ impl BootloaderService {
                     kernels.push("linux".to_string());
                 }
 
-                // Pre-render limine.conf entries in Rust so we don't rely on shell $k expansion
+                // Pre-render limine.conf entries in Rust  
                 let mut entries_printf: String = String::new();
                 for k in &kernels {
                     entries_printf.push_str(&format!(
-                        "printf '/Arch Linux ({k})\\nprotocol: linux\\npath: boot():/vmlinuz-{k}\\ncmdline: %s\\nmodule_path: boot():/initramfs-{k}.img\\n\\n' \"$cmdline\" >> /boot/limine/limine.conf; \
-printf '/Arch Linux ({k}) (fallback)\\nprotocol: linux\\npath: boot():/vmlinuz-{k}\\ncmdline: %s\\nmodule_path: boot():/initramfs-{k}-fallback.img\\n\\n' \"$cmdline\" >> /boot/limine/limine.conf; ",
+                        "
+/Arch Linux ({k})
+protocol: linux
+path: boot():/vmlinuz-{k}
+cmdline: ${{cmdline}}
+module_path: boot():/initramfs-{k}.img
+
+/Arch Linux ({k}) (fallback)
+protocol: linux
+path: boot():/vmlinuz-{k}
+cmdline: ${{cmdline}}
+module_path: boot():/initramfs-{k}-fallback.img
+
+"
                     ));
                 }
 
@@ -143,14 +155,18 @@ else \
   fi; \
 fi; \
 # Fallback: derive root from /etc/fstab if we somehow missed it
-if ! printf '%s' \"$cmdline\" | grep -q 'root='; then \
+if ! echo \"$cmdline\" | grep -q 'root='; then \
   if [ -f /etc/fstab ]; then \
     fstab_root=$(awk '$2==\"/\"{{print $1; exit}}' /etc/fstab 2>/dev/null); \
     if [ -n \"$fstab_root\" ]; then cmdline=\"root=$fstab_root rw\"; fi; \
   fi; \
 fi; \
-printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
-{entries}",
+echo \"DEBUG: cmdline=$cmdline\" >&2; \
+cat > /boot/limine/limine.conf <<EOF
+timeout 4
+{entries}EOF
+echo \"--- Generated limine.conf (UEFI) ---\" >&2; \
+cat /boot/limine/limine.conf >&2",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
@@ -158,7 +174,7 @@ printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
 
                     // Log generated config and ensure Limine will pick it up regardless of scan order
                     cmds.push(chroot_cmd(
-                        "echo 'CL='$cmdline; echo '--- limine.conf (UEFI) ---'; sed -n '1,200p' /boot/limine/limine.conf || true; echo '--- grep cmdline ---'; grep -n '^cmdline:' /boot/limine/limine.conf || true; install -d -m0755 /boot/EFI/BOOT /boot/EFI/limine; cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true",
+                        "install -d -m0755 /boot/EFI/BOOT /boot/EFI/limine; cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true",
                     ));
 
                     // Confirm ESP mount and kernel files existence on ESP
@@ -209,14 +225,18 @@ else \
   fi; \
 fi; \
 # Fallback: derive root from /etc/fstab if we somehow missed it
-if ! printf '%s' \"$cmdline\" | grep -q 'root='; then \
+if ! echo \"$cmdline\" | grep -q 'root='; then \
   if [ -f /etc/fstab ]; then \
     fstab_root=$(awk '$2==\"/\"{{print $1; exit}}' /etc/fstab 2>/dev/null); \
     if [ -n \"$fstab_root\" ]; then cmdline=\"root=$fstab_root rw\"; fi; \
   fi; \
 fi; \
-printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
-{entries}",
+echo \"DEBUG: cmdline=$cmdline\" >&2; \
+cat > /boot/limine/limine.conf <<EOF
+timeout 4
+{entries}EOF
+echo \"--- Generated limine.conf (BIOS) ---\" >&2; \
+cat /boot/limine/limine.conf >&2",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
@@ -224,7 +244,7 @@ printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
 
                     // Log generated config and provide BIOS search locations too
                     cmds.push(chroot_cmd(
-                        "echo 'CL='$cmdline; echo '--- limine.conf (BIOS) ---'; sed -n '1,200p' /boot/limine/limine.conf || true; echo '--- grep cmdline ---'; grep -n '^cmdline:' /boot/limine/limine.conf || true; cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true",
+                        "cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true",
                     ));
 
                     // Confirm ESP mount and kernel files existence on ESP
