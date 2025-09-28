@@ -120,7 +120,11 @@ fi; \
 for k in {klist}; do \
   cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
 done",
-                        enc = if state.disk_encryption_type_index == 1 { 1 } else { 0 },
+                        enc = if state.disk_encryption_type_index == 1 {
+                            1
+                        } else {
+                            0
+                        },
                         klist = kernels_str,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
@@ -166,7 +170,11 @@ fi; \
 for k in {klist}; do \
   cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
 done",
-                        enc = if state.disk_encryption_type_index == 1 { 1 } else { 0 },
+                        enc = if state.disk_encryption_type_index == 1 {
+                            1
+                        } else {
+                            0
+                        },
                         klist = kernels_str,
                     );
                     cmds.push(chroot_cmd(&gen_conf));

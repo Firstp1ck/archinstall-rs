@@ -209,14 +209,15 @@ fn run_loop_inner(
             while last_logged_line < app.install_log.len() {
                 if let Some(line) = app.install_log.get(last_logged_line)
                     && let Some(pretty) = format_runlog_line(line)
-                        && prev_runlog_line.as_deref() != Some(pretty.as_str()) {
-                            let _ = writeln!(file, "{}", pretty);
-                            prev_runlog_line = Some(pretty);
-                            if !first_log_write_done {
-                                debug_log(app.debug_enabled, "run.log: first write");
-                                first_log_write_done = true;
-                            }
-                        }
+                    && prev_runlog_line.as_deref() != Some(pretty.as_str())
+                {
+                    let _ = writeln!(file, "{}", pretty);
+                    prev_runlog_line = Some(pretty);
+                    if !first_log_write_done {
+                        debug_log(app.debug_enabled, "run.log: first write");
+                        first_log_write_done = true;
+                    }
+                }
                 last_logged_line += 1;
             }
         }

@@ -181,12 +181,13 @@ impl AppState {
                     if self.total_pkgs.is_none() && t.starts_with("Packages (") {
                         // extract number until ')'
                         if let Some(end) = t.find(')')
-                            && let Some(start) = t.find('(') {
-                                let num = &t[start + 1..end];
-                                if let Ok(n) = num.trim().parse::<usize>() {
-                                    self.total_pkgs = Some(n);
-                                }
+                            && let Some(start) = t.find('(')
+                        {
+                            let num = &t[start + 1..end];
+                            if let Ok(n) = num.trim().parse::<usize>() {
+                                self.total_pkgs = Some(n);
                             }
+                        }
                         // still forward the header line
                         return false;
                     }
