@@ -1,4 +1,7 @@
 use crate::core::state::AppState;
+use std::fs::File;
+use std::io::Write;
+use std::process::Command;
 
 #[derive(Clone, Debug)]
 pub struct BootloaderPlan {
@@ -77,7 +80,7 @@ impl BootloaderService {
             }
             // Limine implementation
             3 => {
-                // Determine kernels list (fallback to 'linux' if none)
+                // Limine (UEFI/BIOS) - Rust-native config generation
                 let mut kernels: Vec<String> = if state.selected_kernels.is_empty() {
                     vec!["linux".to_string()]
                 } else {
@@ -87,181 +90,30 @@ impl BootloaderService {
                 if kernels.is_empty() {
                     kernels.push("linux".to_string());
                 }
-
-                // Pre-render limine.conf entries in Rust  
-                let mut entries_printf: String = String::new();
+                let cmdline = detect_root_cmdline();
+                let mut limine_conf = String::from("timeout 4\n");
                 for k in &kernels {
-                    entries_printf.push_str(&format!(
-                        "
-/Arch Linux ({k})
-protocol: linux
-path: boot():/vmlinuz-{k}
-cmdline: ${{cmdline}}
-module_path: boot():/initramfs-{k}.img
-
-/Arch Linux ({k}) (fallback)
-protocol: linux
-path: boot():/vmlinuz-{k}
-cmdline: ${{cmdline}}
-module_path: boot():/initramfs-{k}-fallback.img
-
-"
+                    limine_conf.push_str(&format!(
+                        "/Arch Linux ({k})\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}.img\n\n/Arch Linux ({k}) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}-fallback.img\n\n"
                     ));
                 }
-
-                // Build a verification snippet to confirm /boot is a mountpoint and kernel files exist
-                let mut verify_snippet: String = String::from(
-                    "if mountpoint -q /boot; then printf '%s\\n' 'OK: /boot is a mountpoint (ESP)'; else printf '%s\\n' 'WARN: /boot is not a mountpoint' >&2; fi; ",
-                );
-                for k in &kernels {
-                    verify_snippet.push_str(&format!(
-                        "for f in '/boot/vmlinuz-{k}' '/boot/initramfs-{k}.img'; do [ -f \"$f\" ] || printf '%s %s\\n' 'WARN: missing' \"$f\" >&2; done; "
-                    ));
-                }
-
-                let enc_flag = if state.disk_encryption_type_index == 1 { 1 } else { 0 };
-
-                if state.is_uefi() {
-                    // Ensure directories for EFI and config
-                    cmds.push(chroot_cmd(
-                        "install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine",
-                    ));
-
-                    // Copy Limine EFI binary if present
-                    cmds.push(chroot_cmd(
-                        "if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi",
-                    ));
-
-                    // Generate limine.conf using pre-rendered entries and a computed $cmdline
-                    let gen_conf = format!(
-                        "root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
-root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
-partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
-if [ {enc} -eq 1 ]; then \
-  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
-  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
-  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
-  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
-  if [ -n \"$luks_uuid\" ]; then cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; fi; \
-else \
-  if [ -n \"$partuuid\" ]; then \
-    cmdline=\"root=PARTUUID=$partuuid rw\"; \
-  elif [ -n \"$root_uuid\" ]; then \
-    cmdline=\"root=UUID=$root_uuid rw\"; \
-  elif [ -n \"$root_src\" ]; then \
-    cmdline=\"root=$root_src rw\"; \
-  else \
-    cmdline=\"root=/dev/root rw\"; \
-  fi; \
-fi; \
-# Fallback: derive root from /etc/fstab if we somehow missed it
-if ! echo \"$cmdline\" | grep -q 'root='; then \
-  if [ -f /etc/fstab ]; then \
-    fstab_root=$(awk '$2==\"/\"{{print $1; exit}}' /etc/fstab 2>/dev/null); \
-    if [ -n \"$fstab_root\" ]; then cmdline=\"root=$fstab_root rw\"; fi; \
-  fi; \
-fi; \
-echo \"DEBUG: cmdline=$cmdline\" >&2; \
-cat > /boot/limine/limine.conf <<EOF
-timeout 4
-{entries}EOF
-echo \"--- Generated limine.conf (UEFI) ---\" >&2; \
-cat /boot/limine/limine.conf >&2",
-                        enc = enc_flag,
-                        entries = entries_printf,
-                    );
-                    cmds.push(chroot_cmd(&gen_conf));
-
-                    // Log generated config and ensure Limine will pick it up regardless of scan order
-                    cmds.push(chroot_cmd(
-                        "install -d -m0755 /boot/EFI/BOOT /boot/EFI/limine; cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true",
-                    ));
-
-                    // Confirm ESP mount and kernel files existence on ESP
-                    cmds.push(chroot_cmd(&verify_snippet));
-
-                    // Create NVRAM entry when possible; always install fallback BOOTX64.EFI
-                    cmds.push(chroot_cmd(
-                        "dev=$(findmnt -n -o SOURCE /boot) || true; \
-if [ -n \"$dev\" ]; then \
-  disk=/dev/$(lsblk -no pkname \"$dev\"); \
-  part=$(lsblk -no PARTNUM \"$dev\" 2>/dev/null | sed -e \"s/[[:space:]]//g\"); \
-  if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-    if echo \"$part\" | grep -qE \"^[0-9]+$\"; then \
-      loader=\\\\EFI\\\\limine\\\\BOOTX64.EFI; \
-      timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader \"$loader\" --label \"Limine\" --unicode || true; \
-    fi; \
-  fi; \
-fi; \
-cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
-                    ));
+                // Write limine.conf in chroot
+                let limine_conf_path = if state.is_uefi() {
+                    "/mnt/boot/limine/limine.conf"
                 } else {
-                    // BIOS install flow
+                    "/mnt/boot/limine/limine.conf"
+                };
+                let mut file = File::create(limine_conf_path).expect("Failed to create limine.conf");
+                file.write_all(limine_conf.as_bytes()).expect("Failed to write limine.conf");
+                // Install Limine binaries as before
+                if state.is_uefi() {
+                    cmds.push(chroot_cmd("install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine"));
+                    cmds.push(chroot_cmd("if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi"));
+                    cmds.push(chroot_cmd("cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true"));
+                } else {
                     cmds.push(chroot_cmd("install -d -m0755 /boot/limine"));
-                    cmds.push(chroot_cmd(
-                        "if [ -f /usr/share/limine/limine-bios.sys ]; then cp /usr/share/limine/limine-bios.sys /boot/limine/; else echo 'Warning: /usr/share/limine/limine-bios.sys not found' >&2; fi",
-                    ));
-
-                    // Generate limine.conf using pre-rendered entries and a computed $cmdline
-                    let gen_conf = format!(
-                        "root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
-root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
-partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
-if [ {enc} -eq 1 ]; then \
-  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
-  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
-  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
-  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
-  if [ -n \"$luks_uuid\" ]; then cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; fi; \
-else \
-  if [ -n \"$partuuid\" ]; then \
-    cmdline=\"root=PARTUUID=$partuuid rw\"; \
-  elif [ -n \"$root_uuid\" ]; then \
-    cmdline=\"root=UUID=$root_uuid rw\"; \
-  elif [ -n \"$root_src\" ]; then \
-    cmdline=\"root=$root_src rw\"; \
-  else \
-    cmdline=\"root=/dev/root rw\"; \
-  fi; \
-fi; \
-# Fallback: derive root from /etc/fstab if we somehow missed it
-if ! echo \"$cmdline\" | grep -q 'root='; then \
-  if [ -f /etc/fstab ]; then \
-    fstab_root=$(awk '$2==\"/\"{{print $1; exit}}' /etc/fstab 2>/dev/null); \
-    if [ -n \"$fstab_root\" ]; then cmdline=\"root=$fstab_root rw\"; fi; \
-  fi; \
-fi; \
-echo \"DEBUG: cmdline=$cmdline\" >&2; \
-cat > /boot/limine/limine.conf <<EOF
-timeout 4
-{entries}EOF
-echo \"--- Generated limine.conf (BIOS) ---\" >&2; \
-cat /boot/limine/limine.conf >&2",
-                        enc = enc_flag,
-                        entries = entries_printf,
-                    );
-                    cmds.push(chroot_cmd(&gen_conf));
-
-                    // Log generated config and provide BIOS search locations too
-                    cmds.push(chroot_cmd(
-                        "cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true",
-                    ));
-
-                    // Confirm ESP mount and kernel files existence on ESP
-                    cmds.push(chroot_cmd(&verify_snippet));
-
-                    // Detect bios_grub partition and run limine bios-install only if device exists
-                    let bios_install = format!(
-                        "disk=\"{disk}\"; \
-if [ -b \"$disk\" ]; then \
-  pn=$(lsblk -nr -o PARTNUM,PARTFLAGS \"$disk\" 2>/dev/null | awk '$2 ~ /bios_grub/ {{print $1; exit}}'); \
-  if [ -n \"$pn\" ]; then limine bios-install \"$disk\" \"$pn\" || true; else limine bios-install \"$disk\" || true; fi; \
-else \
-  echo 'WARN: install disk not found or not a block device; skipping limine bios-install' >&2; \
-fi",
-                        disk = _device,
-                    );
-                    cmds.push(chroot_cmd(&bios_install));
+                    cmds.push(chroot_cmd("if [ -f /usr/share/limine/limine-bios.sys ]; then cp /usr/share/limine/limine-bios.sys /boot/limine/; else echo 'Warning: /usr/share/limine/limine-bios.sys not found' >&2; fi"));
+                    cmds.push(chroot_cmd("cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true"));
                 }
             }
             _ => {}
@@ -282,5 +134,47 @@ fi",
         ));
 
         BootloaderPlan::new(cmds)
+    }
+}
+
+fn get_cmd_output(cmd: &mut Command) -> Option<String> {
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
+fn detect_root_cmdline() -> String {
+    // Try to detect root device and encryption
+    let root_src = get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/"]));
+    let root_src = root_src.unwrap_or_else(|| "/dev/root".to_string());
+    let partuuid = get_cmd_output(Command::new("blkid").args(["-s", "PARTUUID", "-o", "value", &root_src]));
+    let root_uuid = get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", &root_src]));
+    // Check for LUKS
+    let luks_dev = get_cmd_output(Command::new("lsblk").args(["-no", "pkname", &root_src]));
+    let luks_dev_path = luks_dev.as_ref().map(|d| if d.starts_with("/dev/") { d.clone() } else { format!("/dev/{}", d) });
+    let luks_uuid = luks_dev_path.as_ref().and_then(|dev| get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", dev])));
+    // Compose cmdline
+    if let Some(luks_uuid) = luks_uuid {
+        format!("cryptdevice=UUID={}:cryptroot root=/dev/mapper/cryptroot rw", luks_uuid)
+    } else if let Some(partuuid) = partuuid {
+        format!("root=PARTUUID={} rw", partuuid)
+    } else if let Some(root_uuid) = root_uuid {
+        format!("root=UUID={} rw", root_uuid)
+    } else if !root_src.is_empty() {
+        format!("root={} rw", root_src)
+    } else {
+        // Fallback: try /etc/fstab
+        if let Ok(fstab) = std::fs::read_to_string("/etc/fstab") {
+            for line in fstab.lines() {
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                if fields.len() >= 2 && fields[1] == "/" {
+                    return format!("root={} rw", fields[0]);
+                }
+            }
+        }
+        "root=/dev/root rw".to_string()
     }
 }
