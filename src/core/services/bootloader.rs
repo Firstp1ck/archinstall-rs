@@ -100,9 +100,9 @@ impl BootloaderService {
                         "if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi",
                     ));
 
-                    // Generate limine.conf using only double quotes to avoid escaping pitfalls
+                    // Generate limine.conf using only double quotes and robust checks
                     let gen_conf = format!(
-                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
+                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); if [ -n \"$luksdev\" ]; then luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
                         if state.disk_encryption_type_index == 1 { 1 } else { 0 },
                         kernels_str
                     );
@@ -110,7 +110,7 @@ impl BootloaderService {
 
                     // Try to create an NVRAM entry; always copy fallback EFI path as well
                     cmds.push(chroot_cmd(
-                        "dev=$(findmnt -n -o SOURCE /boot) || true; disk=/dev/$(lsblk -no pkname \"$dev\"); part=$(lsblk -no PARTNUM \"$dev\" | awk '{gsub(/[[:space:]]/, \"\"); print}'); if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then if echo \"$part\" | grep -qE \"^[0-9]+$\"; then timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader '\\EFI\\limine\\BOOTX64.EFI' --label 'Limine' --unicode || true; fi; fi; cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
+                        "dev=$(findmnt -n -o SOURCE /boot) || true; if [ -n \"$dev\" ]; then disk=/dev/$(lsblk -no pkname \"$dev\"); part=$(lsblk -no PARTNUM \"$dev\" | sed -e \"s/[[:space:]]//g\"); if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then if echo \"$part\" | grep -qE \"^[0-9]+$\"; then timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader \"\\EFI\\limine\\BOOTX64.EFI\" --label \"Limine\" --unicode || true; fi; fi; fi; cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
                     ));
                 } else {
                     // BIOS install flow
@@ -120,7 +120,7 @@ impl BootloaderService {
                     ));
 
                     let gen_conf = format!(
-                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
+                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); if [ -n \"$luksdev\" ]; then luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
                         if state.disk_encryption_type_index == 1 { 1 } else { 0 },
                         kernels_str
                     );
@@ -128,7 +128,7 @@ impl BootloaderService {
 
                     // Detect bios_grub partition and run limine bios-install
                     cmds.push(chroot_cmd(&format!(
-                        "disk=\"{}\"; pn=$(lsblk -nr -o PARTNUM,PARTFLAGS \"$disk\" | awk '$2 ~ /bios_grub/ {{print $1; exit}}'); if [ -n \"$pn\" ]; then limine bios-install \"$disk\" \"$pn\" || true; else limine bios-install \"$disk\" || true; fi",
+                        "disk=\"{}\"; pn=$(lsblk -nr -o PARTNUM,PARTFLAGS \"$disk\" 2>/dev/null | awk '$2 ~ /bios_grub/ {{print $1; exit}}'); if [ -n \"$pn\" ]; then limine bios-install \"$disk\" \"$pn\" || true; else limine bios-install \"$disk\" || true; fi",
                         _device
                     )));
                 }
