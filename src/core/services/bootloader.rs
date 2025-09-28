@@ -141,12 +141,17 @@ else \
     cmdline=\"root=/dev/root rw\"; \
   fi; \
 fi; \
-: > /boot/limine/limine.conf; \
+printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
 {entries}",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
+
+                    // Log generated config and ensure Limine will pick it up regardless of scan order
+                    cmds.push(chroot_cmd(
+                        "echo '--- limine.conf (UEFI) ---'; sed -n '1,200p' /boot/limine/limine.conf || true; echo '--- grep cmdline ---'; grep -n '^cmdline:' /boot/limine/limine.conf || true; install -d -m0755 /boot/EFI/BOOT /boot/EFI/limine; cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true",
+                    ));
 
                     // Confirm ESP mount and kernel files existence on ESP
                     cmds.push(chroot_cmd(&verify_snippet));
@@ -195,12 +200,17 @@ else \
     cmdline=\"root=/dev/root rw\"; \
   fi; \
 fi; \
-: > /boot/limine/limine.conf; \
+printf \"timeout 4\\n\" > /boot/limine/limine.conf; \
 {entries}",
                         enc = enc_flag,
                         entries = entries_printf,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
+
+                    // Log generated config and provide BIOS search locations too
+                    cmds.push(chroot_cmd(
+                        "echo '--- limine.conf (BIOS) ---'; sed -n '1,200p' /boot/limine/limine.conf || true; echo '--- grep cmdline ---'; grep -n '^cmdline:' /boot/limine/limine.conf || true; cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true",
+                    ));
 
                     // Confirm ESP mount and kernel files existence on ESP
                     cmds.push(chroot_cmd(&verify_snippet));
