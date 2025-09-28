@@ -110,7 +110,7 @@ impl BootloaderService {
 
                     // Try to create an NVRAM entry; always copy fallback EFI path as well
                     cmds.push(chroot_cmd(
-                        "dev=$(findmnt -n -o SOURCE /boot); disk=/dev/$(lsblk -no pkname \"$dev\"); part=$(lsblk -no PARTNUM \"$dev\" | tr -d '[:space:]'); if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then case \"$part\" in ''|*[!0-9]*) : ;; *) timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader '\\EFI\\limine\\BOOTX64.EFI' --label 'Limine' --unicode || true ;; esac; fi; cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
+                        "dev=$(findmnt -n -o SOURCE /boot) || true; disk=/dev/$(lsblk -no pkname \"$dev\"); part=$(lsblk -no PARTNUM \"$dev\" | awk '{gsub(/[[:space:]]/, \"\"); print}'); if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then if echo \"$part\" | grep -qE \"^[0-9]+$\"; then timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader '\\EFI\\limine\\BOOTX64.EFI' --label 'Limine' --unicode || true; fi; fi; cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
                     ));
                 } else {
                     // BIOS install flow
