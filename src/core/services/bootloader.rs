@@ -87,7 +87,26 @@ impl BootloaderService {
                 if kernels.is_empty() {
                     kernels.push("linux".to_string());
                 }
-                let kernels_str = kernels.join(" ");
+
+                // Pre-render limine.conf entries in Rust so we don't rely on shell $k expansion
+                let mut entries_printf: String = String::new();
+                for k in &kernels {
+                    entries_printf.push_str(&format!(
+                        "printf \"/Arch Linux ({k})\\nprotocol: linux\\npath: boot():/vmlinuz-{k}\\ncmdline: $cmdline\\nmodule_path: boot():/initramfs-{k}.img\\n\\n/Arch Linux ({k}) (fallback)\\nprotocol: linux\\npath: boot():/vmlinuz-{k}\\ncmdline: $cmdline\\nmodule_path: boot():/initramfs-{k}-fallback.img\\n\\n\" >> /boot/limine/limine.conf; "
+                    ));
+                }
+
+                // Build a verification snippet to confirm /boot is a mountpoint and kernel files exist
+                let mut verify_snippet: String = String::from(
+                    "if mountpoint -q /boot; then echo 'OK: /boot is a mountpoint (ESP)'; else echo 'WARN: /boot is not a mountpoint' >&2; fi; ",
+                );
+                for k in &kernels {
+                    verify_snippet.push_str(&format!(
+                        "for f in \"/boot/vmlinuz-{k}\" \"/boot/initramfs-{k}.img\"; do if [ ! -f \"$f\" ]; then echo \"WARN: missing $f\" >&2; fi; done; "
+                    ));
+                }
+
+                let enc_flag = if state.disk_encryption_type_index == 1 { 1 } else { 0 };
 
                 if state.is_uefi() {
                     // Ensure directories for EFI and config
@@ -100,7 +119,7 @@ impl BootloaderService {
                         "if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi",
                     ));
 
-                    // Generate limine.conf via heredoc for reliability
+                    // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
                         "rootdev=$(findmnt -n -o SOURCE / || true); \
 if [ {enc} -eq 1 ]; then \
@@ -117,17 +136,14 @@ else \
   cmdline=\"root=UUID=$root_uuid rw\"; \
 fi; \
 : > /boot/limine/limine.conf; \
-for k in {klist}; do \
-  cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
-done",
-                        enc = if state.disk_encryption_type_index == 1 {
-                            1
-                        } else {
-                            0
-                        },
-                        klist = kernels_str,
+{entries}",
+                        enc = enc_flag,
+                        entries = entries_printf,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
+
+                    // Confirm ESP mount and kernel files existence on ESP
+                    cmds.push(chroot_cmd(&verify_snippet));
 
                     // Create NVRAM entry when possible; always install fallback BOOTX64.EFI
                     cmds.push(chroot_cmd(
@@ -151,6 +167,7 @@ cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
                         "if [ -f /usr/share/limine/limine-bios.sys ]; then cp /usr/share/limine/limine-bios.sys /boot/limine/; else echo 'Warning: /usr/share/limine/limine-bios.sys not found' >&2; fi",
                     ));
 
+                    // Generate limine.conf using pre-rendered entries and a computed $cmdline
                     let gen_conf = format!(
                         "rootdev=$(findmnt -n -o SOURCE / || true); \
 if [ {enc} -eq 1 ]; then \
@@ -167,17 +184,14 @@ else \
   cmdline=\"root=UUID=$root_uuid rw\"; \
 fi; \
 : > /boot/limine/limine.conf; \
-for k in {klist}; do \
-  cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
-done",
-                        enc = if state.disk_encryption_type_index == 1 {
-                            1
-                        } else {
-                            0
-                        },
-                        klist = kernels_str,
+{entries}",
+                        enc = enc_flag,
+                        entries = entries_printf,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
+
+                    // Confirm ESP mount and kernel files existence on ESP
+                    cmds.push(chroot_cmd(&verify_snippet));
 
                     // Detect bios_grub partition and run limine bios-install only if device exists
                     let bios_install = format!(
