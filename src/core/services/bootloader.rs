@@ -1,4 +1,5 @@
 use crate::core::state::AppState;
+// Removed unused File/Write imports
 use std::process::Command;
 
 #[derive(Clone, Debug)]
@@ -88,25 +89,64 @@ impl BootloaderService {
                 if kernels.is_empty() {
                     kernels.push("linux".to_string());
                 }
-                let cmdline = detect_root_cmdline(state);
-                let mut limine_conf = String::from("timeout 4\n");
+                // Preview cmdline computed by Rust for logging purposes
+                let rust_cmdline_preview = detect_root_cmdline(state);
+                state.debug_log(&format!("limine: rust_cmdline_preview={}", rust_cmdline_preview));
+                // Build entries using a $cmdline placeholder to be computed inside chroot
+                let mut entries_tpl = String::new();
                 for k in &kernels {
-                    limine_conf.push_str(&format!(
-                        "/Arch Linux ({k})\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}.img\n\n/Arch Linux ({k}) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: {cmdline}\nmodule_path: boot():/initramfs-{k}-fallback.img\n\n"
+                    entries_tpl.push_str(&format!(
+                        "/Arch Linux ({k})\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: $cmdline\nmodule_path: boot():/initramfs-{k}.img\n\n/Arch Linux ({k}) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-{k}\ncmdline: $cmdline\nmodule_path: boot():/initramfs-{k}-fallback.img\n\n"
                     ));
                 }
-                // Always write limine.conf inside chroot at execution time
+                // Compute cmdline inside chroot and write the config with variable expansion
                 let write_conf_cmd = format!(
-                    "install -d -m0755 /boot/limine; cat > /boot/limine/limine.conf <<'EOF'\n{}\nEOF",
-                    limine_conf
+                    "install -d -m0755 /boot/limine; \
+root_src=$(findmnt -n -o SOURCE / 2>/dev/null || true); \
+root_uuid=$(blkid -s UUID -o value \"$root_src\" 2>/dev/null || true); \
+partuuid=$(blkid -s PARTUUID -o value \"$root_src\" 2>/dev/null || true); \
+if [ -e /dev/mapper/cryptroot ]; then \
+  luks_dev=$(lsblk -no pkname \"$root_src\" 2>/dev/null | head -n1); \
+  case \"$luks_dev\" in /*) ;; *) [ -n \"$luks_dev\" ] && luks_dev=/dev/\"$luks_dev\" ;; esac; \
+  luks_uuid=\"\"; [ -n \"$luks_dev\" ] && luks_uuid=$(blkid -s UUID -o value \"$luks_dev\" 2>/dev/null || true); \
+  cmdline=\"root=/dev/mapper/cryptroot rw\"; \
+  [ -n \"$luks_uuid\" ] && cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot $cmdline\"; \
+else \
+  if [ -n \"$partuuid\" ]; then cmdline=\"root=PARTUUID=$partuuid rw\"; \
+  elif [ -n \"$root_uuid\" ]; then cmdline=\"root=UUID=$root_uuid rw\"; \
+  elif [ -n \"$root_src\" ]; then cmdline=\"root=$root_src rw\"; \
+  else cmdline=\"root=/dev/root rw\"; fi; \
+fi; \
+cat > /boot/limine/limine.conf <<EOF\ntimeout 4\n{entries}\nEOF",
+                    entries = entries_tpl,
                 );
                 cmds.push(chroot_cmd(&write_conf_cmd));
                 // Install Limine binaries and copy config
                 if state.is_uefi() {
+                    // Ensure limine package is installed to provide BOOTX64.EFI
+                    cmds.push(chroot_cmd("pacman -Sy --noconfirm limine || true"));
                     cmds.push(chroot_cmd("install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine"));
                     cmds.push(chroot_cmd("if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi"));
+                    // Fallback BOOT path
+                    cmds.push(chroot_cmd("cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true"));
                     cmds.push(chroot_cmd("cp /boot/limine/limine.conf /boot/EFI/BOOT/limine.conf || true; cp /boot/limine/limine.conf /boot/EFI/limine/limine.conf || true"));
+                    // Try to add NVRAM entry
+                    cmds.push(chroot_cmd(
+                        "dev=$(findmnt -n -o SOURCE /boot) || true; \
+if [ -n \"$dev\" ]; then \
+  disk=/dev/$(lsblk -no pkname \"$dev\"); \
+  part=$(lsblk -no PARTNUM \"$dev\" 2>/dev/null | sed -e \"s/[[:space:]]//g\"); \
+  if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+    if echo \"$part\" | grep -qE \"^[0-9]+$\"; then \
+      loader=\\\\EFI\\\\limine\\\\BOOTX64.EFI; \
+      timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader \"$loader\" --label \"Limine\" --unicode || true; \
+    fi; \
+  fi; \
+fi"
+                    ));
                 } else {
+                    // BIOS
+                    cmds.push(chroot_cmd("pacman -Sy --noconfirm limine || true"));
                     cmds.push(chroot_cmd("install -d -m0755 /boot/limine"));
                     cmds.push(chroot_cmd("if [ -f /usr/share/limine/limine-bios.sys ]; then cp /usr/share/limine/limine-bios.sys /boot/limine/; else echo 'Warning: /usr/share/limine/limine-bios.sys not found' >&2; fi"));
                     cmds.push(chroot_cmd("cp /boot/limine/limine.conf /boot/limine.conf || true; install -d -m0755 /limine || true; cp /boot/limine/limine.conf /limine/limine.conf || true"));
@@ -143,16 +183,30 @@ fn get_cmd_output(cmd: &mut Command) -> Option<String> {
 }
 
 fn detect_root_cmdline(state: &AppState) -> String {
-    // Detect the device mounted at /mnt (target root)
-    let root_src = get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/mnt"]))
-        .or_else(|| get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/"])) )
+    // Prefer device mounted at /mnt (target root) by parsing proc mounts to avoid picking live ISO root
+    fn dev_for_mount(mnt: &str) -> Option<String> {
+        for path in ["/proc/self/mounts", "/proc/mounts", "/etc/mtab"] {
+            if let Ok(data) = std::fs::read_to_string(path) {
+                for line in data.lines() {
+                    if line.trim_start().starts_with('#') { continue; }
+                    let mut it = line.split_whitespace();
+                    if let (Some(dev), Some(mp)) = (it.next(), it.next()) {
+                        if mp == mnt { return Some(dev.to_string()); }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    let root_src = dev_for_mount("/mnt")
+        .or_else(|| get_cmd_output(Command::new("findmnt").args(["-n", "-o", "SOURCE", "/mnt"])) )
+        .or_else(|| dev_for_mount("/"))
         .unwrap_or_else(|| "/dev/root".to_string());
 
-    // Prefer PARTUUID, else UUID, else device path
     let partuuid = get_cmd_output(Command::new("blkid").args(["-s", "PARTUUID", "-o", "value", &root_src]));
     let root_uuid = get_cmd_output(Command::new("blkid").args(["-s", "UUID", "-o", "value", &root_src]));
 
-    // If encryption is used, attempt to derive cryptdevice spec from the parent block device
     let mut crypt_cmd: Option<String> = None;
     if state.disk_encryption_type_index == 1 {
         if let Some(pkname) = get_cmd_output(Command::new("lsblk").args(["-no", "pkname", &root_src])) {
@@ -166,13 +220,9 @@ fn detect_root_cmdline(state: &AppState) -> String {
         }
     }
 
-    // Compose final kernel cmdline
     let root_arg = if let Some(pu) = partuuid { format!("root=PARTUUID={} rw", pu) }
                    else if let Some(ru) = root_uuid { format!("root=UUID={} rw", ru) }
                    else { format!("root={} rw", root_src) };
 
-    match crypt_cmd {
-        Some(prefix) => format!("{}root=/dev/mapper/cryptroot rw", prefix),
-        None => root_arg,
-    }
+    match crypt_cmd { Some(prefix) => format!("{}root=/dev/mapper/cryptroot rw", prefix), None => root_arg }
 }
