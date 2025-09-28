@@ -83,34 +83,62 @@ impl BootloaderService {
                 } else {
                     state.selected_kernels.iter().cloned().collect()
                 };
-                // BTreeSet iteration is sorted; ensure stable order
                 kernels.sort();
-                let kernels_str = if kernels.is_empty() {
-                    "linux".to_string()
-                } else {
-                    kernels.join(" ")
-                };
+                if kernels.is_empty() {
+                    kernels.push("linux".to_string());
+                }
+                let kernels_str = kernels.join(" ");
 
                 if state.is_uefi() {
                     // Ensure directories for EFI and config
-                    cmds.push(chroot_cmd("install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine"));
+                    cmds.push(chroot_cmd(
+                        "install -d -m0755 /boot/EFI/limine /boot/EFI/BOOT /boot/limine",
+                    ));
 
                     // Copy Limine EFI binary if present
                     cmds.push(chroot_cmd(
                         "if [ -f /usr/share/limine/BOOTX64.EFI ]; then cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/; else echo 'Warning: /usr/share/limine/BOOTX64.EFI not found' >&2; fi",
                     ));
 
-                    // Generate limine.conf using only double quotes and robust checks
+                    // Generate limine.conf via heredoc for reliability
                     let gen_conf = format!(
-                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); if [ -n \"$luksdev\" ]; then luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
-                        if state.disk_encryption_type_index == 1 { 1 } else { 0 },
-                        kernels_str
+                        "rootdev=$(findmnt -n -o SOURCE / || true); \
+if [ {enc} -eq 1 ]; then \
+  luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); \
+  if [ -n \"$luksdev\" ]; then \
+    luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); \
+    cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; \
+  else \
+    root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+    cmdline=\"root=UUID=$root_uuid rw\"; \
+  fi; \
+else \
+  root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+  cmdline=\"root=UUID=$root_uuid rw\"; \
+fi; \
+: > /boot/limine/limine.conf; \
+for k in {klist}; do \
+  cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
+done",
+                        enc = if state.disk_encryption_type_index == 1 { 1 } else { 0 },
+                        klist = kernels_str,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
 
-                    // Try to create an NVRAM entry; always copy fallback EFI path as well
+                    // Create NVRAM entry when possible; always install fallback BOOTX64.EFI
                     cmds.push(chroot_cmd(
-                        "dev=$(findmnt -n -o SOURCE /boot) || true; if [ -n \"$dev\" ]; then disk=/dev/$(lsblk -no pkname \"$dev\"); part=$(lsblk -no PARTNUM \"$dev\" | sed -e \"s/[[:space:]]//g\"); if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then if echo \"$part\" | grep -qE \"^[0-9]+$\"; then timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader \"\\EFI\\limine\\BOOTX64.EFI\" --label \"Limine\" --unicode || true; fi; fi; fi; cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
+                        "dev=$(findmnt -n -o SOURCE /boot) || true; \
+if [ -n \"$dev\" ]; then \
+  disk=/dev/$(lsblk -no pkname \"$dev\"); \
+  part=$(lsblk -no PARTNUM \"$dev\" 2>/dev/null | sed -e \"s/[[:space:]]//g\"); \
+  if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+    if echo \"$part\" | grep -qE \"^[0-9]+$\"; then \
+      loader=\\\\EFI\\\\limine\\\\BOOTX64.EFI; \
+      timeout 5 efibootmgr --create --disk \"$disk\" --part \"$part\" --loader \"$loader\" --label \"Limine\" --unicode || true; \
+    fi; \
+  fi; \
+fi; \
+cp /boot/EFI/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI || true",
                     ));
                 } else {
                     // BIOS install flow
@@ -120,17 +148,41 @@ impl BootloaderService {
                     ));
 
                     let gen_conf = format!(
-                        "install -d -m0755 /boot/limine; : > /boot/limine/limine.conf; rootdev=$(findmnt -n -o SOURCE / || true); if [ {} -eq 1 ]; then luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); if [ -n \"$luksdev\" ]; then luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; else root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); cmdline=\"root=UUID=$root_uuid rw\"; fi; for k in {}; do {{ printf \"%s\\n\" \"/Arch Linux ($k)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k.img\"; printf \"%s\\n\" \"/Arch Linux ($k) (fallback)\"; printf \"%s\\n\" \"protocol: linux\"; printf \"%s\\n\" \"path: boot():/vmlinuz-$k\"; printf \"%s\\n\" \"cmdline: $cmdline\"; printf \"%s\\n\\n\" \"module_path: boot():/initramfs-$k-fallback.img\"; }} >> /boot/limine/limine.conf; done",
-                        if state.disk_encryption_type_index == 1 { 1 } else { 0 },
-                        kernels_str
+                        "rootdev=$(findmnt -n -o SOURCE / || true); \
+if [ {enc} -eq 1 ]; then \
+  luksdev=$(lsblk -no pkname \"$rootdev\" | sed \"s#^#/dev/#\"); \
+  if [ -n \"$luksdev\" ]; then \
+    luks_uuid=$(blkid -s UUID -o value \"$luksdev\" || true); \
+    cmdline=\"cryptdevice=UUID=$luks_uuid:cryptroot root=/dev/mapper/cryptroot rw\"; \
+  else \
+    root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+    cmdline=\"root=UUID=$root_uuid rw\"; \
+  fi; \
+else \
+  root_uuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+  cmdline=\"root=UUID=$root_uuid rw\"; \
+fi; \
+: > /boot/limine/limine.conf; \
+for k in {klist}; do \
+  cat >> /boot/limine/limine.conf <<EOF\n/Arch Linux ($k)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k.img\n\n/Arch Linux ($k) (fallback)\nprotocol: linux\npath: boot():/vmlinuz-$k\ncmdline: $cmdline\nmodule_path: boot():/initramfs-$k-fallback.img\n\nEOF\n\
+done",
+                        enc = if state.disk_encryption_type_index == 1 { 1 } else { 0 },
+                        klist = kernels_str,
                     );
                     cmds.push(chroot_cmd(&gen_conf));
 
-                    // Detect bios_grub partition and run limine bios-install
-                    cmds.push(chroot_cmd(&format!(
-                        "disk=\"{}\"; pn=$(lsblk -nr -o PARTNUM,PARTFLAGS \"$disk\" 2>/dev/null | awk '$2 ~ /bios_grub/ {{print $1; exit}}'); if [ -n \"$pn\" ]; then limine bios-install \"$disk\" \"$pn\" || true; else limine bios-install \"$disk\" || true; fi",
-                        _device
-                    )));
+                    // Detect bios_grub partition and run limine bios-install only if device exists
+                    let bios_install = format!(
+                        "disk=\"{disk}\"; \
+if [ -b \"$disk\" ]; then \
+  pn=$(lsblk -nr -o PARTNUM,PARTFLAGS \"$disk\" 2>/dev/null | awk '$2 ~ /bios_grub/ {{print $1; exit}}'); \
+  if [ -n \"$pn\" ]; then limine bios-install \"$disk\" \"$pn\" || true; else limine bios-install \"$disk\" || true; fi; \
+else \
+  echo 'WARN: install disk not found or not a block device; skipping limine bios-install' >&2; \
+fi",
+                        disk = _device,
+                    );
+                    cmds.push(chroot_cmd(&bios_install));
                 }
             }
             _ => {}
