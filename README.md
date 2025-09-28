@@ -45,28 +45,26 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Manual partitioning partially implemented. Simple partitioning possible.
 
 - [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
-  - [ ] Advanced partition editor
   - [x] Custom mount points
-  - [ ] RAID configuration
-  - [ ] LVM support
-  - [ ] Unified Kernel Images generation
-  - [ ] EFISTUB and Limine bootloaders
-
-- [ ] **v0.3.0** - Enhanced User Experience
-  - [x] Installation progress visualization
-  - [ ] Log viewer
   - [x] Help system with contextual information
-  - [ ] Multi-language UI support
-  - [x] AUR helper integration
-
-- [ ] **v0.4.0** - Advanced Features
+  - [x] Installation progress visualization
+  - [ ] EFISTUB and Limine bootloaders
   - [x] Profile system (Desktop, Server, Minimal)
+  - [x] AUR helper integration
   - [x] Post-installation script support
   - [x] Configuration validation
-  - [ ] Network installation support
+  - [x] Log viewer
 
-- [ ] **v0.5.0** - Automation
+- [ ] **v0.3.0** - Advanced Disk & System Features
+  - [ ] LVM support
+  - [ ] RAID configuration
+  - [ ] Unified Kernel Images generation
+  - [ ] Multi-language UI support
+  - [ ] Advanced partition editor
+
+- [ ] **v0.4.0** - Advanced Features
   - [ ] Unattended installation mode
+  - [ ] Network installation support
   - [ ] Configuration templates
   - [ ] Cloud-init support
   - [ ] Ansible playbook generation
