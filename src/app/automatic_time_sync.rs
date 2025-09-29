@@ -61,8 +61,8 @@ pub fn draw_automatic_time_sync(frame: &mut ratatui::Frame, app: &mut AppState, 
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(format!("{} ", value), value_style),
+            Span::styled(format!("{bullet} "), bullet_style),
+            Span::styled(format!("{value} "), value_style),
             Span::styled(label.to_string(), label_style),
         ]);
         lines.push(line);

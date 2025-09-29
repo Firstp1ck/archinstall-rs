@@ -41,7 +41,7 @@ pub fn draw_user_account(frame: &mut ratatui::Frame, app: &mut AppState, area: R
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
+            Span::styled(format!("{bullet} "), bullet_style),
             Span::styled(label.to_string(), label_style),
         ]);
         lines.push(line);

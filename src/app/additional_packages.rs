@@ -140,10 +140,10 @@ impl AppState {
                 }
             }
             if skipped > 0 {
-                msg.push_str(&format!("Skipped: {}\n", skipped));
+                msg.push_str(&format!("Skipped: {skipped}\n"));
             }
             if already > 0 {
-                msg.push_str(&format!("Already present: {}\n", already));
+                msg.push_str(&format!("Already present: {already}\n"));
             }
             if msg.is_empty() {
                 msg.push_str("No changes");
@@ -379,7 +379,7 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
             let bullet = if selected { "▶" } else { " " };
             let mark = if checked { "[x]" } else { "[ ]" };
             lines.push(Line::from(vec![
-                Span::styled(format!("{} ", bullet), style),
+                Span::styled(format!("{bullet} "), style),
                 Span::styled(
                     format!(
                         "{} {} {} — {}",

@@ -51,7 +51,7 @@ pub fn draw_hostname(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect)
         app.hostname_value.clone()
     };
     lines.push(Line::from(vec![
-        Span::styled(format!("{} ", bullet), bullet_style),
+        Span::styled(format!("{bullet} "), bullet_style),
         Span::styled("Hostname: ", label_style),
         Span::styled(current, value_style),
     ]));

@@ -13,7 +13,7 @@ pub(crate) fn handle_cmdline_keys(app: &mut AppState, code: KeyCode) -> bool {
             let cmd_string = app.cmdline_buffer.clone();
             let cmd = cmd_string.trim().to_string();
             if cmd == "w" || cmd == "wq" {
-                app.debug_log(&format!("cmdline: Enter '{}'", cmd));
+                app.debug_log(&format!("cmdline: Enter '{cmd}'"));
                 if app.current_screen() == Screen::Locales {
                     app.apply_locales_edit();
                 }

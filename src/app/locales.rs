@@ -139,7 +139,7 @@ impl AppState {
             .cloned()
         {
             if self.dry_run {
-                self.info_message = format!("[DRY-RUN] Would run: loadkeys {}", layout);
+                self.info_message = format!("[DRY-RUN] Would run: loadkeys {layout}");
             } else {
                 let _ = Command::new("loadkeys").arg(&layout).status();
             }
@@ -283,8 +283,8 @@ pub fn draw_locales(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(format!("{}: ", label), label_style),
+            Span::styled(format!("{bullet} "), bullet_style),
+            Span::styled(format!("{label}: "), label_style),
             Span::styled(value, value_style),
         ]);
         lines.push(line);

@@ -62,12 +62,12 @@ pub fn draw_network_configuration(frame: &mut ratatui::Frame, app: &mut AppState
         } else {
             Style::default().fg(Color::White)
         };
-        let mut text = format!("{} {}", marker, label);
+        let mut text = format!("{marker} {label}");
         if idx == 3 {
             text.push_str("  (Manual mode only)");
         }
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
+            Span::styled(format!("{bullet} "), bullet_style),
             Span::styled(text, label_style),
         ]);
         lines.push(line);

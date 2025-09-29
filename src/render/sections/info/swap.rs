@@ -19,7 +19,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         "Disabled"
     };
-    info_lines.push(Line::from(format!("Swapon: {}", swap)));
+    info_lines.push(Line::from(format!("Swapon: {swap}")));
     info_lines.push(Line::from(
         "Swapon can be used to activate the swap partition.",
     ));

@@ -84,8 +84,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                 if app.current_screen() == Screen::Install {
                     let will_start_install = true; // dispatcher::handle_enter may start it based on focus
                     app.debug_log(&format!(
-                        "handle_event: Enter on Install screen (will_start_install={})",
-                        will_start_install
+                        "handle_event: Enter on Install screen (will_start_install={will_start_install})"
                     ));
                 }
                 super::screens::handle_enter(app);
@@ -158,7 +157,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
             if app.current_screen() == Screen::Install && !app.popup_open {
                 let x = column;
                 let y = row;
-                app.debug_log(&format!("handle_event: mouse click at ({}, {})", x, y));
+                app.debug_log(&format!("handle_event: mouse click at ({x}, {y})"));
                 // Check click against computed targets
                 for (i, (rect, target)) in app.install_click_targets.clone().into_iter().enumerate()
                 {
@@ -168,12 +167,11 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                         && y < rect.y + rect.height
                     {
                         app.install_focus_index = i;
-                        app.debug_log(&format!("handle_event: install_focus_index -> {}", i));
+                        app.debug_log(&format!("handle_event: install_focus_index -> {i}"));
                         match target {
                             crate::core::types::InstallClickTarget::Section(screen) => {
                                 app.debug_log(&format!(
-                                    "handle_event: click matched Section({:?})",
-                                    screen
+                                    "handle_event: click matched Section({screen:?})"
                                 ));
                                 if let Some(idx) =
                                     app.menu_entries.iter().position(|m| m.screen == screen)

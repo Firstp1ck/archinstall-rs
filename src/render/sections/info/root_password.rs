@@ -23,8 +23,8 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         "(set)"
     };
-    info_lines.push(Line::from(format!("Password: {}", pwd_set)));
-    info_lines.push(Line::from(format!("Confirm: {}", conf_set)));
+    info_lines.push(Line::from(format!("Password: {pwd_set}")));
+    info_lines.push(Line::from(format!("Confirm: {conf_set}")));
 
     let mut desc_lines = vec![Line::from(Span::styled(
         "Description",

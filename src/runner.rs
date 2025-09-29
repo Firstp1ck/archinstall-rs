@@ -25,7 +25,7 @@ fn debug_log(enabled: bool, msg: &str) {
         .open("debug.log")
         .and_then(|mut f| {
             use std::io::Write;
-            writeln!(f, "[DEBUG {}] {}", ts, msg)
+            writeln!(f, "[DEBUG {ts}] {msg}")
         });
 }
 
@@ -39,7 +39,7 @@ fn format_runlog_line(raw: &str) -> Option<String> {
     if let Some(pos) = s.find(" downloading...") {
         let pkg = s[..pos].trim();
         if !pkg.is_empty() {
-            return Some(format!("download: {}", pkg));
+            return Some(format!("download: {pkg}"));
         }
     }
     // Collapse pacman installing lines: "installing <pkg>..."
@@ -51,7 +51,7 @@ fn format_runlog_line(raw: &str) -> Option<String> {
             .or_else(|| rest.find('.'))
             .unwrap_or(rest.len());
         let pkg = &s["installing ".len()..("installing ".len() + end)];
-        return Some(format!("install: {}", pkg));
+        return Some(format!("install: {pkg}"));
     }
     // Warnings
     if sl.starts_with("warning:") {
@@ -59,10 +59,10 @@ fn format_runlog_line(raw: &str) -> Option<String> {
     }
     // Total sizes
     if let Some(rest) = s.strip_prefix("Total Download Size:") {
-        return Some(format!("download size:{}", rest));
+        return Some(format!("download size:{rest}"));
     }
     if let Some(rest) = s.strip_prefix("Total Installed Size:") {
-        return Some(format!("installed size:{}", rest));
+        return Some(format!("installed size:{rest}"));
     }
     // Proceed question is irrelevant in non-interactive mode
     if s.starts_with(":: Proceed with installation?") {
@@ -127,8 +127,7 @@ fn run_loop_with_debug(
     debug_log(
         debug_enabled,
         &format!(
-            "run_loop_with_debug: creating AppState dry_run={} debug_enabled={}",
-            dry_run, debug_enabled
+            "run_loop_with_debug: creating AppState dry_run={dry_run} debug_enabled={debug_enabled}"
         ),
     );
     let mut app = AppState::new(dry_run);
@@ -211,7 +210,7 @@ fn run_loop_inner(
                     && let Some(pretty) = format_runlog_line(line)
                     && prev_runlog_line.as_deref() != Some(pretty.as_str())
                 {
-                    let _ = writeln!(file, "{}", pretty);
+                    let _ = writeln!(file, "{pretty}");
                     prev_runlog_line = Some(pretty);
                     if !first_log_write_done {
                         debug_log(app.debug_enabled, "run.log: first write");
@@ -240,7 +239,7 @@ fn run_loop_inner(
                 if last_resize_w == 0 && last_resize_h == 0
                     || (significant && last_resize_log_ts.elapsed() > Duration::from_millis(500))
                 {
-                    debug_log(app.debug_enabled, &format!("event: Resize {}x{}", w, h));
+                    debug_log(app.debug_enabled, &format!("event: Resize {w}x{h}"));
                     last_resize_log_ts = Instant::now();
                     last_resize_w = *w;
                     last_resize_h = *h;
@@ -293,7 +292,7 @@ fn run_loop_inner(
                     app.reboot_prompt_open = true;
                 }
                 Err(e) => {
-                    debug_log(app.debug_enabled, &format!("reboot: command error: {}", e));
+                    debug_log(app.debug_enabled, &format!("reboot: command error: {e}"));
                     app.reboot_confirmed = None;
                     app.reboot_prompt_open = true;
                 }
@@ -362,11 +361,11 @@ fn run_loop_inner(
                         cmds.len()
                     ),
                 );
-                println!("=== {} ===", title);
+                println!("=== {title} ===");
                 for c in cmds {
                     let red = redact_command_for_logging(&c);
-                    println!("$ {}", red);
-                    debug_log(app.debug_enabled, &format!("stdout-mode: run '{}'", red));
+                    println!("$ {red}");
+                    debug_log(app.debug_enabled, &format!("stdout-mode: run '{red}'"));
                     let status = Command::new("bash").arg("-lc").arg(&c).status();
                     match status {
                         Ok(st) if st.success() => {
@@ -374,22 +373,22 @@ fn run_loop_inner(
                         }
                         Ok(st) => {
                             let code = st.code().unwrap_or(-1);
-                            let msg = format!("Command failed (exit {}): {}", code, red);
+                            let msg = format!("Command failed (exit {code}): {red}");
                             any_error = Some(msg.clone());
                             eprintln!("{}", any_error.as_ref().unwrap());
                             debug_log(
                                 app.debug_enabled,
-                                &format!("stdout-mode: command failed exit_code={}", code),
+                                &format!("stdout-mode: command failed exit_code={code}"),
                             );
                             break 'outer;
                         }
                         Err(e) => {
-                            let msg = format!("Failed to run: {} ({})", red, e);
+                            let msg = format!("Failed to run: {red} ({e})");
                             any_error = Some(msg.clone());
                             eprintln!("{}", any_error.as_ref().unwrap());
                             debug_log(
                                 app.debug_enabled,
-                                &format!("stdout-mode: command spawn error: {}", e),
+                                &format!("stdout-mode: command spawn error: {e}"),
                             );
                             break 'outer;
                         }
@@ -419,7 +418,7 @@ fn run_loop_inner(
             ),
             Err(e) => debug_log(
                 app.debug_enabled,
-                &format!("post-tui: reboot command error: {}", e),
+                &format!("post-tui: reboot command error: {e}"),
             ),
         }
     }

@@ -19,7 +19,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     } else {
         "None"
     };
-    info_lines.push(Line::from(format!("Type: {}", enc_type)));
+    info_lines.push(Line::from(format!("Type: {enc_type}")));
     if app.disk_encryption_type_index == 1 {
         let pwd_set = if app.disk_encryption_password.is_empty() {
             "(not set)"
@@ -31,13 +31,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             "(set)"
         };
-        info_lines.push(Line::from(format!("Password: {}", pwd_set)));
-        info_lines.push(Line::from(format!("Confirm: {}", pwd_conf)));
+        info_lines.push(Line::from(format!("Password: {pwd_set}")));
+        info_lines.push(Line::from(format!("Confirm: {pwd_conf}")));
         let part = app
             .disk_encryption_selected_partition
             .clone()
             .unwrap_or_else(|| "(none)".into());
-        info_lines.push(Line::from(format!("Partition: {}", part)));
+        info_lines.push(Line::from(format!("Partition: {part}")));
     }
 
     let mut desc_lines = vec![Line::from(Span::styled(

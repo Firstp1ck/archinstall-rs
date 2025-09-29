@@ -19,30 +19,27 @@ impl FstabService {
         // TODO: Add fstab tuning for btrfs subvolumes and mount options (v0.2.0+).
 
         // Basic device partition paths
-        let p1 = format!("{}1", device);
-        let p2 = format!("{}2", device);
-        let p3 = format!("{}3", device);
+        let p1 = format!("{device}1");
+        let p2 = format!("{device}2");
+        let p3 = format!("{device}3");
 
         // Check filesystems created
         if state.is_uefi() {
             // Check that partition 1 is an EFI System Partition by PARTLABEL/TYPE GUID, not by fs type
             cmds.push(format!(
-                "blkid -o export {} | grep -Eq 'PARTLABEL=ESP|PARTLABEL=EFI System Partition|PARTTYPE=EF00|PARTUUID=' || echo 'WARN: ESP not detected on {}'",
-                p1, p1
+                "blkid -o export {p1} | grep -Eq 'PARTLABEL=ESP|PARTLABEL=EFI System Partition|PARTTYPE=EF00|PARTUUID=' || echo 'WARN: ESP not detected on {p1}'"
             ));
         }
         if state.swap_enabled {
             cmds.push(format!(
-                "blkid {} | grep -q 'TYPE=\"swap\"' || echo 'WARN: swap not found on {}'",
-                p2, p2
+                "blkid {p2} | grep -q 'TYPE=\"swap\"' || echo 'WARN: swap not found on {p2}'"
             ));
         }
         if state.disk_encryption_type_index == 1 {
             cmds.push("blkid /dev/mapper/cryptroot | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on cryptroot'".into());
         } else {
             cmds.push(format!(
-                "blkid {} | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on {}'",
-                p3, p3
+                "blkid {p3} | grep -q 'TYPE=\"btrfs\"' || echo 'WARN: btrfs not found on {p3}'"
             ));
         }
 

@@ -22,7 +22,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "[ ]"
             };
-            ListItem::new(format!("{} {}", marker, name))
+            ListItem::new(format!("{marker} {name}"))
         })
         .collect();
     let mut xorg_state = ratatui::widgets::ListState::default();
@@ -69,7 +69,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .iter()
             .map(|name| {
                 let marker = if set.contains(*name) { "[x]" } else { "[ ]" };
-                ListItem::new(format!("{} {}", marker, name))
+                ListItem::new(format!("{marker} {name}"))
             })
             .collect();
 
@@ -133,7 +133,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
                     } else {
                         "[ ]"
                     };
-                    ListItem::new(format!("{} {}", marker, name))
+                    ListItem::new(format!("{marker} {name}"))
                 } else {
                     let title_span = Span::styled(
                         name.trim(),

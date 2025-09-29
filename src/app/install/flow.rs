@@ -67,8 +67,7 @@ impl AppState {
                     Ok(f) => Some(f),
                     Err(e) => {
                         let _ = tx.send(format!(
-                            "WARN: Could not create log file at {}: {}",
-                            log_path_display, e
+                            "WARN: Could not create log file at {log_path_display}: {e}"
                         ));
                         None
                     }
@@ -79,7 +78,7 @@ impl AppState {
                 let write_log = |file: &mut Option<std::fs::File>, line: &str| {
                     if let Some(f) = file.as_mut() {
                         use std::io::Write as _;
-                        let _ = writeln!(f, "{}", line);
+                        let _ = writeln!(f, "{line}");
                     }
                 };
                 let dbg = |msg: &str| {
@@ -92,7 +91,7 @@ impl AppState {
                             .open("debug.log")
                             .and_then(|mut f| {
                                 use std::io::Write;
-                                writeln!(f, "[DEBUG {}] {}: {}", ts, debug_tag, msg)
+                                writeln!(f, "[DEBUG {ts}] {debug_tag}: {msg}")
                             });
                     }
                 };
@@ -107,17 +106,17 @@ impl AppState {
                 write_log(&mut log_file, &start_msg);
                 send(&tx, start_msg);
                 std::thread::sleep(std::time::Duration::from_millis(15));
-                let path_msg = format!("Logging dry-run output to: {}", log_path_display);
+                let path_msg = format!("Logging dry-run output to: {log_path_display}");
                 write_log(&mut log_file, &path_msg);
                 send(&tx, path_msg);
                 std::thread::sleep(std::time::Duration::from_millis(15));
                 for (title, cmds) in sections.into_iter() {
                     dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
-                    let marker = format!("::section_start::{}", title);
+                    let marker = format!("::section_start::{title}");
                     write_log(&mut log_file, &marker);
                     send(&tx, marker);
                     std::thread::sleep(std::time::Duration::from_millis(25));
-                    let header = format!("=== {} ===", title);
+                    let header = format!("=== {title} ===");
                     write_log(&mut log_file, &header);
                     send(&tx, header);
                     std::thread::sleep(std::time::Duration::from_millis(25));
@@ -130,8 +129,8 @@ impl AppState {
                         send(&tx, line);
                         std::thread::sleep(std::time::Duration::from_millis(8));
                     }
-                    let done = format!("::section_done::{}", title);
-                    dbg(&format!("section_done: '{}'", title));
+                    let done = format!("::section_done::{title}");
+                    dbg(&format!("section_done: '{title}'"));
                     write_log(&mut log_file, &done);
                     send(&tx, done);
                     write_log(&mut log_file, "");
@@ -253,7 +252,7 @@ impl AppState {
                         .open("debug.log")
                         .and_then(|mut f| {
                             use std::io::Write;
-                            writeln!(f, "[DEBUG {}] {}: {}", ts, debug_tag, msg)
+                            writeln!(f, "[DEBUG {ts}] {debug_tag}: {msg}")
                         });
                 }
             };
@@ -269,16 +268,16 @@ impl AppState {
                 let thread_panicked = false;
                 'outer: for (title, cmds) in sections.into_iter() {
                     dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
-                    send(&tx, format!("::section_start::{}", title));
-                    send(&tx, format!("=== {} ===", title));
+                    send(&tx, format!("::section_start::{title}"));
+                    send(&tx, format!("=== {title} ==="));
                     for c in cmds {
                         let red = crate::common::utils::redact_command_for_logging(&c);
-                        send(&tx, format!("$ {}", red));
-                        dbg(&format!("spawn: '{}'", red));
+                        send(&tx, format!("$ {red}"));
+                        dbg(&format!("spawn: '{red}'"));
                         // Force all output through our pipe using `script` to avoid /dev/tty writes.
                         // -q: quiet (no start/stop banner), -f: flush, -e: return child status, -c: command
                         let escaped = c.replace('"', "\\\"");
-                        let pipeline = format!("script -qfec \"{}\" /dev/null 2>&1", escaped);
+                        let pipeline = format!("script -qfec \"{escaped}\" /dev/null 2>&1");
                         let mut child = match Command::new("bash")
                             .arg("-lc")
                             .arg(&pipeline)
@@ -299,9 +298,9 @@ impl AppState {
                         {
                             Ok(ch) => ch,
                             Err(e) => {
-                                any_error = Some(format!("Failed to spawn: {} ({})", red, e));
+                                any_error = Some(format!("Failed to spawn: {red} ({e})"));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("failed to spawn: {} ({})", red, e));
+                                dbg(&format!("failed to spawn: {red} ({e})"));
                                 break 'outer;
                             }
                         };
@@ -333,7 +332,7 @@ impl AppState {
                                         send(&tx, clean);
                                     }
                                     Err(e) => {
-                                        dbg(&format!("error reading child stdout: {}", e));
+                                        dbg(&format!("error reading child stdout: {e}"));
                                         break;
                                     }
                                 }
@@ -349,21 +348,21 @@ impl AppState {
                             Ok(st) => {
                                 let code = st.code().unwrap_or(-1);
                                 any_error =
-                                    Some(format!("Command failed (exit {}): {}", code, red));
+                                    Some(format!("Command failed (exit {code}): {red}"));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("command failed (exit {}): {}", code, red));
+                                dbg(&format!("command failed (exit {code}): {red}"));
                                 break 'outer;
                             }
                             Err(e) => {
-                                any_error = Some(format!("Failed to wait: {} ({})", red, e));
+                                any_error = Some(format!("Failed to wait: {red} ({e})"));
                                 send(&tx, any_error.as_ref().unwrap().clone());
-                                dbg(&format!("failed to wait: {} ({})", red, e));
+                                dbg(&format!("failed to wait: {red} ({e})"));
                                 break 'outer;
                             }
                         }
                     }
-                    dbg(&format!("section_done: '{}'", title));
-                    send(&tx, format!("::section_done::{}", title));
+                    dbg(&format!("section_done: '{title}'"));
+                    send(&tx, format!("::section_done::{title}"));
                     send(&tx, String::new());
                 }
                 if any_error.is_none() {
@@ -373,7 +372,7 @@ impl AppState {
             }));
             match thread_result {
                 Ok(_) => dbg("thread exiting normally"),
-                Err(e) => dbg(&format!("thread panicked: {:?}", e)),
+                Err(e) => dbg(&format!("thread panicked: {e:?}")),
             }
         });
     }
@@ -388,18 +387,15 @@ impl AppState {
             }
         };
         self.debug_log(&format!(
-            "select_target_and_run_prechecks: target='{}'",
-            target
+            "select_target_and_run_prechecks: target='{target}'"
         ));
 
         if self.disk_has_mounted_partitions(&target) {
             self.debug_log(&format!(
-                "select_target_and_run_prechecks: mounted partitions detected on {}",
-                target
+                "select_target_and_run_prechecks: mounted partitions detected on {target}"
             ));
             self.open_info_popup(format!(
-                "Device {} has mounted partitions. Unmount before proceeding.",
-                target
+                "Device {target} has mounted partitions. Unmount before proceeding."
             ));
             return None;
         }
@@ -617,7 +613,7 @@ impl AppState {
                     }
                 }
                 if let Some(c) = code {
-                    country_args.push(format!("-c \"{}\"", c));
+                    country_args.push(format!("-c \"{c}\""));
                 } else {
                     // Fallback: use the line up to the first double space as the country name
                     let name = line.split("  ").next().unwrap_or(line).trim().to_string();
@@ -647,8 +643,8 @@ impl AppState {
                     printf_cmd_target.push(' ');
                 }
                 first = false;
-                printf_cmd_host.push_str(&format!("'{}'", safe));
-                printf_cmd_target.push_str(&format!("'{}'", safe));
+                printf_cmd_host.push_str(&format!("'{safe}'"));
+                printf_cmd_target.push_str(&format!("'{safe}'"));
             }
             printf_cmd_host.push_str(" > /etc/pacman.d/mirrorlist");
             printf_cmd_target.push_str(" > /mnt/etc/pacman.d/mirrorlist");

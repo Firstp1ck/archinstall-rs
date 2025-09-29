@@ -19,18 +19,18 @@ fn debug_log(enabled: bool, msg: &str) {
         .open("debug.log")
         .and_then(|mut f| {
             use std::io::Write;
-            writeln!(f, "[DEBUG {}] {}", ts, msg)
+            writeln!(f, "[DEBUG {ts}] {msg}")
         });
 }
 
 fn print_info(debug_enabled: bool, msg: &str) {
-    println!("{}", msg);
-    debug_log(debug_enabled, &format!("info: {}", msg));
+    println!("{msg}");
+    debug_log(debug_enabled, &format!("info: {msg}"));
 }
 
 fn print_error(debug_enabled: bool, msg: &str) {
-    eprintln!("{}", msg);
-    debug_log(debug_enabled, &format!("error: {}", msg));
+    eprintln!("{msg}");
+    debug_log(debug_enabled, &format!("error: {msg}"));
 }
 
 fn main() -> std::io::Result<()> {
@@ -41,8 +41,7 @@ fn main() -> std::io::Result<()> {
     debug_log(
         debug_enabled,
         &format!(
-            "main: parsed flags dry_run={} debug_enabled={}",
-            dry_run, debug_enabled
+            "main: parsed flags dry_run={dry_run} debug_enabled={debug_enabled}"
         ),
     );
 
@@ -50,7 +49,7 @@ fn main() -> std::io::Result<()> {
     let had_warnings = run_preflight_checks(dry_run, debug_enabled);
     debug_log(
         debug_enabled,
-        &format!("preflight: end had_warnings={}", had_warnings),
+        &format!("preflight: end had_warnings={had_warnings}"),
     );
 
     if had_warnings {
@@ -79,10 +78,10 @@ fn main() -> std::io::Result<()> {
 
             let mut answer = String::new();
             if let Err(err) = std::io::stdin().read_line(&mut answer) {
-                print_error(debug_enabled, &format!("Failed to read input: {}", err));
+                print_error(debug_enabled, &format!("Failed to read input: {err}"));
                 debug_log(
                     debug_enabled,
-                    &format!("preflight: read_line error: {}", err),
+                    &format!("preflight: read_line error: {err}"),
                 );
                 return Ok(());
             }
@@ -91,7 +90,7 @@ fn main() -> std::io::Result<()> {
             let proceed = answer_trimmed == "y" || answer_trimmed == "yes";
             debug_log(
                 debug_enabled,
-                &format!("preflight: user decision proceed={}", proceed),
+                &format!("preflight: user decision proceed={proceed}"),
             );
             if !proceed {
                 print_info(debug_enabled, "Aborted by user due to preflight warnings.");
@@ -121,10 +120,10 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
             let value = contents.trim();
             debug_log(
                 debug_enabled,
-                &format!("preflight: fw_platform_size read='{}'", value),
+                &format!("preflight: fw_platform_size read='{value}'"),
             );
             if value != "64" {
-                print_info(debug_enabled, &format!("EFI fw_platform_size: {}", value));
+                print_info(debug_enabled, &format!("EFI fw_platform_size: {value}"));
                 print_info(debug_enabled, "Warning: Bootmode is not 64-bit");
                 debug_log(
                     debug_enabled,
@@ -142,7 +141,7 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
             );
             debug_log(
                 debug_enabled,
-                &format!("preflight: failed to read fw_platform_size: {}", err),
+                &format!("preflight: failed to read fw_platform_size: {err}"),
             );
             had_warning = true;
         }
@@ -154,8 +153,7 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
     debug_log(
         debug_enabled,
         &format!(
-            "preflight: connectivity results archlinux.org={} google.com={}",
-            archlinux_ok, google_ok
+            "preflight: connectivity results archlinux.org={archlinux_ok} google.com={google_ok}"
         ),
     );
     if !(archlinux_ok || google_ok) {
@@ -184,29 +182,29 @@ fn check_host_connectivity(host: &str, debug_enabled: bool) -> bool {
 
     match status {
         Ok(s) if s.success() => {
-            debug_log(debug_enabled, &format!("preflight: '{}' reachable", host));
+            debug_log(debug_enabled, &format!("preflight: '{host}' reachable"));
             true
         }
         Ok(s) => {
             let code = s.code().unwrap_or(-1);
             print_info(
                 debug_enabled,
-                &format!("Network check failed: cannot reach {}", host),
+                &format!("Network check failed: cannot reach {host}"),
             );
             debug_log(
                 debug_enabled,
-                &format!("preflight: '{}' unreachable, exit_code={}", host, code),
+                &format!("preflight: '{host}' unreachable, exit_code={code}"),
             );
             false
         }
         Err(err) => {
             print_error(
                 debug_enabled,
-                &format!("Network check error for {}: {}", host, err),
+                &format!("Network check error for {host}: {err}"),
             );
             debug_log(
                 debug_enabled,
-                &format!("preflight: ping error for '{}': {}", host, err),
+                &format!("preflight: ping error for '{host}': {err}"),
             );
             false
         }

@@ -17,7 +17,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     if !app.last_load_missing_sections.is_empty() {
         info_lines.push(Line::from("Last load missing sections:"));
         for s in app.last_load_missing_sections.iter().take(6) {
-            info_lines.push(Line::from(format!("- {}", s)));
+            info_lines.push(Line::from(format!("- {s}")));
         }
         if app.last_load_missing_sections.len() > 6 {
             info_lines.push(Line::from("…"));

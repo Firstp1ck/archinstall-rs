@@ -102,8 +102,8 @@ pub fn draw_unified_kernel_images(frame: &mut ratatui::Frame, app: &mut AppState
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(format!("{}: ", label), label_style),
+            Span::styled(format!("{bullet} "), bullet_style),
+            Span::styled(format!("{label}: "), label_style),
             Span::styled(value.to_string(), value_style),
         ]);
         lines.push(line);

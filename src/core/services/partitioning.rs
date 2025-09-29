@@ -42,7 +42,7 @@ impl PartitioningService {
                 let role = p.role.clone().unwrap_or_else(|| "OTHER".into());
                 let fs = p.fs.clone().unwrap_or_else(|| "ext4".into());
                 let size = p.size.clone().unwrap_or_else(|| "?".into());
-                specs.push(format!("{}:{}:{}", role, fs, size));
+                specs.push(format!("{role}:{fs}:{size}"));
             }
             state.debug_log(&format!(
                 "partitioning: manual device={} label={} wipe={} align={} specs_count={} [{}]",
@@ -73,30 +73,28 @@ impl PartitioningService {
         // TODO(v0.4.0): Add LVM/RAID support and advanced btrfs subvolume layouts.
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
-            part_cmds.push(format!("wipefs -a {}", device));
+            part_cmds.push(format!("wipefs -a {device}"));
         }
 
         let align = state.disks_align.clone().unwrap_or_else(|| "1MiB".into());
-        part_cmds.push(format!("parted -s {} mklabel {}", device, label));
-        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push(format!("parted -s {device} mklabel {label}"));
+        part_cmds.push(format!("partprobe {device} || true"));
         part_cmds.push("udevadm settle".into());
 
         let mut next_start = align.clone();
         // If system boots via UEFI, always create an ESP as partition 1
         if state.is_uefi() {
             part_cmds.push(format!(
-                "parted -s {} mkpart ESP fat32 {} 1025MiB",
-                device, next_start
+                "parted -s {device} mkpart ESP fat32 {next_start} 1025MiB"
             ));
-            part_cmds.push(format!("parted -s {} set 1 esp on", device));
-            part_cmds.push(format!("mkfs.fat -F 32 {}1", device));
+            part_cmds.push(format!("parted -s {device} set 1 esp on"));
+            part_cmds.push(format!("mkfs.fat -F 32 {device}1"));
             next_start = "1025MiB".into();
         } else {
             part_cmds.push(format!(
-                "parted -s {} mkpart biosboot {} 2MiB",
-                device, next_start
+                "parted -s {device} mkpart biosboot {next_start} 2MiB"
             ));
-            part_cmds.push(format!("parted -s {} set 1 bios_grub on", device));
+            part_cmds.push(format!("parted -s {device} set 1 bios_grub on"));
             next_start = "2MiB".into();
         }
 
@@ -107,35 +105,33 @@ impl PartitioningService {
                 "4098MiB"
             };
             part_cmds.push(format!(
-                "parted -s {} mkpart swap linux-swap {} {}",
-                device, next_start, swap_end
+                "parted -s {device} mkpart swap linux-swap {next_start} {swap_end}"
             ));
-            part_cmds.push(format!("mkswap {}2", device));
+            part_cmds.push(format!("mkswap {device}2"));
             next_start = swap_end.into();
         }
 
         part_cmds.push(format!(
-            "parted -s {} mkpart root btrfs {} 100%",
-            device, next_start
+            "parted -s {device} mkpart root btrfs {next_start} 100%"
         ));
         let luks = state.disk_encryption_type_index == 1;
         if luks {
-            part_cmds.push(format!("cryptsetup luksFormat {}3", device));
-            part_cmds.push(format!("cryptsetup open {}3 cryptroot", device));
+            part_cmds.push(format!("cryptsetup luksFormat {device}3"));
+            part_cmds.push(format!("cryptsetup open {device}3 cryptroot"));
             part_cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
         } else {
-            part_cmds.push(format!("mkfs.btrfs -f {}3", device));
+            part_cmds.push(format!("mkfs.btrfs -f {device}3"));
         }
     }
 
     fn build_manual_partition_plan(state: &AppState, device: &str, part_cmds: &mut Vec<String>) {
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
-            part_cmds.push(format!("wipefs -a {}", device));
+            part_cmds.push(format!("wipefs -a {device}"));
         }
 
-        part_cmds.push(format!("parted -s {} mklabel {}", device, label));
-        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push(format!("parted -s {device} mklabel {label}"));
+        part_cmds.push(format!("partprobe {device} || true"));
         part_cmds.push("udevadm settle".into());
 
         // Sort partitions by start position to ensure correct order
@@ -180,22 +176,19 @@ impl PartitioningService {
             };
 
             part_cmds.push(format!(
-                "parted -s {} mkpart {} {} {} {}",
-                device, part_type, fs, start_str, size_str
+                "parted -s {device} mkpart {part_type} {fs} {start_str} {size_str}"
             ));
 
             // Set partition flags based on role
             match role {
                 "BOOT" | "EFI" => {
                     part_cmds.push(format!(
-                        "parted -s {} set {} esp on",
-                        device, partition_number
+                        "parted -s {device} set {partition_number} esp on"
                     ));
                 }
                 "BIOS_BOOT" => {
                     part_cmds.push(format!(
-                        "parted -s {} set {} bios_grub on",
-                        device, partition_number
+                        "parted -s {device} set {partition_number} bios_grub on"
                     ));
                 }
                 _ => {}
@@ -211,38 +204,38 @@ impl PartitioningService {
                         "fat12" => "12",
                         _ => "32",
                     };
-                    part_cmds.push(format!("mkfs.fat -F {} {}", fat_type, partition_path));
+                    part_cmds.push(format!("mkfs.fat -F {fat_type} {partition_path}"));
                 }
                 "linux-swap" => {
-                    part_cmds.push(format!("mkswap {}", partition_path));
+                    part_cmds.push(format!("mkswap {partition_path}"));
                 }
                 "btrfs" => {
-                    part_cmds.push(format!("mkfs.btrfs -f {}", partition_path));
+                    part_cmds.push(format!("mkfs.btrfs -f {partition_path}"));
                 }
                 "ext4" => {
-                    part_cmds.push(format!("mkfs.ext4 -F {}", partition_path));
+                    part_cmds.push(format!("mkfs.ext4 -F {partition_path}"));
                 }
                 "ext3" => {
-                    part_cmds.push(format!("mkfs.ext3 -F {}", partition_path));
+                    part_cmds.push(format!("mkfs.ext3 -F {partition_path}"));
                 }
                 "ext2" => {
-                    part_cmds.push(format!("mkfs.ext2 -F {}", partition_path));
+                    part_cmds.push(format!("mkfs.ext2 -F {partition_path}"));
                 }
                 "xfs" => {
-                    part_cmds.push(format!("mkfs.xfs -f {}", partition_path));
+                    part_cmds.push(format!("mkfs.xfs -f {partition_path}"));
                 }
                 "f2fs" => {
-                    part_cmds.push(format!("mkfs.f2fs -f {}", partition_path));
+                    part_cmds.push(format!("mkfs.f2fs -f {partition_path}"));
                 }
                 _ => {
-                    part_cmds.push(format!("mkfs.ext4 -F {}", partition_path));
+                    part_cmds.push(format!("mkfs.ext4 -F {partition_path}"));
                 }
             }
 
             partition_number += 1;
         }
 
-        part_cmds.push(format!("partprobe {} || true", device));
+        part_cmds.push(format!("partprobe {device} || true"));
         part_cmds.push("udevadm settle".into());
     }
 
@@ -265,7 +258,7 @@ impl PartitioningService {
             if mib == 0 {
                 "1MiB".to_string()
             } else {
-                format!("{}MiB", mib)
+                format!("{mib}MiB")
             }
         } else {
             bytes_str.to_string()
@@ -280,9 +273,9 @@ impl PartitioningService {
             .map(|c| c.is_ascii_digit())
             .unwrap_or(false)
         {
-            format!("{}p{}", device, partition_number)
+            format!("{device}p{partition_number}")
         } else {
-            format!("{}{}", device, partition_number)
+            format!("{device}{partition_number}")
         }
     }
 

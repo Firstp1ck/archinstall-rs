@@ -41,7 +41,7 @@ pub fn draw_root_password(frame: &mut ratatui::Frame, app: &mut AppState, area: 
     };
     let value_mask = "*".repeat(app.root_password.chars().count());
     lines.push(Line::from(vec![
-        Span::styled(format!("{} ", bullet), bullet_style),
+        Span::styled(format!("{bullet} "), bullet_style),
         Span::styled("Set password: ", label_style),
         Span::styled(value_mask, Style::default().fg(Color::White)),
     ]));
@@ -66,7 +66,7 @@ pub fn draw_root_password(frame: &mut ratatui::Frame, app: &mut AppState, area: 
     };
     let value_mask = "*".repeat(app.root_password_confirm.chars().count());
     lines.push(Line::from(vec![
-        Span::styled(format!("{} ", bullet), bullet_style),
+        Span::styled(format!("{bullet} "), bullet_style),
         Span::styled("Confirm password: ", label_style),
         Span::styled(value_mask, Style::default().fg(Color::White)),
     ]));

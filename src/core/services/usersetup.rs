@@ -20,7 +20,7 @@ impl UserSetupService {
 
         fn chroot_cmd(inner: &str) -> String {
             let escaped = inner.replace("'", "'\\''");
-            format!("arch-chroot /mnt bash -lc '{}'", escaped)
+            format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
         // Create users and set passwords
@@ -67,7 +67,7 @@ impl UserSetupService {
             && !lm.is_empty()
             && lm != "none"
         {
-            cmds.push(format!("systemctl --root=/mnt enable {}", lm));
+            cmds.push(format!("systemctl --root=/mnt enable {lm}"));
         }
 
         // Debug summary

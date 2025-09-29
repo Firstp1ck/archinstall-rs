@@ -46,19 +46,19 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
 
         // Left pane: general info
         let mut left_info: Vec<Line> = Vec::new();
-        left_info.push(Line::from(format!("Disk mode: {}", mode)));
+        left_info.push(Line::from(format!("Disk mode: {mode}")));
         if let Some(dev) = &app.disks_selected_device {
-            left_info.push(Line::from(format!("Selected drive: {}", dev)));
+            left_info.push(Line::from(format!("Selected drive: {dev}")));
         }
         if let Some(label) = &app.disks_label {
-            left_info.push(Line::from(format!("Label: {}", label)));
+            left_info.push(Line::from(format!("Label: {label}")));
         }
         left_info.push(Line::from(format!(
             "Wipe: {}",
             if app.disks_wipe { "Yes" } else { "No" }
         )));
         if let Some(align) = &app.disks_align {
-            left_info.push(Line::from(format!("Align: {}", align)));
+            left_info.push(Line::from(format!("Align: {align}")));
         }
         let left_block = Paragraph::new(left_info)
             .block(Block::default().borders(Borders::ALL).title(" Info "))
@@ -85,19 +85,19 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             };
             let mut line = String::new();
             if !role.is_empty() {
-                line.push_str(&format!("({}) ", role));
+                line.push_str(&format!("({role}) "));
             }
             if !fs.is_empty() {
-                line.push_str(&format!("{} ", fs));
+                line.push_str(&format!("{fs} "));
             }
             if !start.is_empty() || !size.is_empty() {
-                line.push_str(&format!("[{}..{}] ", start, size));
+                line.push_str(&format!("[{start}..{size}] "));
             }
             if !flags.is_empty() {
-                line.push_str(&format!("flags:{} ", flags));
+                line.push_str(&format!("flags:{flags} "));
             }
             if !mp.is_empty() {
-                line.push_str(&format!("-> {} ", mp));
+                line.push_str(&format!("-> {mp} "));
             }
             line.push_str(enc);
             if line.is_empty() {
@@ -161,11 +161,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         let mut combined: Vec<String> = Vec::new();
         if !left_lines.is_empty() {
             combined.push("Existing:".into());
-            combined.extend(left_lines.into_iter().map(|s| format!("- {}", s)));
+            combined.extend(left_lines.into_iter().map(|s| format!("- {s}")));
         }
         if !right_lines.is_empty() {
             combined.push("Created:".into());
-            combined.extend(right_lines.into_iter().map(|s| format!("- {}", s)));
+            combined.extend(right_lines.into_iter().map(|s| format!("- {s}")));
         }
         if combined.is_empty() {
             combined.push("(none)".into());
@@ -189,11 +189,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             3 => "Limine",
             _ => "other",
         };
-        info_lines.push(Line::from(format!("Bootloader: {}", bl)));
+        info_lines.push(Line::from(format!("Bootloader: {bl}")));
         let fw = if app.is_uefi() { "UEFI" } else { "BIOS" };
-        info_lines.push(Line::from(format!("Firmware: {}", fw)));
+        info_lines.push(Line::from(format!("Firmware: {fw}")));
         if let Some(dev) = &app.disks_selected_device {
-            info_lines.push(Line::from(format!("Selected drive: {}", dev)));
+            info_lines.push(Line::from(format!("Selected drive: {dev}")));
         }
         info_lines.push(Line::from("Planned layout:"));
         if app.is_uefi() {
@@ -206,7 +206,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 ""
             };
-            info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+            info_lines.push(Line::from(format!("- root: btrfs{enc} (rest)")));
         } else {
             info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
             if app.swap_enabled {
@@ -217,7 +217,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 ""
             };
-            info_lines.push(Line::from(format!("- root: btrfs{} (rest)", enc)));
+            info_lines.push(Line::from(format!("- root: btrfs{enc} (rest)")));
             if bl != "GRUB" && bl != "Limine" {
                 info_lines.push(Line::from(
                     "Warning: Selected bootloader requires UEFI; choose GRUB or Limine for BIOS.",

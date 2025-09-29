@@ -46,7 +46,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                     }
                     num_cols = num_cols.min(4);
                     let count = pkgs.len();
-                    info_lines.push(Line::from(format!("- {} ({}):", server, count)));
+                    info_lines.push(Line::from(format!("- {server} ({count}):")));
                     let rows = count.div_ceil(num_cols);
                     for r in 0..rows {
                         let mut line = String::new();
@@ -66,10 +66,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                                 }
                             }
                         }
-                        info_lines.push(Line::from(format!("  {}", line)));
+                        info_lines.push(Line::from(format!("  {line}")));
                     }
                 } else {
-                    info_lines.push(Line::from(format!("- {}: default packages", server)));
+                    info_lines.push(Line::from(format!("- {server}: default packages")));
                 }
             }
         } else {
@@ -98,7 +98,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                     }
                     num_cols = num_cols.min(4);
                     let count = pkgs.len();
-                    info_lines.push(Line::from(format!("- {} ({}):", xorg, count)));
+                    info_lines.push(Line::from(format!("- {xorg} ({count}):")));
                     let rows = count.div_ceil(num_cols);
                     for r in 0..rows {
                         let mut line = String::new();
@@ -118,10 +118,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                                 }
                             }
                         }
-                        info_lines.push(Line::from(format!("  {}", line)));
+                        info_lines.push(Line::from(format!("  {line}")));
                     }
                 } else {
-                    info_lines.push(Line::from(format!("- {}: default packages", xorg)));
+                    info_lines.push(Line::from(format!("- {xorg}: default packages")));
                 }
             }
         } else {
@@ -157,7 +157,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             "none".into()
         };
-        info_lines.push(Line::from(format!("Login Manager: {}", effective_lm)));
+        info_lines.push(Line::from(format!("Login Manager: {effective_lm}")));
 
         info_lines.push(Line::from("Packages:"));
         for &env in names.iter() {
@@ -270,7 +270,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             };
             pkgs.sort_unstable();
             let count = pkgs.len();
-            info_lines.push(Line::from(format!("- {} ({}):", env, count)));
+            info_lines.push(Line::from(format!("- {env} ({count}):")));
 
             let available_width = area.width.saturating_sub(4) as usize;
             let max_name_len = pkgs.iter().map(|s| s.len()).max().unwrap_or(0).min(32);
@@ -303,7 +303,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                         }
                     }
                 }
-                info_lines.push(Line::from(format!("  {}", line)));
+                info_lines.push(Line::from(format!("  {line}")));
             }
         }
     } else {

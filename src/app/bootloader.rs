@@ -54,8 +54,8 @@ pub fn draw_bootloader(frame: &mut ratatui::Frame, app: &mut AppState, area: Rec
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(format!("{} {}", marker, label), label_style),
+            Span::styled(format!("{bullet} "), bullet_style),
+            Span::styled(format!("{marker} {label}"), label_style),
         ]);
         lines.push(line);
     }

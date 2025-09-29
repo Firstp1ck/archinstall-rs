@@ -26,11 +26,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         info_lines.push(Line::from(format!("Packages ({}):", entries.len())));
         for (name, desc) in entries.into_iter().take(8) {
             let max_line = (area.width.saturating_sub(4)) as usize;
-            let mut line = format!("{} — {}", name, desc);
+            let mut line = format!("{name} — {desc}");
             if line.len() > max_line {
                 line.truncate(max_line);
             }
-            info_lines.push(Line::from(format!("  {}", line)));
+            info_lines.push(Line::from(format!("  {line}")));
         }
         if app.additional_packages.len() > 8 {
             info_lines.push(Line::from("  …"));

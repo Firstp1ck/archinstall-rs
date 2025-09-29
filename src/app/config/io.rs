@@ -116,7 +116,7 @@ impl AppState {
                 let mut hasher = Sha256::new();
                 hasher.update(self.disk_encryption_password.as_bytes());
                 let result = hasher.finalize();
-                Some(format!("{:x}", result))
+                Some(format!("{result:x}"))
             } else {
                 None
             };
@@ -146,7 +146,7 @@ impl AppState {
                     let mut hasher = Sha256::new();
                     hasher.update(self.root_password.as_bytes());
                     let result = hasher.finalize();
-                    Some(format!("{:x}", result))
+                    Some(format!("{result:x}"))
                 } else {
                     None
                 }
@@ -235,7 +235,7 @@ impl AppState {
                     let mut hasher = Sha256::new();
                     hasher.update(u.password.as_bytes());
                     let result = hasher.finalize();
-                    format!("{:x}", result)
+                    format!("{result:x}")
                 } else {
                     String::new()
                 };
@@ -357,11 +357,11 @@ impl AppState {
         let path = Self::config_path();
         self.debug_log(&format!("load_config: path={}", path.display()));
         let text = std::fs::read_to_string(&path).map_err(|e| {
-            self.debug_log(&format!("load_config: read error: {}", e));
+            self.debug_log(&format!("load_config: read error: {e}"));
             ConfigLoadError::ReadFile
         })?;
         let cfg: AppConfig = toml::from_str(&text).map_err(|e| {
-            self.debug_log(&format!("load_config: parse error: {}", e));
+            self.debug_log(&format!("load_config: parse error: {e}"));
             ConfigLoadError::ParseToml
         })?;
         self.debug_log("load_config: parse ok");

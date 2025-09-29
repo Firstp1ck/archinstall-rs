@@ -51,7 +51,7 @@ pub fn redact_command_for_logging(command: &str) -> String {
         redact_after_echo_segment(&mut redacted, |inner| {
             if let Some(colon_idx) = inner.find(':') {
                 let user = &inner[..colon_idx];
-                format!("{}:<REDACTED>", user)
+                format!("{user}:<REDACTED>")
             } else {
                 "<REDACTED>".to_string()
             }

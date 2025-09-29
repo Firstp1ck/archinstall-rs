@@ -54,7 +54,7 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
+            Span::styled(format!("{bullet} "), bullet_style),
             Span::styled(label.to_string(), label_style),
         ]);
         lines.push(line);
@@ -142,7 +142,7 @@ impl AppState {
                             .get("path")
                             .and_then(|v| v.as_str())
                             .map(|s| s.to_string())
-                            .unwrap_or_else(|| format!("/dev/{}", name));
+                            .unwrap_or_else(|| format!("/dev/{name}"));
                         let size_b = dev.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
                         let ro = dev.get("ro").and_then(|v| v.as_u64()).unwrap_or(0) != 0;
                         let log_sec = dev.get("log-sec").and_then(|v| v.as_u64()).unwrap_or(0);
@@ -165,10 +165,10 @@ impl AppState {
                         let sector_size = if log_sec == 0 && phy_sec == 0 {
                             String::new()
                         } else if log_sec != 0 && phy_sec != 0 && log_sec != phy_sec {
-                            format!("{}/{} B", log_sec, phy_sec)
+                            format!("{log_sec}/{phy_sec} B")
                         } else {
                             let s = if phy_sec != 0 { phy_sec } else { log_sec };
-                            format!("{} B", s)
+                            format!("{s} B")
                         };
                         devices.push(DiskDevice {
                             model,
@@ -288,12 +288,12 @@ impl AppState {
                         let start_h = if start_bytes == 0 {
                             String::new()
                         } else {
-                            format!("{}", start_bytes)
+                            format!("{start_bytes}")
                         };
                         let end_h = if end_bytes == 0 {
                             String::new()
                         } else {
-                            format!("{}", end_bytes)
+                            format!("{end_bytes}")
                         };
                         rows.push(format!(
                                         "{:<8} | {:<20} | {:<18} | {:<12} | {:<12} | {:<10} | {:<14} | {:<12} | {:<14}",
@@ -324,9 +324,9 @@ impl AppState {
                         .map(|c| c.is_ascii_digit())
                         .unwrap_or(false)
                     {
-                        format!("{}p{}", base, n)
+                        format!("{base}p{n}")
                     } else {
-                        format!("{}{}", base, n)
+                        format!("{base}{n}")
                     }
                 };
                 for (spec_idx, spec) in self.disks_partitions.iter().enumerate() {
@@ -346,7 +346,7 @@ impl AppState {
                             // Track as used range
                             let end_b = st.saturating_add(sz);
                             used_ranges.push((st, end_b));
-                            (format!("{}", end_b), Self::human_bytes(sz))
+                            (format!("{end_b}"), Self::human_bytes(sz))
                         } else {
                             (String::new(), size)
                         };
@@ -485,7 +485,7 @@ impl AppState {
                 .iter()
                 .any(|p| p.role.as_deref().unwrap_or("").eq_ignore_ascii_case(k));
             if created_exists {
-                *k = format!("{} (created)", k);
+                *k = format!("{k} (created)");
             }
         }
         self.popup_items = kinds;

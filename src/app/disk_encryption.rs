@@ -88,7 +88,7 @@ impl AppState {
                             }
                             let size_b = ch.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
                             let size = Self::human_bytes(size_b);
-                            lines.push(format!("{:<15} | {:<20} | {:<10}", name, path, size));
+                            lines.push(format!("{name:<15} | {path:<20} | {size:<10}"));
                         }
                     }
                 }
@@ -143,7 +143,7 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
         Style::default().fg(Color::White)
     };
     lines.push(Line::from(vec![
-        Span::styled(format!("{} ", bullet), bullet_style),
+        Span::styled(format!("{bullet} "), bullet_style),
         Span::styled("Encryption Type: ", label_style),
         Span::styled(enc_type.to_string(), value_style),
     ]));

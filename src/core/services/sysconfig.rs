@@ -23,7 +23,7 @@ impl SysConfigService {
         fn chroot_cmd(inner: &str) -> String {
             // Escape single quotes for safe embedding within single-quoted bash -lc
             let escaped = inner.replace("'", "'\\''");
-            format!("arch-chroot /mnt bash -lc '{}'", escaped)
+            format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
         // Timezone and hardware clock
@@ -33,8 +33,7 @@ impl SysConfigService {
             state.timezone_value.clone()
         };
         cmds.push(chroot_cmd(&format!(
-            "ln -sf /usr/share/zoneinfo/{} /etc/localtime",
-            timezone
+            "ln -sf /usr/share/zoneinfo/{timezone} /etc/localtime"
         )));
         cmds.push(chroot_cmd("hwclock --systohc"));
 
@@ -49,22 +48,19 @@ impl SysConfigService {
             .get(&language)
             .cloned()
             .unwrap_or_else(|| "UTF-8".to_string());
-        let locale_gen_line = format!("{} {}", language, encoding);
+        let locale_gen_line = format!("{language} {encoding}");
         // Ensure desired locale line is uncommented or appended in /etc/locale.gen
         cmds.push(chroot_cmd(&format!(
-            "sed -i 's/^#\\s*{0}/{0}/' /etc/locale.gen",
-            locale_gen_line
+            "sed -i 's/^#\\s*{locale_gen_line}/{locale_gen_line}/' /etc/locale.gen"
         )));
         cmds.push(chroot_cmd(&format!(
-            "grep -q '^{}$' /etc/locale.gen || echo '{}' >> /etc/locale.gen",
-            locale_gen_line, locale_gen_line
+            "grep -q '^{locale_gen_line}$' /etc/locale.gen || echo '{locale_gen_line}' >> /etc/locale.gen"
         )));
         cmds.push(chroot_cmd("locale-gen"));
 
         // /etc/locale.conf
         cmds.push(chroot_cmd(&format!(
-            "printf 'LANG=%s\\n' '{}' > /etc/locale.conf",
-            language
+            "printf 'LANG=%s\\n' '{language}' > /etc/locale.conf"
         )));
 
         // /etc/vconsole.conf (keyboard layout)
@@ -74,8 +70,7 @@ impl SysConfigService {
             .cloned()
             .unwrap_or_else(|| "us".to_string());
         cmds.push(chroot_cmd(&format!(
-            "printf 'KEYMAP=%s\\n' '{}' > /etc/vconsole.conf",
-            keymap
+            "printf 'KEYMAP=%s\\n' '{keymap}' > /etc/vconsole.conf"
         )));
 
         // Hostname and hosts
@@ -85,12 +80,10 @@ impl SysConfigService {
             state.hostname_value.clone()
         };
         cmds.push(chroot_cmd(&format!(
-            "printf '%s\\n' '{}' > /etc/hostname",
-            hostname
+            "printf '%s\\n' '{hostname}' > /etc/hostname"
         )));
         cmds.push(chroot_cmd(&format!(
-            "printf '%s\\n%s\\n%s\\n' '127.0.0.1   localhost' '::1         localhost' '127.0.1.1   {0}.localdomain {0}' > /etc/hosts",
-            hostname
+            "printf '%s\\n%s\\n%s\\n' '127.0.0.1   localhost' '::1         localhost' '127.0.1.1   {hostname}.localdomain {hostname}' > /etc/hosts"
         )));
 
         // Enable NetworkManager if chosen
@@ -110,7 +103,7 @@ impl SysConfigService {
                 cmds.push(chroot_cmd(cmd));
             } else {
                 let pw_escaped = state.root_password.replace('"', "\\\"");
-                let cmd = format!("echo \"root:{}\" | chpasswd", pw_escaped);
+                let cmd = format!("echo \"root:{pw_escaped}\" | chpasswd");
                 cmds.push(chroot_cmd(&cmd));
             }
         }

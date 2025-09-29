@@ -20,7 +20,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(format!("Bootloader: {}", bl)),
+        Line::from(format!("Bootloader: {bl}")),
     ];
 
     let mut desc_lines = vec![Line::from(Span::styled(

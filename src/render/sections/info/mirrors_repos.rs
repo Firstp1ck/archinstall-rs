@@ -22,11 +22,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         .collect();
     let servers_count = app.mirrors_custom_servers.len();
     let repos_count = app.custom_repos.len();
-    info_lines.push(Line::from(format!("Regions selected: {}", regions_count)));
+    info_lines.push(Line::from(format!("Regions selected: {regions_count}")));
     if regions_count > 0 {
         for &idx in app.mirrors_regions_selected.iter().take(5) {
             if let Some(name) = app.mirrors_regions_options.get(idx) {
-                info_lines.push(Line::from(format!("- {}", name)));
+                info_lines.push(Line::from(format!("- {name}")));
             }
         }
         if regions_count > 5 {
@@ -42,9 +42,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         }
     )));
     if servers_count > 0 {
-        info_lines.push(Line::from(format!("Custom servers ({}):", servers_count)));
+        info_lines.push(Line::from(format!("Custom servers ({servers_count}):")));
         for s in app.mirrors_custom_servers.iter().take(3) {
-            info_lines.push(Line::from(format!("- {}", s)));
+            info_lines.push(Line::from(format!("- {s}")));
         }
         if servers_count > 3 {
             info_lines.push(Line::from("…"));

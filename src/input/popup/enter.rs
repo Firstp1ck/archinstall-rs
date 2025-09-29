@@ -60,8 +60,8 @@ fn finalize_manual_partition(app: &mut AppState) {
         name: app.disks_selected_device.clone(),
         role: Some(role.to_string()),
         fs,
-        start: Some(format!("{}", start_b)),
-        size: Some(format!("{}", final_size)),
+        start: Some(format!("{start_b}")),
+        size: Some(format!("{final_size}")),
         mountpoint,
         ..Default::default()
     };
@@ -341,7 +341,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                     .unwrap_or_default();
                 if global_idx < app.users.len() {
                     app.users.remove(global_idx);
-                    app.info_message = format!("Deleted user '{}'.", username);
+                    app.info_message = format!("Deleted user '{username}'.");
                 }
                 app.close_popup();
             }
@@ -393,8 +393,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                     if let Some(reason) = app.check_additional_pkg_conflicts(&pkg_name) {
                         app.addpkgs_reopen_after_info = true;
                         app.open_info_popup(format!(
-                            "Package '{}' not added: {}.",
-                            pkg_name, reason
+                            "Package '{pkg_name}' not added: {reason}."
                         ));
                         app.custom_input_buffer.clear();
                         return false;
@@ -615,7 +614,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                         app.popup_selected_visible = 0;
                         app.popup_in_search = false;
                         app.popup_search_query.clear();
-                        app.info_message = format!("__EDIT_INDEX__{}", idx);
+                        app.info_message = format!("__EDIT_INDEX__{idx}");
                         app.popup_open = true;
                         return false;
                     }

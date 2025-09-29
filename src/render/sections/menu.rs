@@ -17,7 +17,7 @@ pub fn draw_menu(frame: &mut Frame, app: &mut AppState, area: Rect) {
         .map(|entry| {
             let mut label = entry.label.clone();
             if app.processed_sections.contains(&entry.screen) {
-                label = format!("✔ {}", label);
+                label = format!("✔ {label}");
             }
             ListItem::new(Line::from(label))
         })

@@ -19,7 +19,7 @@ impl BootloaderService {
 
         fn chroot_cmd(inner: &str) -> String {
             let escaped = inner.replace("'", "'\\''");
-            format!("arch-chroot /mnt bash -lc '{}'", escaped)
+            format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
         match state.bootloader_index {
@@ -65,8 +65,7 @@ impl BootloaderService {
                 } else {
                     // BIOS mode install to disk (not a partition)
                     cmds.push(chroot_cmd(&format!(
-                        "grub-install --target=i386-pc {}",
-                        _device
+                        "grub-install --target=i386-pc {_device}"
                     )));
                 }
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));

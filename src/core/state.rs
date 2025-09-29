@@ -685,8 +685,7 @@ impl AppState {
             if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
                 self.install_current_section = Some(idx);
                 self.debug_log(&format!(
-                    "append_install_log_line: section_start '{}' idx={}",
-                    rest, idx
+                    "append_install_log_line: section_start '{rest}' idx={idx}"
                 ));
             }
             return;
@@ -697,8 +696,7 @@ impl AppState {
             {
                 self.install_section_done[idx] = true;
                 self.debug_log(&format!(
-                    "append_install_log_line: section_done '{}' idx={}",
-                    rest, idx
+                    "append_install_log_line: section_done '{rest}' idx={idx}"
                 ));
             }
             return;
@@ -782,7 +780,7 @@ impl AppState {
             .open("debug.log")
             .and_then(|mut f| {
                 use std::io::Write;
-                writeln!(f, "[DEBUG {}] {}", ts, msg)
+                writeln!(f, "[DEBUG {ts}] {msg}")
             });
     }
 

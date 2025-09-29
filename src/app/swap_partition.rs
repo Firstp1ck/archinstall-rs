@@ -56,8 +56,8 @@ pub fn draw_swap_partition(frame: &mut ratatui::Frame, app: &mut AppState, area:
             Style::default().fg(Color::White)
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
-            Span::styled(format!("{}: ", label), label_style),
+            Span::styled(format!("{bullet} "), bullet_style),
+            Span::styled(format!("{label}: "), label_style),
             Span::styled(value.to_string(), value_style),
         ]);
         lines.push(line);

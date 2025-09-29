@@ -54,12 +54,10 @@ impl SystemService {
                 let name_safe = repo.name.replace('\n', " ").replace('\'', "'\\''");
                 let url_safe = repo.url.replace('\n', " ").replace('\'', "'\\''");
                 cmds.push(format!(
-                    "printf '%s\\n' '[{}]' >> /mnt/etc/pacman.conf",
-                    name_safe
+                    "printf '%s\\n' '[{name_safe}]' >> /mnt/etc/pacman.conf"
                 ));
                 cmds.push(format!(
-                    "printf '%s\\n' 'Server = {}' >> /mnt/etc/pacman.conf",
-                    url_safe
+                    "printf '%s\\n' 'Server = {url_safe}' >> /mnt/etc/pacman.conf"
                 ));
                 match repo.signature {
                     crate::app::RepoSignature::Never => {
@@ -273,8 +271,7 @@ impl SystemService {
                 // Retry pacstrap up to 2 times on transient fetch errors using different mirrors
                 // Apply PACMAN flags inline (safe under `script`) to suppress progress bar output
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
-                    joined, joined
+                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {joined} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {joined} )"
                 ));
             }
         } else {
@@ -283,8 +280,7 @@ impl SystemService {
                 let joined = packages.join(" ");
                 // Apply PACMAN flags inline (safe under `script`) to suppress progress bar output
                 cmds.push(format!(
-                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {} )",
-                    joined, joined
+                    "PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {joined} || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN=\"pacman --noconfirm --noprogressbar --color never\" pacstrap -K /mnt {joined} )"
                 ));
             }
         }

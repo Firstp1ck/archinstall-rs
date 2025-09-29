@@ -42,7 +42,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "[ ]"
             };
-            ListItem::new(format!("{} {}", marker, name))
+            ListItem::new(format!("{marker} {name}"))
         })
         .collect();
     let wm_items: Vec<ListItem> = wm_visible_positions
@@ -55,7 +55,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "[ ]"
             };
-            ListItem::new(format!("{} {}", marker, name))
+            ListItem::new(format!("{marker} {name}"))
         })
         .collect();
 
@@ -147,7 +147,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "[ ]"
             };
-            ListItem::new(format!("{} {}", marker, name))
+            ListItem::new(format!("{marker} {name}"))
         })
         .collect();
 
@@ -172,9 +172,9 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
         pkg_state.select(None);
     }
     let pkg_title = if app.popup_packages_focus {
-        format!(" Installed packages — {} (focused) ", env_type)
+        format!(" Installed packages — {env_type} (focused) ")
     } else {
-        format!(" Installed packages — {} ", env_type)
+        format!(" Installed packages — {env_type} ")
     };
     let pkg_highlight = if app.popup_packages_focus {
         Color::Yellow
@@ -220,7 +220,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 } else {
                     "[ ]"
                 };
-                ListItem::new(format!("{} {}", marker, name))
+                ListItem::new(format!("{marker} {name}"))
             } else {
                 let title_span = Span::styled(
                     name.trim(),
@@ -294,7 +294,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 None => name == "none",
             };
             let marker = if is_selected { "[x]" } else { "[ ]" };
-            ListItem::new(format!("{} {}", marker, name))
+            ListItem::new(format!("{marker} {name}"))
         })
         .collect();
     let mut lm_state = ratatui::widgets::ListState::default();

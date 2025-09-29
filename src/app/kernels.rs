@@ -55,12 +55,12 @@ pub fn draw_kernels(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             Style::default().fg(Color::White)
         };
         let shown = if idx == 1 {
-            format!("[ {} ]", label)
+            format!("[ {label} ]")
         } else {
             label
         };
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
+            Span::styled(format!("{bullet} "), bullet_style),
             Span::styled(shown, label_style),
         ]);
         lines.push(line);

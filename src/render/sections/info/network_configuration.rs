@@ -27,13 +27,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             };
             let mut line = format!("- {} ({})", cfg.interface, mode);
             if let Some(ip) = &cfg.ip_cidr {
-                line.push_str(&format!(" IP={} ", ip));
+                line.push_str(&format!(" IP={ip} "));
             }
             if let Some(gw) = &cfg.gateway {
-                line.push_str(&format!(" GW={} ", gw));
+                line.push_str(&format!(" GW={gw} "));
             }
             if let Some(dns) = &cfg.dns {
-                line.push_str(&format!(" DNS={} ", dns));
+                line.push_str(&format!(" DNS={dns} "));
             }
             info_lines.push(Line::from(line));
         }

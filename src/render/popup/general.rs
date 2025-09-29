@@ -93,8 +93,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             format!("{} {}", app.custom_input_buffer.clone(), unit_label)
         };
         let info = Paragraph::new(Line::from(format!(
-            "Start | {}    \nEnd   | {}    \nSize  | {}",
-            start, end, size_live
+            "Start | {start}    \nEnd   | {end}    \nSize  | {size_live}"
         )))
         .block(Block::default().borders(Borders::ALL).title(" Info "))
         .wrap(Wrap { trim: false });
@@ -118,9 +117,9 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(if app.manual_create_focus_units {
-                    format!(" Size ({}) ", unit_label)
+                    format!(" Size ({unit_label}) ")
                 } else {
-                    format!(" Size ({}) (focused) ", unit_label)
+                    format!(" Size ({unit_label}) (focused) ")
                 }),
         )
         .wrap(Wrap { trim: false });
@@ -135,7 +134,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
             } else {
                 "[ ]"
             };
-            items.push(ListItem::new(format!("{} {}", marker, u)));
+            items.push(ListItem::new(format!("{marker} {u}")));
         }
         let list =
             List::new(items)
@@ -287,7 +286,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 } else {
                     ""
                 };
-                ListItem::new(format!("{} {}{}", marker, p, suffix))
+                ListItem::new(format!("{marker} {p}{suffix}"))
             })
             .collect();
         let mut state_right = ratatui::widgets::ListState::default();

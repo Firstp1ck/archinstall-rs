@@ -45,7 +45,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 Style::default().fg(Color::White)
             };
             left_lines.push(Line::from(vec![
-                Span::styled(format!("{} ", marker), style),
+                Span::styled(format!("{marker} "), style),
                 Span::styled(title.clone(), style),
             ]));
         }
@@ -117,7 +117,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                     Some(1) => "paru",
                     _ => "(helper not selected)",
                 };
-                items.push(format!("AUR helper: {}", helper));
+                items.push(format!("AUR helper: {helper}"));
             }
         }
         if !app.mirrors_custom_servers.is_empty() {
@@ -140,9 +140,9 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
             1 => "Manual Partitioning",
             _ => "Pre-mounted configuration",
         };
-        items.push(format!("Mode: {}", mode));
+        items.push(format!("Mode: {mode}"));
         if let Some(dev) = &app.disks_selected_device {
-            items.push(format!("Device: {}", dev));
+            items.push(format!("Device: {dev}"));
         }
         let disks_items = items;
         push_section_lines(&mut sections, "Disks", &disks_items);
@@ -155,9 +155,9 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         } else {
             "None"
         };
-        items.push(format!("Type: {}", enc));
+        items.push(format!("Type: {enc}"));
         if let Some(p) = &app.disk_encryption_selected_partition {
-            items.push(format!("Partition: {}", p));
+            items.push(format!("Partition: {p}"));
         }
         let diskenc_items = items;
         push_section_lines(&mut sections, "Disk Encryption", &diskenc_items);
@@ -220,7 +220,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
     {
         let mut items: Vec<String> = Vec::new();
         let mode = app.current_experience_mode_label();
-        items.push(format!("Mode: {}", mode));
+        items.push(format!("Mode: {mode}"));
         match app.experience_mode_index {
             2 => {
                 if !app.selected_server_types.is_empty() {
@@ -387,7 +387,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
                 .add_modifier(Modifier::BOLD),
         )));
         let count = app.additional_packages.len();
-        apkg_sec.push(Line::from(format!("Packages ({}):", count)));
+        apkg_sec.push(Line::from(format!("Packages ({count}):")));
         let mut entries: Vec<(String, String)> = app
             .additional_packages
             .iter()
@@ -397,11 +397,11 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         let max_line = area.width.saturating_sub(4) as usize; // account for indent
         let show_limit = 12usize;
         for (name, desc) in entries.into_iter().take(show_limit) {
-            let mut line = format!("{} — {}", name, desc);
+            let mut line = format!("{name} — {desc}");
             if line.len() > max_line {
                 line.truncate(max_line);
             }
-            apkg_sec.push(Line::from(format!("  - {}", line)));
+            apkg_sec.push(Line::from(format!("  - {line}")));
         }
         if count > show_limit {
             apkg_sec.push(Line::from("  …"));
@@ -647,7 +647,7 @@ fn push_section_lines(sections: &mut Vec<(String, Vec<Line>)>, name: &str, items
             .add_modifier(Modifier::BOLD),
     )));
     for item in items {
-        sec.push(Line::from(format!("- {}", item)));
+        sec.push(Line::from(format!("- {item}")));
     }
     sec.push(Line::from(""));
     sections.push((name.to_string(), sec));

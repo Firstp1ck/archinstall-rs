@@ -202,11 +202,11 @@ pub fn draw_mirrors_repos(frame: &mut ratatui::Frame, app: &mut AppState, area: 
                     Some(1) => "paru",
                     _ => "choose helper",
                 };
-                text.push_str(&format!(" — AUR: {}", helper));
+                text.push_str(&format!(" — AUR: {helper}"));
             }
         }
         let line = Line::from(vec![
-            Span::styled(format!("{} ", bullet), bullet_style),
+            Span::styled(format!("{bullet} "), bullet_style),
             Span::styled(text, label_style),
         ]);
         lines.push(line);

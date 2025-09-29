@@ -37,7 +37,7 @@ fn draw_install_split(
             Style::default().fg(Color::White)
         };
         left_lines.push(Line::from(vec![
-            Span::styled(format!("{} ", marker), style),
+            Span::styled(format!("{marker} "), style),
             Span::styled(title.clone(), style),
         ]));
     }
