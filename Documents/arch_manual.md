@@ -172,7 +172,7 @@ nvim .config/hypr/hyprland.conf
 pacman -S --needed limine
 
 mkdir -p /boot/EFI/limine
-cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/
+cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI
 
 efibootmgr \
     --create \

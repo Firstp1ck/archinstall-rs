@@ -82,7 +82,7 @@ impl BootloaderService {
                 // Ensure ESP directory exists for Limine and deploy BOOTX64.efi
                 cmds.push(chroot_cmd("mkdir -p /boot/EFI/limine"));
                 cmds.push(chroot_cmd(
-                    "cp -f /usr/share/limine/BOOTX64.efi /boot/EFI/limine/",
+                    "cp -f /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI",
                 ));
 
                 // Minimal pre-check: warn if ESP partition is not 1 (best-effort layout)
