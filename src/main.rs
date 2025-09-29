@@ -40,9 +40,7 @@ fn main() -> std::io::Result<()> {
     let debug_enabled = args.iter().any(|arg| arg == "--debug");
     debug_log(
         debug_enabled,
-        &format!(
-            "main: parsed flags dry_run={dry_run} debug_enabled={debug_enabled}"
-        ),
+        &format!("main: parsed flags dry_run={dry_run} debug_enabled={debug_enabled}"),
     );
 
     debug_log(debug_enabled, "preflight: start");
@@ -79,10 +77,7 @@ fn main() -> std::io::Result<()> {
             let mut answer = String::new();
             if let Err(err) = std::io::stdin().read_line(&mut answer) {
                 print_error(debug_enabled, &format!("Failed to read input: {err}"));
-                debug_log(
-                    debug_enabled,
-                    &format!("preflight: read_line error: {err}"),
-                );
+                debug_log(debug_enabled, &format!("preflight: read_line error: {err}"));
                 return Ok(());
             }
 

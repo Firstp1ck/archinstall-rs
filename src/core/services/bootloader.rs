@@ -74,9 +74,71 @@ impl BootloaderService {
             2 => {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }
-            // Placeholder for Limine (index 3)
+            // Limine bootloader (index 3): ensure package is present first
             3 => {
-                cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());
+                // Ensure Limine is installed in the target system (non-interactive, skip if already installed)
+                cmds.push(chroot_cmd("pacman -S --needed --noconfirm limine"));
+
+                // Ensure ESP directory exists for Limine and deploy BOOTX64.efi
+                cmds.push(chroot_cmd("mkdir -p /boot/EFI/limine"));
+                cmds.push(chroot_cmd(
+                    "cp -f /usr/share/limine/BOOTX64.efi /boot/EFI/limine/",
+                ));
+
+                // Minimal pre-check: warn if ESP partition is not 1 (best-effort layout)
+                cmds.push(chroot_cmd(
+                    "part=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)); [ \"$part\" = 1 ] || echo 'Warning: Expected ESP partition number 1, got' \"$part\""
+                ));
+
+                // Ensure efivarfs is available (UEFI vars); skip if not UEFI
+                cmds.push(chroot_cmd(
+                    "[ -d /sys/firmware/efi ] || exit 0; mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true"
+                ));
+
+                // Create UEFI boot entry for Limine using selected device from state/config; assume best-effort ESP partition 1
+                let selected = state.disks_selected_device.as_deref().unwrap_or(_device);
+                let device_short = selected.trim_start_matches("/dev/");
+                cmds.push(chroot_cmd(&format!(
+                    "[ -d /sys/firmware/efi ] || exit 0; timeout 5 efibootmgr --create --disk /dev/{device_short} --part 1 --label 'Arch Linux Limine Bootloader' --loader '\\EFI\\limine\\BOOTX64.EFI' --unicode || true"
+                )));
+
+                // Determine root partition UUID (best-effort: partition 3) and persist for later limine.conf generation
+                let part3 = if device_short
+                    .chars()
+                    .last()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+                {
+                    format!("{device_short}p3")
+                } else {
+                    format!("{device_short}3")
+                };
+                cmds.push(chroot_cmd(&format!(
+                    "uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); [ -n \"$uuid\" ] || echo Warning: could-not-determine-UUID-for-/dev/{part3}; printf '%s' \"$uuid\" > /tmp/limine-root-uuid"
+                )));
+
+                // Write Limine config file using the previously detected root UUID. Reads UUID from /tmp/limine-root-uuid (fallback to blkid on best-effort partition 3) and writes /boot/EFI/limine/limine.conf via heredoc.
+                cmds.push(chroot_cmd(&format!(
+                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); [ -n \"$uuid\" ] || uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); cat > /boot/EFI/limine/limine.conf <<EOF\ntimeout: 5\n\n/Arch Linux\n    protocol: linux\n    path: boot():/vmlinuz-linux\n    cmdline: root=UUID=$uuid rw\n    module_path: boot():/initramfs-linux.img\nEOF"
+                )));
+
+                // Verify limine.conf contains the UUID; if not, rewrite using printf/tee as a fallback
+                cmds.push(chroot_cmd(&format!(
+                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); [ -n \"$uuid\" ] || uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); if [ -z \"$uuid\" ] || ! grep -q \"root=UUID=$uuid\" /boot/EFI/limine/limine.conf; then printf \"%s\\n\" \"timeout: 5\" \"\" \"/Arch Linux\" \"    protocol: linux\" \"    path: boot():/vmlinuz-linux\" \"    cmdline: root=UUID=$uuid rw\" \"    module_path: boot():/initramfs-linux.img\" | tee /boot/EFI/limine/limine.conf >/dev/null; fi"
+                )));
+
+                // Ensure pacman hooks directory exists
+                cmds.push(chroot_cmd("mkdir -p /etc/pacman.d/hooks"));
+
+                // Write pacman hook for Limine deployment via heredoc
+                cmds.push(chroot_cmd(
+                    "cat > /etc/pacman.d/hooks/99-limine.hook <<'EOF'\n[Trigger]\nOperation = Install\nOperation = Upgrade\nType = Package\nTarget = limine\n\n[Action]\nDescription = Deploying Limine after upgrade...\nWhen = PostTransaction\nExec = /usr/bin/cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/\nEOF"
+                ));
+
+                // Verify hook content; if missing, rewrite using printf/tee as fallback
+                cmds.push(chroot_cmd(
+                    "grep -q '^Target = limine' /etc/pacman.d/hooks/99-limine.hook && grep -q '^Exec = /usr/bin/cp ' /etc/pacman.d/hooks/99-limine.hook || printf '%s\\n' '[Trigger]' 'Operation = Install' 'Operation = Upgrade' 'Type = Package' 'Target = limine' '' '[Action]' 'Description = Deploying Limine after upgrade...' 'When = PostTransaction' 'Exec = /usr/bin/cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/' | tee /etc/pacman.d/hooks/99-limine.hook >/dev/null"
+                ));
             }
             _ => {}
         }

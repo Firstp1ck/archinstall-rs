@@ -169,7 +169,7 @@ nvim .config/hypr/hyprland.conf
 
 ```bash
 # Install Limine Bootloader
-pacman -S limine
+pacman -S --needed limine
 
 mkdir -p /boot/EFI/limine
 cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/

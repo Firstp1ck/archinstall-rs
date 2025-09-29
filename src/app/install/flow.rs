@@ -347,8 +347,7 @@ impl AppState {
                             Ok(st) if st.success() => {}
                             Ok(st) => {
                                 let code = st.code().unwrap_or(-1);
-                                any_error =
-                                    Some(format!("Command failed (exit {code}): {red}"));
+                                any_error = Some(format!("Command failed (exit {code}): {red}"));
                                 send(&tx, any_error.as_ref().unwrap().clone());
                                 dbg(&format!("command failed (exit {code}): {red}"));
                                 break 'outer;

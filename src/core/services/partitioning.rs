@@ -182,9 +182,7 @@ impl PartitioningService {
             // Set partition flags based on role
             match role {
                 "BOOT" | "EFI" => {
-                    part_cmds.push(format!(
-                        "parted -s {device} set {partition_number} esp on"
-                    ));
+                    part_cmds.push(format!("parted -s {device} set {partition_number} esp on"));
                 }
                 "BIOS_BOOT" => {
                     part_cmds.push(format!(

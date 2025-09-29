@@ -392,9 +392,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                 if let Some((repo, pkg_name, version, description)) = app.validate_package(&name) {
                     if let Some(reason) = app.check_additional_pkg_conflicts(&pkg_name) {
                         app.addpkgs_reopen_after_info = true;
-                        app.open_info_popup(format!(
-                            "Package '{pkg_name}' not added: {reason}."
-                        ));
+                        app.open_info_popup(format!("Package '{pkg_name}' not added: {reason}."));
                         app.custom_input_buffer.clear();
                         return false;
                     }
