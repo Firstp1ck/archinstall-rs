@@ -96,7 +96,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::ManualPartitionFilesystem) => " Create Partition: Filesystem ",
         Some(PopupKind::ManualPartitionMountpoint) => " Create Partition: Mountpoint ",
         Some(PopupKind::ManualPartitionEdit) => " Edit Partition ",
-        Some(PopupKind::DiskEncryptionType) => " Encryption Type ",
+        Some(PopupKind::DiskEncryptionType) => " Encryption Type (not implemented yet) ",
         Some(PopupKind::DiskEncryptionPassword) => " Enter encryption password ",
         Some(PopupKind::DiskEncryptionPasswordConfirm) => " Confirm encryption password ",
         Some(PopupKind::DiskEncryptionPartitionList) => " Select Partition to encrypt ",

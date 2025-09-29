@@ -68,7 +68,7 @@ pub fn draw_unified_kernel_images(frame: &mut ratatui::Frame, app: &mut AppState
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
     let options = vec![(
-        "UKI",
+        "UKI (not implemented yet)",
         if app.uki_enabled {
             "Enabled"
         } else {

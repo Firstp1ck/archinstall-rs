@@ -30,7 +30,7 @@ pub fn draw_network_configuration(frame: &mut ratatui::Frame, app: &mut AppState
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
     let choices = [
-        "Copy ISO network configuration",
+        "Copy ISO network configuration (not implemented yet)",
         "Manual configuration",
         "Use NetworkManager (necessary for KDE and GNOME)",
         "Add interface", // visible regardless; only enabled when Manual is selected

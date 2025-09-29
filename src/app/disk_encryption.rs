@@ -144,7 +144,7 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
     };
     lines.push(Line::from(vec![
         Span::styled(format!("{bullet} "), bullet_style),
-        Span::styled("Encryption Type: ", label_style),
+        Span::styled("Encryption Type: (not implemented yet)", label_style),
         Span::styled(enc_type.to_string(), value_style),
     ]));
 

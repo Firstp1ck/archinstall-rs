@@ -10,8 +10,8 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let bl = match app.bootloader_index {
         0 => "Systemd-boot",
         1 => "Grub",
-        2 => "Efistub",
-        _ => "Limine",
+        2 => "Efistub (not implemented yet)",
+        _ => "Limine (not implemented yet)",
     };
     let info_lines = vec![
         Line::from(Span::styled(
