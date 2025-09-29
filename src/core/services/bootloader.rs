@@ -85,7 +85,19 @@ impl BootloaderService {
             // Limine bootloader (index 3): ensure package is present first
             // Placeholder for Limine (index 3)
             3 => {
-                cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());
+                // Limine: copy limine files and deploy using helper script
+                cmds.push("# Ensure limine package is installed in the target system".into());
+                cmds.push("arch-chroot $TARGET pacman -Sy --noconfirm limine || true".into());
+
+                // For UEFI we copy BOOTX64/BOOTIA32 and write limine.conf
+                cmds.push("/usr/bin/install -d $TARGET/boot/limine || true".into());
+                cmds.push(format!("/usr/bin/install -d $TARGET/usr/share/limine || true").into());
+
+                // Use helper script from assets to perform deployment on host
+                cmds.push(format!("/bin/sh $WORKSPACE/assets/limine/install-limine.sh $TARGET $TARGET/boot $EFI_MOUNT $PARENT_DEV $PARTNUM $IS_USB 1").into());
+
+                // Write limine.conf example to target as a starting point (user should replace UUIDs)
+                cmds.push(format!("/bin/sh -c 'cat > $TARGET/{} <<\'EOF\'\n{}\nEOF'", "boot/limine/limine.conf", include_str!("../../../assets/limine/limine.conf.example")).into());
             }
             _ => {}
         }
