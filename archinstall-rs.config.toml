@@ -8,11 +8,7 @@ locale_encoding = "UTF-8"
 
 [mirrors]
 regions = ["Switzerland            CH    26"]
-optional_repos = [
-    "multilib",
-    "AUR",
-]
-aur_helper = "yay"
+optional_repos = ["multilib"]
 custom_servers = []
 custom_repos = []
 

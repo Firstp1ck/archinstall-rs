@@ -83,21 +83,39 @@ impl BootloaderService {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }
             // Limine bootloader (index 3): ensure package is present first
-            // Placeholder for Limine (index 3)
+            // Implemented: install package inside chroot, copy helper script into target, run it inside chroot,
+            // and write an example limine.conf into the target filesystem.
             3 => {
-                // Limine: copy limine files and deploy using helper script
-                cmds.push("# Ensure limine package is installed in the target system".into());
-                cmds.push("arch-chroot $TARGET pacman -Sy --noconfirm limine || true".into());
+                // Ensure limine package is installed in the target system (run inside chroot /mnt)
+                cmds.push(chroot_cmd("pacman -Sy --noconfirm limine || true"));
 
-                // For UEFI we copy BOOTX64/BOOTIA32 and write limine.conf
-                cmds.push("/usr/bin/install -d $TARGET/boot/limine || true".into());
-                cmds.push(format!("/usr/bin/install -d $TARGET/usr/share/limine || true").into());
+                // If UEFI, ensure efibootmgr is available in the target for creating NVRAM entries
+                if state.is_uefi() {
+                    cmds.push(chroot_cmd("pacman -Sy --noconfirm efibootmgr || true"));
+                }
 
-                // Use helper script from assets to perform deployment on host
-                cmds.push(format!("/bin/sh $WORKSPACE/assets/limine/install-limine.sh $TARGET $TARGET/boot $EFI_MOUNT $PARENT_DEV $PARTNUM $IS_USB 1").into());
+                // Ensure /boot/limine exists in the target (create inside chroot)
+                cmds.push(chroot_cmd("install -d -m 0755 /boot/limine || true"));
 
-                // Write limine.conf example to target as a starting point (user should replace UUIDs)
-                cmds.push(format!("/bin/sh -c 'cat > $TARGET/{} <<\'EOF\'\n{}\nEOF'", "boot/limine/limine.conf", include_str!("../../../assets/limine/limine.conf.example")).into());
+                // Write the bundled helper script into the target at /usr/local/bin and make it executable.
+                // We use a host-side shell that writes into /mnt (the mounted target) so the file is available
+                // inside the subsequent chroot call. The script content is embedded using include_str!().
+                cmds.push(format!(
+                    "/bin/sh -c 'cat > /mnt/usr/local/bin/install-limine.sh <<\'EOF\'\n{}\nEOF' && /bin/chmod +x /mnt/usr/local/bin/install-limine.sh",
+                    include_str!("../../../assets/limine/install-limine.sh")
+                ));
+
+                // Execute the helper script inside the chroot. We pass the target path as '/' (inside chroot),
+                // boot mount as '/boot' (inside chroot). We don't pass parent device/part because detection may be
+                // environment specific; the helper tolerates empty values. CHROOT flag = 0 because we're already in chroot.
+                cmds.push(chroot_cmd("/usr/local/bin/install-limine.sh / /boot '' '' 0"));
+
+                // Write an example limine.conf into the target boot directory (host-side write to /mnt)
+                cmds.push(format!(
+                    "/bin/sh -c 'cat > /mnt/{} <<\'EOF\'\n{}\nEOF'",
+                    "boot/limine/limine.conf",
+                    include_str!("../../../assets/limine/limine.conf.example")
+                ));
             }
             _ => {}
         }
