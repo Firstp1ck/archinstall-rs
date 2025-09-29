@@ -22,6 +22,14 @@ impl BootloaderService {
             format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
+        // Debug: entering bootloader plan build
+        state.debug_log(&format!(
+            "bootloader: build_plan start (uefi={}, bootloader_index={}, device={})",
+            state.is_uefi(),
+            state.bootloader_index,
+            _device
+        ));
+
         match state.bootloader_index {
             // 0: systemd-boot
             0 => {
@@ -76,21 +84,27 @@ impl BootloaderService {
             }
             // Limine bootloader (index 3): ensure package is present first
             3 => {
+                state.debug_log("limine: starting plan build");
                 // Ensure Limine is installed in the target system (non-interactive, skip if already installed)
+                state.debug_log("limine: ensure package 'limine' is installed (pacman --needed)");
                 cmds.push(chroot_cmd("pacman -S --needed --noconfirm limine"));
 
-                // Ensure ESP directory exists for Limine and deploy BOOTX64.efi
+                // Ensure ESP directory exists for Limine and deploy BOOTX64.EFI
+                state.debug_log("limine: ensure ESP target directory /boot/EFI/limine exists");
                 cmds.push(chroot_cmd("mkdir -p /boot/EFI/limine"));
+                state.debug_log("limine: copy BOOTX64.EFI to ESP (source: /usr/share/limine/BOOTX64.EFI)");
                 cmds.push(chroot_cmd(
                     "cp -f /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI",
                 ));
 
-                // Minimal pre-check: warn if ESP partition is not 1 (best-effort layout)
+                // Minimal pre-check: warn if ESP partition is not 1 (best-effort layout) without using lsblk
+                state.debug_log("limine: pre-check ESP partition number using findmnt /boot");
                 cmds.push(chroot_cmd(
-                    "part=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)); [ \"$part\" = 1 ] || echo 'Warning: Expected ESP partition number 1, got' \"$part\""
+                    "src=$(findmnt -n -o SOURCE /boot 2>/dev/null || true); part=; if [ -n \"$src\" ]; then case \"$src\" in */*p[0-9]) part=${src##*p};; */*[0-9]) part=${src##*[!0-9]};; esac; fi; if [ -n \"$part\" ] && [ \"$part\" != 1 ]; then echo 'Warning: Expected ESP partition number 1, got' \"$part\"; fi"
                 ));
 
                 // Ensure efivarfs is available (UEFI vars); skip if not UEFI
+                state.debug_log("limine: ensure efivarfs is mounted when in UEFI mode");
                 cmds.push(chroot_cmd(
                     "[ -d /sys/firmware/efi ] || exit 0; mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null || true"
                 ));
@@ -98,11 +112,15 @@ impl BootloaderService {
                 // Create UEFI boot entry for Limine using selected device from state/config; assume best-effort ESP partition 1
                 let selected = state.disks_selected_device.as_deref().unwrap_or(_device);
                 let device_short = selected.trim_start_matches("/dev/");
+                state.debug_log(&format!(
+                    "limine: selected_device={}, device_short={}, efibootmgr target=\\EFI\\limine\\BOOTX64.EFI",
+                    selected, device_short
+                ));
                 cmds.push(chroot_cmd(&format!(
                     "[ -d /sys/firmware/efi ] || exit 0; timeout 5 efibootmgr --create --disk /dev/{device_short} --part 1 --label 'Arch Linux Limine Bootloader' --loader '\\EFI\\limine\\BOOTX64.EFI' --unicode || true"
                 )));
 
-                // Determine root partition UUID (best-effort: partition 3) and persist for later limine.conf generation
+                // Determine root partition UUID (best-effort: partition 3) and persist for later limine.conf generation (with fallbacks)
                 let part3 = if device_short
                     .chars()
                     .last()
@@ -113,31 +131,41 @@ impl BootloaderService {
                 } else {
                     format!("{device_short}3")
                 };
+                state.debug_log(&format!(
+                    "limine: root partition candidate=/dev/{} (best-effort p3)",
+                    part3
+                ));
+                state.debug_log("limine: will resolve root UUID (blkid, fallback to findmnt /)");
                 cmds.push(chroot_cmd(&format!(
-                    "uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); [ -n \"$uuid\" ] || echo Warning: could-not-determine-UUID-for-/dev/{part3}; printf '%s' \"$uuid\" > /tmp/limine-root-uuid"
+                    "uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); if [ -z \"$uuid\" ]; then rootdev=$(findmnt -n -o SOURCE / 2>/dev/null || true); [ -n \"$rootdev\" ] && uuid=$(blkid -s UUID -o value \"$rootdev\" 2>/dev/null || true); fi; [ -n \"$uuid\" ] || echo Warning: could-not-determine-UUID-for-/dev/{part3}; printf '%s' \"$uuid\" > /tmp/limine-root-uuid"
                 )));
 
-                // Write Limine config file using the previously detected root UUID. Reads UUID from /tmp/limine-root-uuid (fallback to blkid on best-effort partition 3) and writes /boot/EFI/limine/limine.conf via heredoc.
+                // Write Limine config file using the detected root UUID; fallback to blkid and recheck
+                state.debug_log("limine: write /boot/EFI/limine/limine.conf with root UUID");
                 cmds.push(chroot_cmd(&format!(
-                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); [ -n \"$uuid\" ] || uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); cat > /boot/EFI/limine/limine.conf <<EOF\ntimeout: 5\n\n/Arch Linux\n    protocol: linux\n    path: boot():/vmlinuz-linux\n    cmdline: root=UUID=$uuid rw\n    module_path: boot():/initramfs-linux.img\nEOF"
+                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); if [ -z \"$uuid\" ]; then uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); fi; if [ -z \"$uuid\" ]; then rootdev=$(findmnt -n -o SOURCE / 2>/dev/null || true); [ -n \"$rootdev\" ] && uuid=$(blkid -s UUID -o value \"$rootdev\" 2>/dev/null || true); fi; cat > /boot/EFI/limine/limine.conf <<EOF\ntimeout: 5\n\n/Arch Linux\n    protocol: linux\n    path: boot():/vmlinuz-linux\n    cmdline: root=UUID=$uuid rw\n    module_path: boot():/initramfs-linux.img\nEOF"
                 )));
 
                 // Verify limine.conf contains the UUID; if not, rewrite using printf/tee as a fallback
+                state.debug_log("limine: verify limine.conf contains UUID; fallback to printf|tee if missing");
                 cmds.push(chroot_cmd(&format!(
-                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); [ -n \"$uuid\" ] || uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); if [ -z \"$uuid\" ] || ! grep -q \"root=UUID=$uuid\" /boot/EFI/limine/limine.conf; then printf \"%s\\n\" \"timeout: 5\" \"\" \"/Arch Linux\" \"    protocol: linux\" \"    path: boot():/vmlinuz-linux\" \"    cmdline: root=UUID=$uuid rw\" \"    module_path: boot():/initramfs-linux.img\" | tee /boot/EFI/limine/limine.conf >/dev/null; fi"
+                    "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); if [ -z \"$uuid\" ]; then uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); fi; if [ -z \"$uuid\" ]; then rootdev=$(findmnt -n -o SOURCE / 2>/dev/null || true); [ -n \"$rootdev\" ] && uuid=$(blkid -s UUID -o value \"$rootdev\" 2>/dev/null || true); fi; if [ -z \"$uuid\" ] || ! grep -q \"root=UUID=$uuid\" /boot/EFI/limine/limine.conf; then printf \"%s\\n\" \"timeout: 5\" \"\" \"/Arch Linux\" \"    protocol: linux\" \"    path: boot():/vmlinuz-linux\" \"    cmdline: root=UUID=$uuid rw\" \"    module_path: boot():/initramfs-linux.img\" | tee /boot/EFI/limine/limine.conf >/dev/null; fi"
                 )));
 
                 // Ensure pacman hooks directory exists
+                state.debug_log("limine: ensure pacman hooks directory /etc/pacman.d/hooks exists");
                 cmds.push(chroot_cmd("mkdir -p /etc/pacman.d/hooks"));
 
                 // Write pacman hook for Limine deployment via heredoc
+                state.debug_log("limine: write pacman hook 99-limine.hook");
                 cmds.push(chroot_cmd(
-                    "cat > /etc/pacman.d/hooks/99-limine.hook <<'EOF'\n[Trigger]\nOperation = Install\nOperation = Upgrade\nType = Package\nTarget = limine\n\n[Action]\nDescription = Deploying Limine after upgrade...\nWhen = PostTransaction\nExec = /usr/bin/cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/\nEOF"
+                    "cat > /etc/pacman.d/hooks/99-limine.hook <<'EOF'\n[Trigger]\nOperation = Install\nOperation = Upgrade\nType = Package\nTarget = limine\n\n[Action]\nDescription = Deploying Limine after upgrade...\nWhen = PostTransaction\nExec = /usr/bin/cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/\nEOF"
                 ));
 
                 // Verify hook content; if missing, rewrite using printf/tee as fallback
+                state.debug_log("limine: verify pacman hook; fallback to printf|tee if needed");
                 cmds.push(chroot_cmd(
-                    "grep -q '^Target = limine' /etc/pacman.d/hooks/99-limine.hook && grep -q '^Exec = /usr/bin/cp ' /etc/pacman.d/hooks/99-limine.hook || printf '%s\\n' '[Trigger]' 'Operation = Install' 'Operation = Upgrade' 'Type = Package' 'Target = limine' '' '[Action]' 'Description = Deploying Limine after upgrade...' 'When = PostTransaction' 'Exec = /usr/bin/cp /usr/share/limine/BOOTX64.efi /boot/EFI/limine/' | tee /etc/pacman.d/hooks/99-limine.hook >/dev/null"
+                    "grep -q '^Target = limine' /etc/pacman.d/hooks/99-limine.hook && grep -q '^Exec = /usr/bin/cp ' /etc/pacman.d/hooks/99-limine.hook || printf '%s\\n' '[Trigger]' 'Operation = Install' 'Operation = Upgrade' 'Type = Package' 'Target = limine' '' '[Action]' 'Description = Deploying Limine after upgrade...' 'When = PostTransaction' 'Exec = /usr/bin/cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/' | tee /etc/pacman.d/hooks/99-limine.hook >/dev/null"
                 ));
             }
             _ => {}
