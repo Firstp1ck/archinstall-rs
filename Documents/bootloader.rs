@@ -12,8 +12,6 @@ impl BootloaderPlan {
 }
 
 pub struct BootloaderService;
-
-impl BootloaderService {
     pub fn build_plan(state: &AppState, _device: &str) -> BootloaderPlan {
         let mut cmds: Vec<String> = Vec::new();
 
@@ -185,7 +183,7 @@ impl BootloaderService {
 
                 // Write Limine config file using the detected root UUID with additional fallbacks
                 state.debug_log("limine: write /boot/EFI/limine/limine.conf with root UUID");
-                cmds.push(chroot_cmd(
+                cmds.push(chroot_cmd(&format!(
                     "uuid=$(cat /tmp/limine-root-uuid 2>/dev/null) && \
                     echo \"Debug: Reading UUID from temp file: uuid=$uuid\" >> /tmp/limine-debug.log && \
                     # Retry UUID detection if not found in temp file \
@@ -199,12 +197,12 @@ impl BootloaderService {
                       fi; \
                       # If still not found, try direct partition \
                       if [ -z \"$uuid\" ]; then \
-                        uuid=$(blkid -s UUID -o value /dev/vda3 2>/dev/null || true); \
+                        uuid=$(blkid -s UUID -o value /dev/{part3} 2>/dev/null || true); \
                         echo \"Debug: Alternative method (direct blkid): uuid=$uuid\" >> /tmp/limine-debug.log; \
                       fi; \
                       # Try lsblk as another fallback \
                       if [ -z \"$uuid\" ]; then \
-                        uuid=$(lsblk -no UUID /dev/vda3 2>/dev/null || true); \
+                        uuid=$(lsblk -no UUID /dev/{part3} 2>/dev/null || true); \
                         echo \"Debug: Alternative method (lsblk): uuid=$uuid\" >> /tmp/limine-debug.log; \
                       fi; \
                     fi && \
@@ -220,11 +218,11 @@ timeout: 5
     cmdline: root=UUID=$uuid rw
     module_path: boot():/initramfs-linux.img
 EOF"
-                ));
+                )));
 
                 // Verify limine.conf contains the UUID; if not, rewrite using printf|tee as a fallback
                 state.debug_log("limine: verify limine.conf contents and use fallback if needed");
-                cmds.push(chroot_cmd(
+                cmds.push(chroot_cmd(&format!(
                     "if [ ! -f /boot/EFI/limine/limine.conf ]; then \
                       echo \"Debug: limine.conf not created, using fallback method\" >> /tmp/limine-debug.log; \
                       uuid=$(cat /tmp/limine-root-uuid 2>/dev/null); \
@@ -241,7 +239,7 @@ EOF"
                     # Output file content for verification \
                     echo \"Debug: Final limine.conf content:\" >> /tmp/limine-debug.log && \
                     cat /boot/EFI/limine/limine.conf >> /tmp/limine-debug.log"
-                ));
+                )));
 
                 // Ensure pacman hooks directory exists
                 state.debug_log("limine: ensure pacman hooks directory /etc/pacman.d/hooks exists");
@@ -287,7 +285,7 @@ EOF"
                        else \
                          echo \"WARNING: UUID NOT found in limine.conf\" >> /tmp/limine-debug.log; \
                          # Last attempt to fix using fallback method with /dev path instead of UUID \
-                         rootdev=$(findmnt -n -o SOURCE / 2>/dev/null || echo \"/dev/vda3\"); \
+                         rootdev=$(findmnt -n -o SOURCE / 2>/dev/null || echo \"/dev/{part3}\"); \
                          echo \"Creating fallback config with direct device path: $rootdev\" >> /tmp/limine-debug.log && \
                          printf \"%s\\n\" \"timeout: 5\" \"\" \"/Arch Linux\" \"    protocol: linux\" \"    path: boot():/vmlinuz-linux\" \"    cmdline: root=$rootdev rw\" \"    module_path: boot():/initramfs-linux.img\" | tee /boot/EFI/limine/limine.conf >/dev/null; \
                        fi; \
@@ -315,5 +313,4 @@ EOF"
         ));
 
         BootloaderPlan::new(cmds)
-    }
 }
