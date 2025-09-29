@@ -1,3 +1,6 @@
+users = []
+additional_packages = []
+
 [locales]
 keyboard_layout = "de_CH-latin1"
 locale_language = "de_CH.UTF-8"
@@ -14,12 +17,12 @@ custom_servers = []
 custom_repos = []
 
 [disks]
-mode = "Manual Partitioning"
-selected_device = "/dev/sdb"
-selected_device_model = "ST2000DM006-2DM164"
+mode = "Best-effort partition layout"
+selected_device = "/dev/sda"
+selected_device_model = "KINGSTON SUV500240G"
 selected_device_devtype = "disk"
-selected_device_size = "1.8 TiB"
-selected_device_freespace = "1.8 TiB"
+selected_device_size = "223.6 GiB"
+selected_device_freespace = "1.6 MiB"
 selected_device_sector_size = "512/4096 B"
 selected_device_read_only = false
 label = "gpt"
@@ -59,7 +62,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "grub"
+kind = "limine"
 
 [system]
 hostname = "Archlinux"
@@ -90,40 +93,5 @@ graphic_drivers = []
 
 [experience.xorg_packages]
 
-[[users]]
-username = "first"
-password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
-is_sudo = true
-
 [network]
 mode = "NetworkManager"
-
-[[additional_packages]]
-repo = ""
-name = "alacritty"
-version = ""
-description = "Selected from package groups"
-
-[[additional_packages]]
-repo = ""
-name = "fish"
-version = ""
-description = "Selected from package groups"
-
-[[additional_packages]]
-repo = ""
-name = "firefox"
-version = ""
-description = "Selected from package groups"
-
-[[additional_packages]]
-repo = ""
-name = "neovim"
-version = ""
-description = "Selected from package groups"
-
-[[additional_packages]]
-repo = ""
-name = "stow"
-version = ""
-description = "Selected from package groups"
