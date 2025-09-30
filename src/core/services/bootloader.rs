@@ -93,28 +93,33 @@ impl BootloaderService {
                     // UEFI mode - install efibootmgr
                     cmds.push(chroot_cmd("pacman -S --needed --noconfirm efibootmgr"));
                     
-                    // Copy install script to target and run it
-                    cmds.push(
-                        "cp ./assets/limine/install-limine.sh /mnt/tmp/install-limine.sh && \
-                        chmod +x /mnt/tmp/install-limine.sh".to_string()
-                    );
-                    
-                    // Run the install script
+                    // Single command block for UEFI setup - keeps variables in scope
                     cmds.push(
                         "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
                         IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
-                        PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot)); \
-                        echo \"Running install-limine.sh with PARENT_DEV=$PARENT_DEV IS_USB=$IS_USB PART_NUM=$PART_NUM\"; \
-                        /mnt/tmp/install-limine.sh /mnt /mnt/boot /mnt/boot /dev/$PARENT_DEV $PART_NUM $IS_USB 1".to_string()
-                    );
-                    
-                    // Create pacman hook for UEFI
-                    cmds.push(
-                        "IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)) 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        echo \"USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV\"; \
                         if [ \"$IS_USB\" = \"1\" ]; then \
+                            EFI_DIR=/mnt/boot/EFI/BOOT; \
                             EFI_DIR_TARGET=/boot/EFI/BOOT; \
                         else \
+                            EFI_DIR=/mnt/boot/EFI/limine; \
                             EFI_DIR_TARGET=/boot/EFI/limine; \
+                        fi; \
+                        echo \"Creating directory: $EFI_DIR\"; \
+                        mkdir -p \"$EFI_DIR\"; \
+                        cp /mnt/usr/share/limine/BOOTIA32.EFI \"$EFI_DIR/\" 2>/dev/null || true; \
+                        cp /mnt/usr/share/limine/BOOTX64.EFI \"$EFI_DIR/\" || true; \
+                        echo \"Copied Limine EFI binaries to $EFI_DIR\"; \
+                        if [ \"$IS_USB\" != \"1\" ]; then \
+                            PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot)); \
+                            EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64); \
+                            if [ \"$EFI_BITNESS\" = \"64\" ]; then \
+                                LOADER_PATH=\"/EFI/limine/BOOTX64.EFI\"; \
+                            else \
+                                LOADER_PATH=\"/EFI/limine/BOOTIA32.EFI\"; \
+                            fi; \
+                            echo \"Creating NVRAM entry: disk=/dev/$PARENT_DEV part=$PART_NUM loader=$LOADER_PATH\"; \
+                            efibootmgr --create --disk \"/dev/$PARENT_DEV\" --part \"$PART_NUM\" --label \"Arch Linux Limine Bootloader\" --loader \"$LOADER_PATH\" --unicode --verbose || echo \"efibootmgr failed, continuing...\"; \
                         fi; \
                         mkdir -p /mnt/etc/pacman.d/hooks; \
                         cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
@@ -135,21 +140,20 @@ HOOK_EOF
                     // BIOS mode
                     state.debug_log("bootloader: Limine BIOS mode");
                     
-                    // Copy install script to target and run it
-                    cmds.push(
-                        "cp ./assets/limine/install-limine.sh /mnt/tmp/install-limine.sh && \
-                        chmod +x /mnt/tmp/install-limine.sh".to_string()
-                    );
+                    // Create /boot/limine directory
+                    cmds.push(chroot_cmd("mkdir -p /boot/limine"));
                     
-                    // Run the install script for BIOS
-                    cmds.push(
-                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
-                        echo \"Running install-limine.sh for BIOS with PARENT_DEV=$PARENT_DEV\"; \
-                        /mnt/tmp/install-limine.sh /mnt /mnt/boot \"\" /dev/$PARENT_DEV \"\" 0 1".to_string()
-                    );
+                    // Copy limine-bios.sys
+                    cmds.push(chroot_cmd("cp /usr/share/limine/limine-bios.sys /boot/limine/"));
+                    
+                    // Run limine bios-install
+                    cmds.push(format!(
+                        "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        arch-chroot /mnt limine bios-install $PARENT_DEV || echo \"limine bios-install failed\""
+                    ));
                     
                     // Create pacman hook for BIOS
-                    cmds.push(
+                    cmds.push(format!(
                         "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
                         mkdir -p /mnt/etc/pacman.d/hooks; \
                         cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
@@ -164,8 +168,8 @@ Description = Deploying Limine after upgrade...
 When = PostTransaction
 Exec = /bin/sh -c \"/usr/bin/limine bios-install $PARENT_DEV && /usr/bin/cp /usr/share/limine/limine-bios.sys /boot/limine/\"
 HOOK_EOF
-".to_string()
-                    );
+"
+                    ));
                 }
                 
                 // Generate limine.conf
@@ -204,64 +208,35 @@ HOOK_EOF
                     ("path_root=\"boot()\"".to_string(), "/mnt/boot/limine".to_string())
                 };
                 
-                // Copy and customize the limine.conf template
+                // Build the configuration file content in a single command
+                // NOTE: Using <<LIMINE_CONF_EOF (without quotes) to allow variable expansion
                 let mut config_script = format!(
-                    "{}; {}; \
-                    echo \"UUIDs: ROOT=$$ROOT_UUID BOOT=$$BOOT_UUID\"; \
+                    "{}; {}; echo \"UUIDs: ROOT=$$ROOT_UUID BOOT=$$BOOT_UUID\"; \
                     echo \"Kernel params: $$KERNEL_PARAMS\"; \
                     echo \"Path root: $$path_root\"; \
                     mkdir -p {}; \
-                    cp ./assets/limine/limine.conf.example {}/limine.conf; ",
+                    cat > {}/limine.conf <<LIMINE_CONF_EOF\ntimeout: 5\n",
                     kernel_params_setup, path_root_setup, config_dir, config_dir
                 );
                 
-                // Replace placeholders in the template
-                if uki_enabled {
-                    // For UKI, generate EFI protocol entries
-                    config_script.push_str(&format!(
-                        "cat > {}/limine.conf <<LIMINE_CONF_EOF\ntimeout: 5\n",
-                        config_dir
-                    ));
-                    
-                    for kernel in &kernels {
-                        for variant in &["", "-fallback"] {
+                // Add entries for each kernel
+                for kernel in &kernels {
+                    for variant in &["", "-fallback"] {
+                        if uki_enabled {
                             config_script.push_str(&format!(
                                 "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $$KERNEL_PARAMS\n",
                                 kernel, variant, kernel
                             ));
+                        } else {
+                            config_script.push_str(&format!(
+                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $$path_root:/vmlinuz-{}\n    cmdline: $$KERNEL_PARAMS\n    module_path: $$path_root:/initramfs-{}{}.img\n",
+                                kernel, variant, kernel, kernel, variant
+                            ));
                         }
-                    }
-                    config_script.push_str("LIMINE_CONF_EOF\n");
-                } else {
-                    // Use sed to replace placeholders in template for standard boot
-                    config_script.push_str(&format!(
-                        "sed -i 's|uuid(BOOT_UUID)|'\"$$path_root\"'|g' {}/limine.conf; \
-                        sed -i 's|root=/dev/disk/by-uuid/ROOT_UUID|'\"$$KERNEL_PARAMS\"'|g' {}/limine.conf; \
-                        sed -i 's| rw quiet||g' {}/limine.conf; ",
-                        config_dir, config_dir, config_dir
-                    ));
-                    
-                    // Add entries for additional kernels if needed
-                    if kernels.len() > 1 || !kernels.contains(&"linux".to_string()) {
-                        config_script.push_str(&format!(
-                            "cat >> {}/limine.conf <<LIMINE_CONF_EOF\n",
-                            config_dir
-                        ));
-                        
-                        for kernel in &kernels {
-                            if kernel != "linux" {
-                                for variant in &["", "-fallback"] {
-                                    config_script.push_str(&format!(
-                                        "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $$path_root:/vmlinuz-{}\n    cmdline: $$KERNEL_PARAMS\n    module_path: $$path_root:/initramfs-{}{}.img\n",
-                                        kernel, variant, kernel, kernel, variant
-                                    ));
-                                }
-                            }
-                        }
-                        config_script.push_str("LIMINE_CONF_EOF\n");
                     }
                 }
                 
+                config_script.push_str("LIMINE_CONF_EOF\n");
                 config_script.push_str(&format!("echo \"Created limine.conf at {}/limine.conf\"", config_dir));
                 
                 cmds.push(config_script);
