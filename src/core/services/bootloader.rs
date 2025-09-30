@@ -201,22 +201,28 @@ HOOK_EOF
 
                 // Build kernel parameters
                 let kernel_params_setup = if state.disk_encryption_type_index == 1 {
-                    r#"# Resolve root device and normalize (strip btrfs subvol suffix like [/@])
-ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//');
-ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
-# Try to detect underlying device of cryptroot for cryptdevice=UUID
-MAP_NAME=$(basename "$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//')" | sed 's@^/dev/mapper/@@');
-CRYPT_DEV=$(cryptsetup status "$MAP_NAME" 2>/dev/null | awk '/device:/ {print $2}');
-CRYPT_UUID=$(blkid -s UUID -o value "$CRYPT_DEV" 2>/dev/null || echo '');
+                    r#"# Prefer filesystem UUID directly from findmnt; fall back to SOURCE+blkid
+ROOT_UUID=$(findmnt -n -o UUID /mnt 2>/dev/null | head -n1)
+if [ -z "$ROOT_UUID" ]; then
+  ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//')
+  ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '')
+fi
+# Detect mapped root name and its underlying device UUID for cryptdevice=
+MAP_NAME=$(basename "$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//')" | sed 's@^/dev/mapper/@@')
+CRYPT_DEV=$(cryptsetup status "$MAP_NAME" 2>/dev/null | awk '/device:/ {print $2}')
+CRYPT_UUID=$(blkid -s UUID -o value "$CRYPT_DEV" 2>/dev/null || echo '')
 if [ -n "$CRYPT_UUID" ] && [ -n "$MAP_NAME" ]; then
-  KERNEL_PARAMS="root=/dev/mapper/$MAP_NAME cryptdevice=UUID=$CRYPT_UUID:$MAP_NAME rw";
+  KERNEL_PARAMS="root=/dev/mapper/$MAP_NAME cryptdevice=UUID=$CRYPT_UUID:$MAP_NAME rw"
 else
-  KERNEL_PARAMS="root=UUID=$ROOT_UUID rw";
+  KERNEL_PARAMS="root=UUID=$ROOT_UUID rw"
 fi"#.to_string()
                 } else {
-                    r#"# Resolve root device and normalize (strip btrfs subvol suffix like [/@])
-ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//');
-ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
+                    r#"# Prefer filesystem UUID directly from findmnt; fall back to SOURCE+blkid
+ROOT_UUID=$(findmnt -n -o UUID /mnt 2>/dev/null | head -n1)
+if [ -z "$ROOT_UUID" ]; then
+  ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//')
+  ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '')
+fi
 KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
                 };
 
@@ -224,11 +230,16 @@ KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
                 let path_root_setup = if state.is_uefi() {
                     r#"# Choose config dir similarly to the UEFI deployment target
 if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; else CONFIG_DIR=/mnt/boot/EFI/limine; fi;
-BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null | sed 's/\[.*$//');
-BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || echo '');
+# Prefer UUID from mount table for ESP; fallback to blkid using device
+BOOT_UUID=$(findmnt -n -o UUID /mnt/boot 2>/dev/null | head -n1)
+if [ -z "$BOOT_UUID" ]; then
+  BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null | sed 's/\[.*$//')
+  BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || echo '')
+fi
 # Fallback to /etc/fstab UUID
-[ -z "$BOOT_UUID" ] && BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
-path_root="uuid(${BOOT_UUID})";
+[ -z "$BOOT_UUID" ] && BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1)
+# Prefer uuid() but fall back to boot() if unknown
+if [ -n "$BOOT_UUID" ]; then path_root="uuid(${BOOT_UUID})"; else path_root="boot()"; fi;
 # Final guard
 [ -z "$CONFIG_DIR" ] && CONFIG_DIR=/mnt/boot/EFI/limine;"#.to_string()
                 } else {
