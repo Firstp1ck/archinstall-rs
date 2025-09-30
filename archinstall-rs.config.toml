@@ -14,11 +14,11 @@ custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
-selected_device = "/dev/sda"
-selected_device_model = "KINGSTON SUV500240G"
+selected_device = "/dev/sdb"
+selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
-selected_device_size = "223.6 GiB"
-selected_device_freespace = "1.6 MiB"
+selected_device_size = "1.8 TiB"
+selected_device_freespace = "1.8 TiB"
 selected_device_sector_size = "512/4096 B"
 selected_device_read_only = false
 label = "gpt"

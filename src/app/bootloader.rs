@@ -16,7 +16,8 @@ impl AppState {
             0 => "Systemd-boot",
             1 => "Grub",
             2 => "Efistub (not implemented yet)",
-            _ => "Limine (not implemented yet)",
+            3 => "Limine",
+            _ => "Unknown",
         }
     }
 }
@@ -31,7 +32,7 @@ pub fn draw_bootloader(frame: &mut ratatui::Frame, app: &mut AppState, area: Rec
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
-    let choices = ["Systemd-boot", "Grub", "Efistub (not implemented yet)", "Limine (not implemented yet)"];
+    let choices = ["Systemd-boot", "Grub", "Efistub (not implemented yet)", "Limine"];
 
     for (idx, label) in choices.iter().enumerate() {
         let is_focused_line = app.bootloader_focus_index == idx;

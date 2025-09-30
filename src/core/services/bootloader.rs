@@ -82,13 +82,214 @@ impl BootloaderService {
             2 => {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }
-            // Limine bootloader (index 3): ensure package is present first
-            // Implemented: install package inside chroot, copy helper script into target, run it inside chroot,
-            // and write an example limine.conf into the target filesystem.
-            // Limine bootloader (index 3): ensure package is present first
-            // Placeholder for Limine (index 3)
+            // Limine bootloader (index 3)
             3 => {
-                cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());
+                state.debug_log("bootloader: installing Limine");
+                
+                // Install limine package
+                cmds.push(chroot_cmd("pacman -S --needed --noconfirm limine"));
+                
+                if state.is_uefi() {
+                    // UEFI mode - install efibootmgr
+                    cmds.push(chroot_cmd("pacman -S --needed --noconfirm efibootmgr"));
+                    
+                    // Detect if USB device
+                    cmds.push(format!(
+                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        echo \"USB detection: IS_USB=$IS_USB\""
+                    ));
+                    
+                    // Copy EFI binaries to ESP
+                    cmds.push(
+                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        if [ \"$IS_USB\" = \"1\" ]; then \
+                            EFI_DIR=/mnt/boot/EFI/BOOT; \
+                            EFI_DIR_TARGET=/boot/EFI/BOOT; \
+                        else \
+                            EFI_DIR=/mnt/boot/EFI/limine; \
+                            EFI_DIR_TARGET=/boot/EFI/limine; \
+                        fi; \
+                        mkdir -p $EFI_DIR; \
+                        cp /mnt/usr/share/limine/BOOTIA32.EFI $EFI_DIR/ 2>/dev/null || true; \
+                        cp /mnt/usr/share/limine/BOOTX64.EFI $EFI_DIR/ || true; \
+                        echo \"Copied Limine EFI binaries to $EFI_DIR\"".to_string()
+                    );
+                    
+                    // Create efibootmgr entry (only for non-USB)
+                    cmds.push(
+                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        if [ \"$IS_USB\" != \"1\" ]; then \
+                            PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot)); \
+                            EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64); \
+                            if [ \"$EFI_BITNESS\" = \"64\" ]; then \
+                                LOADER_PATH=\"/EFI/limine/BOOTX64.EFI\"; \
+                            else \
+                                LOADER_PATH=\"/EFI/limine/BOOTIA32.EFI\"; \
+                            fi; \
+                            efibootmgr --create --disk /dev/$PARENT_DEV --part $PART_NUM --label \"Arch Linux Limine Bootloader\" --loader $LOADER_PATH --unicode --verbose || echo \"efibootmgr failed, continuing...\"; \
+                        fi".to_string()
+                    );
+                    
+                    // Create pacman hook for UEFI
+                    cmds.push(
+                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        if [ \"$IS_USB\" = \"1\" ]; then \
+                            EFI_DIR_TARGET=/boot/EFI/BOOT; \
+                        else \
+                            EFI_DIR_TARGET=/boot/EFI/limine; \
+                        fi; \
+                        mkdir -p /mnt/etc/pacman.d/hooks; \
+                        cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<'HOOK_EOF'
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = limine
+
+[Action]
+Description = Deploying Limine after upgrade...
+When = PostTransaction
+Exec = /bin/sh -c \"/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $EFI_DIR_TARGET/ 2>/dev/null || true; /usr/bin/cp /usr/share/limine/BOOTX64.EFI $EFI_DIR_TARGET/\"
+HOOK_EOF
+".to_string()
+                    );
+                } else {
+                    // BIOS mode
+                    state.debug_log("bootloader: Limine BIOS mode");
+                    
+                    // Create /boot/limine directory
+                    cmds.push(chroot_cmd("mkdir -p /boot/limine"));
+                    
+                    // Copy limine-bios.sys
+                    cmds.push(chroot_cmd("cp /usr/share/limine/limine-bios.sys /boot/limine/"));
+                    
+                    // Run limine bios-install
+                    cmds.push(format!(
+                        "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        arch-chroot /mnt limine bios-install $PARENT_DEV || echo \"limine bios-install failed\""
+                    ));
+                    
+                    // Create pacman hook for BIOS
+                    cmds.push(format!(
+                        "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        mkdir -p /mnt/etc/pacman.d/hooks; \
+                        cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = limine
+
+[Action]
+Description = Deploying Limine after upgrade...
+When = PostTransaction
+Exec = /bin/sh -c \"/usr/bin/limine bios-install $PARENT_DEV && /usr/bin/cp /usr/share/limine/limine-bios.sys /boot/limine/\"
+HOOK_EOF
+"
+                    ));
+                }
+                
+                // Generate limine.conf
+                state.debug_log("bootloader: generating limine.conf");
+                
+                // Get root UUID and boot UUID
+                cmds.push(
+                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
+                    BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); \
+                    echo \"ROOT_UUID=$ROOT_UUID BOOT_UUID=$BOOT_UUID\"".to_string()
+                );
+                
+                // Build kernel parameters
+                let kernel_params = if state.disk_encryption_type_index == 1 {
+                    // LUKS encryption enabled
+                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
+                    CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo ''); \
+                    if [ -n \"$CRYPT_UUID\" ]; then \
+                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw\"; \
+                    else \
+                        KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\"; \
+                    fi"
+                } else {
+                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
+                    KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\""
+                };
+                
+                // Generate limine.conf with all selected kernels
+                let mut kernels: Vec<String> = state.selected_kernels.iter().cloned().collect();
+                kernels.sort();
+                
+                if kernels.is_empty() {
+                    kernels.push("linux".to_string());
+                }
+                
+                let uki_enabled = state.uki_enabled;
+                
+                // Determine path_root based on partition layout
+                let path_root = if state.is_uefi() {
+                    // Check if boot and EFI are on same partition
+                    "BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); \
+                    path_root=\"uuid($BOOT_UUID)\""
+                } else {
+                    "path_root=\"boot()\""
+                };
+                
+                // Build the configuration file content
+                let mut config_script = format!(
+                    "{}; {}; BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); {}; \
+                    cat > /mnt/boot/limine/limine.conf <<'LIMINE_CONF_EOF'\ntimeout: 5\n",
+                    kernel_params, path_root,
+                    if state.is_uefi() && uki_enabled {
+                        "CONFIG_DIR=/mnt/boot/limine"
+                    } else if state.is_uefi() {
+                        "CONFIG_DIR=/mnt/boot/EFI/limine"
+                    } else {
+                        "CONFIG_DIR=/mnt/boot/limine"
+                    }
+                );
+                
+                // Add entries for each kernel
+                for kernel in &kernels {
+                    for variant in &["", "-fallback"] {
+                        if uki_enabled {
+                            config_script.push_str(&format!(
+                                "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $KERNEL_PARAMS\n",
+                                kernel, variant, kernel
+                            ));
+                        } else {
+                            config_script.push_str(&format!(
+                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $path_root:/vmlinuz-{}\n    cmdline: $KERNEL_PARAMS\n    module_path: $path_root:/initramfs-{}{}.img\n",
+                                kernel, variant, kernel, kernel, variant
+                            ));
+                        }
+                    }
+                }
+                
+                config_script.push_str("LIMINE_CONF_EOF\n");
+                
+                // Write config to correct location based on UEFI/BIOS
+                if state.is_uefi() {
+                    cmds.push(format!(
+                        "{}; \
+                        PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
+                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
+                        if [ \"$IS_USB\" = \"1\" ]; then \
+                            mkdir -p /mnt/boot/EFI/BOOT; \
+                            cp /mnt/boot/limine/limine.conf /mnt/boot/EFI/BOOT/limine.conf 2>/dev/null || true; \
+                        else \
+                            mkdir -p /mnt/boot/EFI/limine; \
+                            cp /mnt/boot/limine/limine.conf /mnt/boot/EFI/limine/limine.conf 2>/dev/null || true; \
+                        fi",
+                        config_script
+                    ));
+                } else {
+                    cmds.push(config_script);
+                }
+                
+                state.debug_log("bootloader: Limine setup complete");
             }
             _ => {}
         }
