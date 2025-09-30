@@ -188,24 +188,24 @@ HOOK_EOF
                 // Build kernel parameters
                 let kernel_params_setup = if state.disk_encryption_type_index == 1 {
                     // LUKS encryption enabled
-                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
-                    CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo ''); \
-                    if [ -n \"$CRYPT_UUID\" ]; then \
-                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw\"; \
+                    format!("ROOT_UUID=$$(findmnt -n -o UUID /mnt); \
+                    CRYPT_UUID=$$(blkid -s UUID -o value $$(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{{print $$2}}') 2>/dev/null || echo ''); \
+                    if [ -n \"$$CRYPT_UUID\" ]; then \
+                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$$CRYPT_UUID:cryptroot rw\"; \
                     else \
-                        KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\"; \
-                    fi"
+                        KERNEL_PARAMS=\"root=UUID=$$ROOT_UUID rw\"; \
+                    fi")
                 } else {
-                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
-                    KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\""
+                    format!("ROOT_UUID=$$(findmnt -n -o UUID /mnt); \
+                    KERNEL_PARAMS=\"root=UUID=$$ROOT_UUID rw\"")
                 };
                 
                 // Determine path_root and config directory based on UEFI/BIOS
                 let (path_root_setup, config_dir) = if state.is_uefi() {
-                    ("BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${BOOT_UUID})\"", 
-                     "/mnt/boot/EFI/limine")
+                    (format!("BOOT_UUID=$$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${{BOOT_UUID}})\""), 
+                     "/mnt/boot/EFI/limine".to_string())
                 } else {
-                    ("path_root=\"boot()\"", "/mnt/boot/limine")
+                    ("path_root=\"boot()\"".to_string(), "/mnt/boot/limine".to_string())
                 };
                 
                 // Build the configuration file content in a single command
