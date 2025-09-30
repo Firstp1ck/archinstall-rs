@@ -256,6 +256,11 @@ if [ -n "$BOOT_UUID" ]; then path_root="uuid(${BOOT_UUID})"; else path_root="boo
                 config_script.push('\n');
                 config_script.push_str(r#"ROOT_UUID_FALLBACK=$(awk '$2=="/"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
 if [ -z "$ROOT_UUID" ] && [ -n "$ROOT_UUID_FALLBACK" ]; then ROOT_UUID=$ROOT_UUID_FALLBACK; fi;
+# Final guards to avoid empty values in limine.conf
+if [ -z "$KERNEL_PARAMS" ]; then
+  if [ -n "$ROOT_UUID" ]; then KERNEL_PARAMS="root=UUID=$ROOT_UUID rw"; else KERNEL_PARAMS="rw"; fi;
+fi
+if [ -z "$path_root" ]; then path_root="boot()"; fi
 echo "Devices: ROOT_DEV=$ROOT_DEV BOOT_DEV=$BOOT_DEV";
 echo "UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID";
 echo "Kernel params: $KERNEL_PARAMS";
