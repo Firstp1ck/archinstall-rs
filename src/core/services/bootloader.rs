@@ -109,21 +109,18 @@ if [ -z "$PARENT_DEV" ]; then echo "WARN: PARENT_DEV empty; defaulting to intern
 IS_USB=$(if [ -n "$PARENT_DEV" ] && [ "$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)" = "usb" ]; then echo 1; else echo 0; fi);
 echo "USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV";
 
-# Decide target directories without relying on prior var state
-if [ "$IS_USB" = "1" ]; then
-  TARGET_DIR="/mnt/boot/EFI/BOOT";
-  TARGET_DIR_RUNTIME="/boot/EFI/BOOT";
-else
-  TARGET_DIR="/mnt/boot/EFI/limine";
-  TARGET_DIR_RUNTIME="/boot/EFI/limine";
-fi
+# Create both potential target directories to avoid variable reliance
+echo "Creating directory: /mnt/boot/EFI/limine";
+install -d -m 0755 "/mnt/boot/EFI/limine" || { echo "ERROR: Failed to create /mnt/boot/EFI/limine"; exit 1; };
+echo "Creating directory: /mnt/boot/EFI/BOOT";
+install -d -m 0755 "/mnt/boot/EFI/BOOT" 2>/dev/null || true;
 
-if [ -z "$TARGET_DIR" ]; then echo "ERROR: TARGET_DIR empty"; exit 1; fi;
-echo "Creating directory: $TARGET_DIR";
-install -d -m 0755 "$TARGET_DIR" || { echo "ERROR: Failed to create $TARGET_DIR"; exit 1; };
-cp /mnt/usr/share/limine/BOOTIA32.EFI "$TARGET_DIR/" 2>/dev/null || true;
-cp /mnt/usr/share/limine/BOOTX64.EFI "$TARGET_DIR/" 2>/dev/null || true;
-echo "Copied Limine EFI binaries to $TARGET_DIR";
+# Copy Limine EFI binaries to both locations (best-effort for EFI/BOOT)
+cp /mnt/usr/share/limine/BOOTIA32.EFI "/mnt/boot/EFI/limine/" 2>/dev/null || true;
+cp /mnt/usr/share/limine/BOOTX64.EFI "/mnt/boot/EFI/limine/" 2>/dev/null || true;
+cp /mnt/usr/share/limine/BOOTIA32.EFI "/mnt/boot/EFI/BOOT/" 2>/dev/null || true;
+cp /mnt/usr/share/limine/BOOTX64.EFI "/mnt/boot/EFI/BOOT/" 2>/dev/null || true;
+echo "Copied Limine EFI binaries to /mnt/boot/EFI/limine and /mnt/boot/EFI/BOOT";
 
 if [ "$IS_USB" != "1" ] && [ -n "$PARENT_DEV" ]; then
   PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
@@ -150,7 +147,7 @@ Target = limine
 [Action]
 Description = Deploying Limine after upgrade...
 When = PostTransaction
-Exec = /bin/sh -c "/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $TARGET_DIR_RUNTIME/ 2>/dev/null || true && /usr/bin/cp /usr/share/limine/BOOTX64.EFI $TARGET_DIR_RUNTIME/"
+Exec = /bin/sh -c "/usr/bin/cp /usr/share/limine/BOOTIA32.EFI /boot/EFI/limine/ 2>/dev/null || true; /usr/bin/cp /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/ 2>/dev/null || true; /usr/bin/cp /usr/share/limine/BOOTIA32.EFI /boot/EFI/BOOT/ 2>/dev/null || true; /usr/bin/cp /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/ 2>/dev/null || true"
 HOOK_EOF
 "#.to_string());
                 } else {
@@ -267,6 +264,10 @@ timeout: 5
                 config_script.push_str("LIMINE_CONF_EOF\n");
                 config_script.push_str(
                     "cp -f \"$CONFIG_DIR/limine.conf\" \"$CONFIG_DIR/limine.cfg\" 2>/dev/null || true; "
+                );
+                // Also try to deploy config to EFI/BOOT best-effort for removable media
+                config_script.push_str(
+                    "if [ -d /mnt/boot/EFI/BOOT ]; then cp -f \"$CONFIG_DIR/limine.conf\" /mnt/boot/EFI/BOOT/limine.conf 2>/dev/null || true; fi; "
                 );
                 config_script.push_str(
                     "echo \"Created limine.conf at $CONFIG_DIR/limine.conf\""
