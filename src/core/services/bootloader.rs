@@ -93,36 +93,35 @@ impl BootloaderService {
                     // UEFI mode - install efibootmgr
                     cmds.push(chroot_cmd("pacman -S --needed --noconfirm efibootmgr"));
 
-                    // Consolidated UEFI setup to keep variables in scope
-                    cmds.push(
-                        "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
-                        IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
-                        echo \"USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV\"; \
-                        if [ \"$IS_USB\" = \"1\" ]; then \
-                            EFI_DIR=/mnt/boot/EFI/BOOT; \
-                            EFI_DIR_TARGET=/boot/EFI/BOOT; \
-                        else \
-                            EFI_DIR=/mnt/boot/EFI/limine; \
-                            EFI_DIR_TARGET=/boot/EFI/limine; \
-                        fi; \
-                        echo \"Creating directory: $EFI_DIR\"; \
-                        mkdir -p \"$EFI_DIR\"; \
-                        cp /mnt/usr/share/limine/BOOTIA32.EFI \"$EFI_DIR/\" 2>/dev/null || true; \
-                        cp /mnt/usr/share/limine/BOOTX64.EFI \"$EFI_DIR/\" || true; \
-                        echo \"Copied Limine EFI binaries to $EFI_DIR\"; \
-                        if [ \"$IS_USB\" != \"1\" ]; then \
-                            PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot)); \
-                            EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64); \
-                            if [ \"$EFI_BITNESS\" = \"64\" ]; then \
-                                LOADER_PATH=\"/EFI/limine/BOOTX64.EFI\"; \
-                            else \
-                                LOADER_PATH=\"/EFI/limine/BOOTIA32.EFI\"; \
-                            fi; \
-                            echo \"Creating NVRAM entry: disk=/dev/$PARENT_DEV part=$PART_NUM loader=$LOADER_PATH\"; \
-                            efibootmgr --create --disk \"/dev/$PARENT_DEV\" --part \"$PART_NUM\" --label \"Arch Linux Limine Bootloader\" --loader \"$LOADER_PATH\" --unicode --verbose || echo \"efibootmgr failed, continuing...\"; \
-                        fi; \
-                        mkdir -p /mnt/etc/pacman.d/hooks; \
-                        cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
+                    // Consolidated UEFI setup to keep variables in scope (raw string for correct escaping)
+                    cmds.push(r#"
+PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
+if [ -z "$PARENT_DEV" ]; then echo "WARN: PARENT_DEV empty; defaulting to internal disk assumption"; fi;
+IS_USB=$(if [ -n "$PARENT_DEV" ] && [ "$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)" = "usb" ]; then echo 1; else echo 0; fi);
+echo "USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV";
+# Set EFI_DIR defaults; override if USB
+EFI_DIR=/mnt/boot/EFI/limine; EFI_DIR_TARGET=/boot/EFI/limine;
+if [ "$IS_USB" = "1" ]; then EFI_DIR=/mnt/boot/EFI/BOOT; EFI_DIR_TARGET=/boot/EFI/BOOT; fi;
+echo "Creating directory: $EFI_DIR";
+mkdir -p "$EFI_DIR" || { echo "ERROR: Failed to create $EFI_DIR"; exit 1; };
+cp /mnt/usr/share/limine/BOOTIA32.EFI "$EFI_DIR/" 2>/dev/null || true;
+cp /mnt/usr/share/limine/BOOTX64.EFI "$EFI_DIR/" 2>/dev/null || true;
+echo "Copied Limine EFI binaries to $EFI_DIR";
+if [ "$IS_USB" != "1" ] && [ -n "$PARENT_DEV" ]; then
+  PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
+  EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64);
+  if [ "$EFI_BITNESS" = "64" ]; then
+    LOADER_PATH="/EFI/limine/BOOTX64.EFI";
+  else
+    LOADER_PATH="/EFI/limine/BOOTIA32.EFI";
+  fi;
+  echo "Creating NVRAM entry: disk=/dev/$PARENT_DEV part=$PART_NUM loader=$LOADER_PATH";
+  efibootmgr --create --disk "/dev/$PARENT_DEV" --part "$PART_NUM" --label "Arch Linux Limine Bootloader" --loader "$LOADER_PATH" --unicode --verbose || echo "efibootmgr failed, continuing...";
+else
+  echo "Skipping efibootmgr (USB install or unknown parent device)";
+fi;
+mkdir -p /mnt/etc/pacman.d/hooks;
+cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
 [Trigger]
 Operation = Install
 Operation = Upgrade
@@ -132,10 +131,9 @@ Target = limine
 [Action]
 Description = Deploying Limine after upgrade...
 When = PostTransaction
-Exec = /bin/sh -c \"/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $EFI_DIR_TARGET/ 2>/dev/null || true && /usr/bin/cp /usr/share/limine/BOOTX64.EFI $EFI_DIR_TARGET/\"
+Exec = /bin/sh -c "/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $EFI_DIR_TARGET/ 2>/dev/null || true && /usr/bin/cp /usr/share/limine/BOOTX64.EFI $EFI_DIR_TARGET/"
 HOOK_EOF
-".to_string()
-                    );
+"#.to_string());
                 } else {
                     // BIOS mode
                     state.debug_log("bootloader: Limine BIOS mode");
@@ -184,38 +182,50 @@ HOOK_EOF
 
                 // Build kernel parameters
                 let kernel_params_setup = if state.disk_encryption_type_index == 1 {
-                    // LUKS encryption enabled
-                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
-                    CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo ''); \
-                    if [ -n \"$CRYPT_UUID\" ]; then \
-                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw\"; \
-                    else \
-                        KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\"; \
-                    fi"
-                        .to_string()
+                    r#"ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null);
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
+CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo '');
+if [ -n "$CRYPT_UUID" ]; then
+  KERNEL_PARAMS="root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw";
+else
+  KERNEL_PARAMS="root=UUID=$ROOT_UUID rw";
+fi"#.to_string()
                 } else {
-                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
-                    KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\""
-                        .to_string()
+                    r#"ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null);
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
+KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
                 };
 
                 // Determine path_root setup and config dir selection based on UEFI/BIOS
                 let path_root_setup = if state.is_uefi() {
-                    // Use the UUID of /mnt/boot and prefer EFI/BOOT for USB installs
-                    "BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${BOOT_UUID})\"; CONFIG_DIR=/mnt/boot/EFI/limine; if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; fi".to_string()
+                    r#"CONFIG_DIR=/mnt/boot/EFI/limine; if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; fi;
+BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null);
+BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || echo '');
+if [ -z "$BOOT_UUID" ]; then BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1); fi;
+path_root="uuid(${BOOT_UUID})";
+# Ensure CONFIG_DIR not empty
+if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/EFI/limine; fi;"#.to_string()
                 } else {
-                    "path_root=\"boot()\"; CONFIG_DIR=/mnt/boot/limine".to_string()
+                    r#"CONFIG_DIR=/mnt/boot/limine; path_root="boot()";
+if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/limine; fi;"#.to_string()
                 };
 
                 // Build the configuration file content in a single command
                 // NOTE: Using <<LIMINE_CONF_EOF (without quotes) to allow variable expansion
-                let mut config_script = format!(
-                    "{kernel_params_setup}; {path_root_setup}; echo \"UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID\" 2>/dev/null || true; \
-                    echo \"Kernel params: $KERNEL_PARAMS\"; \
-                    echo \"Path root: $path_root\"; \
-                    mkdir -p \"$CONFIG_DIR\"; \
-                    cat > \"$CONFIG_DIR/limine.conf\" <<LIMINE_CONF_EOF\ntimeout: 5\n"
-                );
+                let mut config_script = String::new();
+                config_script.push_str(&kernel_params_setup);
+                config_script.push_str("; ");
+                config_script.push_str(&path_root_setup);
+                config_script.push_str(";\n");
+                config_script.push_str(r#"ROOT_UUID_FALLBACK=$(awk '$2=="/"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
+if [ -z "$ROOT_UUID" ] && [ -n "$ROOT_UUID_FALLBACK" ]; then ROOT_UUID=$ROOT_UUID_FALLBACK; fi;
+echo "UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID";
+echo "Kernel params: $KERNEL_PARAMS";
+echo "Path root: $path_root";
+mkdir -p "$CONFIG_DIR";
+cat > "$CONFIG_DIR/limine.conf" <<LIMINE_CONF_EOF
+timeout: 5
+"#);
 
                 // Add entries for each kernel
                 for kernel in &kernels {

@@ -11,7 +11,9 @@ fn generates_limine_conf_from_template() {
 
     // Simulated values that the shell script would expand
     let path_root = "uuid(BOOT-UUID-1234)";
-    let kernel_params = "root=UUID=ROOT-UUID-5678 rw";
+    // Use a realistic UUID to validate replacement of manual placeholder line
+    let uuid = "123e4567-e89b-12d3-a456-426614174000";
+    let kernel_params = format!("root=UUID={} rw", uuid);
 
     // Simulate selected kernels: linux + fallback
     let kernels = vec!["linux"]; // only one for this unit test
@@ -30,10 +32,10 @@ fn generates_limine_conf_from_template() {
     // Inject into template
     let final_conf = template.replace("{{KERNELS_SECTION}}", &generated);
 
-    // Write to a temp file to mimic installer behavior
-    let out_dir = tempfile::tempdir().expect("tempdir");
-    let out_path = out_dir.path().join("limine.conf");
-    fs::write(&out_path, &final_conf).expect("write limine.conf");
+    // Write directly into assets/limine as requested
+    let out_path = std::path::Path::new("assets/limine/limine.conf");
+    fs::create_dir_all(out_path.parent().unwrap()).expect("create assets/limine");
+    fs::write(&out_path, &final_conf).expect("write assets/limine/limine.conf");
 
     // Assert structure
     let conf = fs::read_to_string(&out_path).unwrap();
@@ -44,5 +46,12 @@ fn generates_limine_conf_from_template() {
     assert!(conf.contains("path: uuid(BOOT-UUID-1234):/vmlinuz-linux"));
     assert!(conf.contains("module_path: uuid(BOOT-UUID-1234):/initramfs-linux.img"));
     assert!(conf.contains("module_path: uuid(BOOT-UUID-1234):/initramfs-linux-fallback.img"));
-    assert!(conf.contains("cmdline: root=UUID=ROOT-UUID-5678 rw"));
+
+    // Verify that the cmdline contains our UUID and not the manual placeholder
+    let expected_line = format!("cmdline: root=UUID={} rw", uuid);
+    assert!(conf.contains(&expected_line), "cmdline line missing: {}\nconf:\n{}", expected_line, conf);
+    assert!(
+        !conf.contains("cmdline: root=UUID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"),
+        "manual placeholder should not be present in generated config"
+    );
 }

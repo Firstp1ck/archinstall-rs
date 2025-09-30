@@ -7,6 +7,15 @@ use crate::core::services::system::SystemService;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use std::thread;
+use std::sync::atomic::{AtomicI32, Ordering};
+
+static UEFI_OVERRIDE: AtomicI32 = AtomicI32::new(0); // 0: none, 1: true, -1: false
+
+/// Tests can force UEFI/BIOS detection.
+pub fn set_uefi_override_for_tests(v: Option<bool>) {
+    let code = match v { Some(true) => 1, Some(false) => -1, None => 0 };
+    UEFI_OVERRIDE.store(code, Ordering::Relaxed);
+}
 
 impl AppState {
     pub fn start_install(&mut self) {
@@ -585,6 +594,15 @@ impl AppState {
     }
 
     pub(crate) fn is_uefi(&self) -> bool {
+        match UEFI_OVERRIDE.load(Ordering::Relaxed) {
+            1 => return true,
+            -1 => return false,
+            _ => {}
+        }
+        if let Ok(v) = std::env::var("ARCHINSTALL_FORCE_UEFI") {
+            let vl = v.to_ascii_lowercase();
+            return vl == "1" || vl == "true" || vl == "yes";
+        }
         std::path::Path::new("/sys/firmware/efi").exists()
     }
 
