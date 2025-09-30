@@ -230,9 +230,9 @@ if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/limine; fi;"#.to_string()
                 // NOTE: Using <<LIMINE_CONF_EOF (without quotes) to allow variable expansion
                 let mut config_script = String::new();
                 config_script.push_str(&kernel_params_setup);
-                config_script.push_str("; ");
+                config_script.push('\n');
                 config_script.push_str(&path_root_setup);
-                config_script.push_str(";\n");
+                config_script.push('\n');
                 config_script.push_str(r#"ROOT_UUID_FALLBACK=$(awk '$2=="/"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
 if [ -z "$ROOT_UUID" ] && [ -n "$ROOT_UUID_FALLBACK" ]; then ROOT_UUID=$ROOT_UUID_FALLBACK; fi;
 echo "UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID";
