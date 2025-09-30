@@ -86,6 +86,15 @@ impl BootloaderService {
             3 => {
                 state.debug_log("bootloader: installing Limine");
 
+                // Mount sanity checks (ensure these lines appear in the log)
+                cmds.push(
+                    "echo '[check] Verifying mounts before bootloader'; \
+                     echo '[check] findmnt /mnt'; findmnt /mnt || { echo 'ERROR: /mnt is not mounted'; exit 1; }; \
+                     echo '[check] findmnt /mnt/boot'; findmnt /mnt/boot || { echo 'ERROR: /mnt/boot is not mounted'; exit 1; }; \
+                     echo '[check] ls -ld /mnt/boot'; ls -ld /mnt/boot || { echo 'ERROR: /mnt/boot directory missing'; exit 1; }"
+                        .to_string(),
+                );
+
                 // Install limine package
                 cmds.push(chroot_cmd("pacman -S --needed --noconfirm limine"));
 
