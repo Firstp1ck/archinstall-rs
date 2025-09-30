@@ -15,15 +15,19 @@ fn limine_plan_includes_usb_efi_boot_path_handling() {
     let plan = archinstall_rs::core::services::bootloader::BootloaderService::build_plan(&state, "/dev/fake");
     let blob = plan.commands.join("\n");
 
-    // UEFI stage: ensure USB branch sets TARGET_DIR/TARGET_DIR_RUNTIME to EFI/BOOT
-    assert!(blob.contains("TARGET_DIR=\"/mnt/boot/EFI/BOOT\""),
-        "USB TARGET_DIR assignment missing; blob:\n{}", blob);
-    assert!(blob.contains("TARGET_DIR_RUNTIME=\"/boot/EFI/BOOT\""),
-        "USB TARGET_DIR_RUNTIME assignment missing; blob:\n{}", blob);
+    // Ensure we explicitly create EFI/BOOT directory
+    assert!(blob.contains("Creating directory: /mnt/boot/EFI/BOOT"),
+        "missing creation of /mnt/boot/EFI/BOOT; blob:\n{}", blob);
+    assert!(blob.contains("install -d -m 0755 \"/mnt/boot/EFI/BOOT\""),
+        "missing install -d for /mnt/boot/EFI/BOOT; blob:\n{}", blob);
 
-    // Config generation stage: ensure CONFIG_DIR may switch to EFI/BOOT
-    assert!(blob.contains("CONFIG_DIR=/mnt/boot/EFI/BOOT"),
-        "CONFIG_DIR USB path missing; blob:\n{}", blob);
+    // Pacman hook should copy loader binaries to EFI/BOOT as well
+    assert!(blob.contains("/usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/"),
+        "hook missing copy to /boot/EFI/BOOT; blob:\n{}", blob);
+
+    // Config generation stage: ensure CONFIG_DIR may switch to EFI/BOOT (presence of condition)
+    assert!(blob.contains("if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; else CONFIG_DIR=/mnt/boot/EFI/limine; fi;"),
+        "CONFIG_DIR USB condition missing; blob:\n{}", blob);
 
     // Ensure config heredoc writes using $CONFIG_DIR/limine.conf
     assert!(blob.contains("cat > \"$CONFIG_DIR/limine.conf\""),

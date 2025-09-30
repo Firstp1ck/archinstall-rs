@@ -15,21 +15,27 @@ fn limine_plan_has_safe_defaults_and_writes_config() {
     let plan = archinstall_rs::core::services::bootloader::BootloaderService::build_plan(&state, "/dev/fake");
     let blob = plan.commands.join("\n");
 
-    // The script must define TARGET_DIR/TARGET_DIR_RUNTIME defaults (non-USB)
-    assert!(blob.contains("TARGET_DIR=\"/mnt/boot/EFI/limine\""),
-        "TARGET_DIR default missing; script blob:\n{}", blob);
-    assert!(blob.contains("TARGET_DIR_RUNTIME=\"/boot/EFI/limine\""),
-        "TARGET_DIR_RUNTIME default missing; script blob:\n{}", blob);
-
-    // It must attempt to create the directory using the literal path
-    assert!(blob.contains("install -d -m 0755 \"$TARGET_DIR\""),
-        "install -d not present; script blob:\n{}", blob);
+    // The script must explicitly create both target directories
+    assert!(blob.contains("Creating directory: /mnt/boot/EFI/limine"),
+        "missing creation of /mnt/boot/EFI/limine; blob:\n{}", blob);
+    assert!(blob.contains("install -d -m 0755 \"/mnt/boot/EFI/limine\""),
+        "missing install -d for /mnt/boot/EFI/limine; blob:\n{}", blob);
+    assert!(blob.contains("Creating directory: /mnt/boot/EFI/BOOT"),
+        "missing creation of /mnt/boot/EFI/BOOT; blob:\n{}", blob);
+    assert!(blob.contains("install -d -m 0755 \"/mnt/boot/EFI/BOOT\""),
+        "missing install -d for /mnt/boot/EFI/BOOT; blob:\n{}", blob);
 
     // The plan should include the message for skipping efibootmgr in case of unknown parent
     assert!(blob.contains("Skipping efibootmgr (USB install or unknown parent device)"),
         "skip message missing; script blob:\n{}", blob);
 
-    // Config file must be written under CONFIG_DIR which resolves to EFI/limine by default
+    // Pacman hook should copy loader binaries to both locations
+    assert!(blob.contains("/usr/share/limine/BOOTX64.EFI /boot/EFI/limine/"),
+        "hook missing copy to /boot/EFI/limine; blob:\n{}", blob);
+    assert!(blob.contains("/usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/"),
+        "hook missing copy to /boot/EFI/BOOT; blob:\n{}", blob);
+
+    // Config file must be written under CONFIG_DIR (and optional mirror to EFI/BOOT is fine)
     assert!(blob.contains("cat > \"$CONFIG_DIR/limine.conf\""),
         "limine.conf heredoc not present; script blob:\n{}", blob);
 }
