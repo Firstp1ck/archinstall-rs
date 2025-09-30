@@ -25,4 +25,12 @@ fn limine_plan_targets_efi_limine_directory() {
 
     // It must not write to root-level /limine.conf due to empty CONFIG_DIR
     assert!(!blob.contains("Created limine.conf at /limine.conf"), "plan would create config at root /limine.conf (CONFIG_DIR empty)\n{}", blob);
+
+    // It must set EFI_DIR defaults before mkdir
+    assert!(blob.contains("EFI_DIR=/mnt/boot/EFI/limine; EFI_DIR_TARGET=/boot/EFI/limine;"),
+        "EFI_DIR defaults missing; script blob:\n{}", blob);
+
+    // mkdir should target "$EFI_DIR" (non-empty)
+    assert!(blob.contains("mkdir -p \"$EFI_DIR\""),
+        "mkdir does not target $EFI_DIR; script blob:\n{}", blob);
 }
