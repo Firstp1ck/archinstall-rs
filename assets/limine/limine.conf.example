@@ -1,0 +1,11 @@
+# Example limine.conf template used by tests
+# Replace {{KERNELS_SECTION}} with generated entries.
+# The generated section should expand variables like PATH_ROOT and KERNEL_PARAMS
+# to concrete values in the final file, not shell variables.
+
+# Timeout before default boot
+timeout: 5
+
+# --- BEGIN GENERATED SECTION ---
+{{KERNELS_SECTION}}
+# --- END GENERATED SECTION ---

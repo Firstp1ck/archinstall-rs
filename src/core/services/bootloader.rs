@@ -78,22 +78,22 @@ impl BootloaderService {
                 }
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
             }
-            // TODO(v0.2.0+): Implement EFISTUB boot entry creation and kernel cmdline.
+            // 2: efistub TODO
             2 => {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }
-            // Limine bootloader (index 3)
+            // 3: Limine
             3 => {
                 state.debug_log("bootloader: installing Limine");
-                
+
                 // Install limine package
                 cmds.push(chroot_cmd("pacman -S --needed --noconfirm limine"));
-                
+
                 if state.is_uefi() {
                     // UEFI mode - install efibootmgr
                     cmds.push(chroot_cmd("pacman -S --needed --noconfirm efibootmgr"));
-                    
-                    // Single command block for UEFI setup - keeps variables in scope
+
+                    // Consolidated UEFI setup to keep variables in scope
                     cmds.push(
                         "PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
                         IS_USB=$(if [ \"$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)\" = \"usb\" ]; then echo 1; else echo 0; fi); \
@@ -139,19 +139,19 @@ HOOK_EOF
                 } else {
                     // BIOS mode
                     state.debug_log("bootloader: Limine BIOS mode");
-                    
+
                     // Create /boot/limine directory
                     cmds.push(chroot_cmd("mkdir -p /boot/limine"));
-                    
+
                     // Copy limine-bios.sys
                     cmds.push(chroot_cmd("cp /usr/share/limine/limine-bios.sys /boot/limine/"));
-                    
+
                     // Run limine bios-install
                     cmds.push(format!(
                         "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
                         arch-chroot /mnt limine bios-install $PARENT_DEV || echo \"limine bios-install failed\""
                     ));
-                    
+
                     // Create pacman hook for BIOS
                     cmds.push(format!(
                         "PARENT_DEV=/dev/$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot)); \
@@ -171,81 +171,84 @@ HOOK_EOF
 "
                     ));
                 }
-                
-                // Generate limine.conf
+
+                // Generate limine.conf (and limine.cfg) with all selected kernels
                 state.debug_log("bootloader: generating limine.conf");
-                
-                // Generate limine.conf with all selected kernels
+
                 let mut kernels: Vec<String> = state.selected_kernels.iter().cloned().collect();
                 kernels.sort();
-                
                 if kernels.is_empty() {
                     kernels.push("linux".to_string());
                 }
-                
                 let uki_enabled = state.uki_enabled;
-                
+
                 // Build kernel parameters
                 let kernel_params_setup = if state.disk_encryption_type_index == 1 {
                     // LUKS encryption enabled
-                    format!("ROOT_UUID=$$(findmnt -n -o UUID /mnt); \
-                    CRYPT_UUID=$$(blkid -s UUID -o value $$(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{{print $$2}}') 2>/dev/null || echo ''); \
-                    if [ -n \"$$CRYPT_UUID\" ]; then \
-                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$$CRYPT_UUID:cryptroot rw\"; \
+                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
+                    CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo ''); \
+                    if [ -n \"$CRYPT_UUID\" ]; then \
+                        KERNEL_PARAMS=\"root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw\"; \
                     else \
-                        KERNEL_PARAMS=\"root=UUID=$$ROOT_UUID rw\"; \
-                    fi")
+                        KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\"; \
+                    fi"
+                        .to_string()
                 } else {
-                    format!("ROOT_UUID=$$(findmnt -n -o UUID /mnt); \
-                    KERNEL_PARAMS=\"root=UUID=$$ROOT_UUID rw\"")
+                    "ROOT_UUID=$(findmnt -n -o UUID /mnt); \
+                    KERNEL_PARAMS=\"root=UUID=$ROOT_UUID rw\""
+                        .to_string()
                 };
-                
-                // Determine path_root and config directory based on UEFI/BIOS
-                let (path_root_setup, config_dir) = if state.is_uefi() {
-                    (format!("BOOT_UUID=$$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${{BOOT_UUID}})\""), 
-                     "/mnt/boot/EFI/limine".to_string())
+
+                // Determine path_root setup and config dir selection based on UEFI/BIOS
+                let path_root_setup = if state.is_uefi() {
+                    // Use the UUID of /mnt/boot and prefer EFI/BOOT for USB installs
+                    "BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${BOOT_UUID})\"; CONFIG_DIR=/mnt/boot/EFI/limine; if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; fi".to_string()
                 } else {
-                    ("path_root=\"boot()\"".to_string(), "/mnt/boot/limine".to_string())
+                    "path_root=\"boot()\"; CONFIG_DIR=/mnt/boot/limine".to_string()
                 };
-                
+
                 // Build the configuration file content in a single command
                 // NOTE: Using <<LIMINE_CONF_EOF (without quotes) to allow variable expansion
                 let mut config_script = format!(
-                    "{}; {}; echo \"UUIDs: ROOT=$$ROOT_UUID BOOT=$$BOOT_UUID\"; \
-                    echo \"Kernel params: $$KERNEL_PARAMS\"; \
-                    echo \"Path root: $$path_root\"; \
-                    mkdir -p {}; \
-                    cat > {}/limine.conf <<LIMINE_CONF_EOF\ntimeout: 5\n",
-                    kernel_params_setup, path_root_setup, config_dir, config_dir
+                    "{kernel_params_setup}; {path_root_setup}; echo \"UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID\" 2>/dev/null || true; \
+                    echo \"Kernel params: $KERNEL_PARAMS\"; \
+                    echo \"Path root: $path_root\"; \
+                    mkdir -p \"$CONFIG_DIR\"; \
+                    cat > \"$CONFIG_DIR/limine.conf\" <<LIMINE_CONF_EOF\ntimeout: 5\n"
                 );
-                
+
                 // Add entries for each kernel
                 for kernel in &kernels {
                     for variant in &["", "-fallback"] {
                         if uki_enabled {
                             config_script.push_str(&format!(
-                                "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $$KERNEL_PARAMS\n",
+                                "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $KERNEL_PARAMS\n",
                                 kernel, variant, kernel
                             ));
                         } else {
                             config_script.push_str(&format!(
-                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $$path_root:/vmlinuz-{}\n    cmdline: $$KERNEL_PARAMS\n    module_path: $$path_root:/initramfs-{}{}.img\n",
+                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $path_root:/vmlinuz-{}\n    cmdline: $KERNEL_PARAMS\n    module_path: $path_root:/initramfs-{}{}.img\n",
                                 kernel, variant, kernel, kernel, variant
                             ));
                         }
                     }
                 }
-                
+
+                // Close heredoc, create limine.cfg for compatibility, and echo path
                 config_script.push_str("LIMINE_CONF_EOF\n");
-                config_script.push_str(&format!("echo \"Created limine.conf at {}/limine.conf\"", config_dir));
-                
+                config_script.push_str(
+                    "cp -f \"$CONFIG_DIR/limine.conf\" \"$CONFIG_DIR/limine.cfg\" 2>/dev/null || true; "
+                );
+                config_script.push_str(
+                    "echo \"Created limine.conf at $CONFIG_DIR/limine.conf\""
+                );
+
                 cmds.push(config_script);
-                
+
                 state.debug_log("bootloader: Limine setup complete");
             }
             _ => {}
         }
-
         // Debug summary
         state.debug_log(&format!(
             "bootloader: choice={} mode={} (uefi={})",
@@ -259,7 +262,6 @@ HOOK_EOF
             if state.is_uefi() { "UEFI" } else { "BIOS" },
             state.is_uefi()
         ));
-
         BootloaderPlan::new(cmds)
     }
 }

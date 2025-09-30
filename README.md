@@ -583,3 +583,14 @@ This installer modifies disk partitions and system configurations. Always backup
 ---
 
 **Made with ❤️ and 🦀 for the Arch Linux community**
+
+## Testing
+
+- Limine config generation unit test is located at `tests/limine_conf_generation.rs`.
+- Run all tests:
+
+```
+cargo test -- --nocapture
+```
+
+The test renders an example `limine.conf` from a template in `assets/limine/limine.conf.example` and validates key lines.
