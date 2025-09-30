@@ -211,9 +211,9 @@ HOOK_EOF
                 // Build the configuration file content in a single command
                 // NOTE: Using <<LIMINE_CONF_EOF (without quotes) to allow variable expansion
                 let mut config_script = format!(
-                    "{}; {}; echo \"UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID\"; \
-                    echo \"Kernel params: $KERNEL_PARAMS\"; \
-                    echo \"Path root: $path_root\"; \
+                    "{}; {}; echo \"UUIDs: ROOT=$$ROOT_UUID BOOT=$$BOOT_UUID\"; \
+                    echo \"Kernel params: $$KERNEL_PARAMS\"; \
+                    echo \"Path root: $$path_root\"; \
                     mkdir -p {}; \
                     cat > {}/limine.conf <<LIMINE_CONF_EOF\ntimeout: 5\n",
                     kernel_params_setup, path_root_setup, config_dir, config_dir
