@@ -104,7 +104,10 @@ impl BootloaderService {
 
                     // Consolidated UEFI setup to keep variables in scope (raw string for correct escaping)
                     cmds.push(r#"
-PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
+# Resolve ESP parent disk robustly (handle /dev/disk/by-uuid/* and btrfs-style sources)
+BOOT_SRC=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null | sed 's/\[.*$//');
+BOOT_DEV=$(readlink -f "$BOOT_SRC" 2>/dev/null || echo "$BOOT_SRC");
+PARENT_DEV=$(lsblk -no pkname "$BOOT_DEV" 2>/dev/null);
 if [ -z "$PARENT_DEV" ]; then echo "WARN: PARENT_DEV empty; defaulting to internal disk assumption"; fi;
 IS_USB=$(if [ -n "$PARENT_DEV" ] && [ "$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)" = "usb" ]; then echo 1; else echo 0; fi);
 echo "USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV";
@@ -123,7 +126,7 @@ cp /mnt/usr/share/limine/BOOTX64.EFI "/mnt/boot/EFI/BOOT/" 2>/dev/null || true;
 echo "Copied Limine EFI binaries to /mnt/boot/EFI/limine and /mnt/boot/EFI/BOOT";
 
 if [ "$IS_USB" != "1" ] && [ -n "$PARENT_DEV" ]; then
-  PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
+  PART_NUM=$(lsblk -no PARTNUM "$BOOT_DEV" 2>/dev/null);
   EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64);
   if [ "$EFI_BITNESS" = "64" ]; then
     LOADER_PATH="/EFI/limine/BOOTX64.EFI";
@@ -198,16 +201,21 @@ HOOK_EOF
 
                 // Build kernel parameters
                 let kernel_params_setup = if state.disk_encryption_type_index == 1 {
-                    r#"ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null);
+                    r#"# Resolve root device and normalize (strip btrfs subvol suffix like [/@])
+ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//');
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
-CRYPT_UUID=$(blkid -s UUID -o value $(cryptsetup status cryptroot 2>/dev/null | grep 'device:' | awk '{print $2}') 2>/dev/null || echo '');
-if [ -n "$CRYPT_UUID" ]; then
-  KERNEL_PARAMS="root=/dev/mapper/cryptroot cryptdevice=UUID=$CRYPT_UUID:cryptroot rw";
+# Try to detect underlying device of cryptroot for cryptdevice=UUID
+MAP_NAME=$(basename "$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//')" | sed 's@^/dev/mapper/@@');
+CRYPT_DEV=$(cryptsetup status "$MAP_NAME" 2>/dev/null | awk '/device:/ {print $2}');
+CRYPT_UUID=$(blkid -s UUID -o value "$CRYPT_DEV" 2>/dev/null || echo '');
+if [ -n "$CRYPT_UUID" ] && [ -n "$MAP_NAME" ]; then
+  KERNEL_PARAMS="root=/dev/mapper/$MAP_NAME cryptdevice=UUID=$CRYPT_UUID:$MAP_NAME rw";
 else
   KERNEL_PARAMS="root=UUID=$ROOT_UUID rw";
 fi"#.to_string()
                 } else {
-                    r#"ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null);
+                    r#"# Resolve root device and normalize (strip btrfs subvol suffix like [/@])
+ROOT_DEV=$(findmnt -n -o SOURCE /mnt 2>/dev/null | sed 's/\[.*$//');
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT_DEV" 2>/dev/null || echo '');
 KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
                 };
@@ -216,14 +224,16 @@ KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
                 let path_root_setup = if state.is_uefi() {
                     r#"# Choose config dir similarly to the UEFI deployment target
 if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; else CONFIG_DIR=/mnt/boot/EFI/limine; fi;
-BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null);
+BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null | sed 's/\[.*$//');
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || echo '');
-if [ -z "$BOOT_UUID" ]; then BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1); fi;
+# Fallback to /etc/fstab UUID
+[ -z "$BOOT_UUID" ] && BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
 path_root="uuid(${BOOT_UUID})";
-if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/EFI/limine; fi;"#.to_string()
+# Final guard
+[ -z "$CONFIG_DIR" ] && CONFIG_DIR=/mnt/boot/EFI/limine;"#.to_string()
                 } else {
                     r#"CONFIG_DIR=/mnt/boot/limine; path_root="boot()";
-if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/limine; fi;"#.to_string()
+[ -z "$CONFIG_DIR" ] && CONFIG_DIR=/mnt/boot/limine;"#.to_string()
                 };
 
                 // Build the configuration file content in a single command
@@ -235,6 +245,7 @@ if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/limine; fi;"#.to_string()
                 config_script.push('\n');
                 config_script.push_str(r#"ROOT_UUID_FALLBACK=$(awk '$2=="/"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1);
 if [ -z "$ROOT_UUID" ] && [ -n "$ROOT_UUID_FALLBACK" ]; then ROOT_UUID=$ROOT_UUID_FALLBACK; fi;
+echo "Devices: ROOT_DEV=$ROOT_DEV BOOT_DEV=$BOOT_DEV";
 echo "UUIDs: ROOT=$ROOT_UUID BOOT=$BOOT_UUID";
 echo "Kernel params: $KERNEL_PARAMS";
 echo "Path root: $path_root";
