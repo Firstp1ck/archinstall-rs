@@ -202,7 +202,7 @@ HOOK_EOF
                 
                 // Determine path_root and config directory based on UEFI/BIOS
                 let (path_root_setup, config_dir) = if state.is_uefi() {
-                    ("BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid($BOOT_UUID)\"", 
+                    ("BOOT_UUID=$(findmnt -n -o UUID /mnt/boot); path_root=\"uuid(${BOOT_UUID})\"", 
                      "/mnt/boot/EFI/limine")
                 } else {
                     ("path_root=\"boot()\"", "/mnt/boot/limine")
@@ -224,12 +224,12 @@ HOOK_EOF
                     for variant in &["", "-fallback"] {
                         if uki_enabled {
                             config_script.push_str(&format!(
-                                "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $KERNEL_PARAMS\n",
+                                "\n/Arch Linux ({}{})\n    protocol: efi\n    path: boot():/EFI/Linux/arch-{}.efi\n    cmdline: $$KERNEL_PARAMS\n",
                                 kernel, variant, kernel
                             ));
                         } else {
                             config_script.push_str(&format!(
-                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $path_root:/vmlinuz-{}\n    cmdline: $KERNEL_PARAMS\n    module_path: $path_root:/initramfs-{}{}.img\n",
+                                "\n/Arch Linux ({}{})\n    protocol: linux\n    path: $$path_root:/vmlinuz-{}\n    cmdline: $$KERNEL_PARAMS\n    module_path: $$path_root:/initramfs-{}{}.img\n",
                                 kernel, variant, kernel, kernel, variant
                             ));
                         }
