@@ -15,13 +15,15 @@ fn limine_plan_has_safe_defaults_and_writes_config() {
     let plan = archinstall_rs::core::services::bootloader::BootloaderService::build_plan(&state, "/dev/fake");
     let blob = plan.commands.join("\n");
 
-    // The script must define defaults for EFI_DIR/EFI_DIR_TARGET before any mkdir
-    assert!(blob.contains("EFI_DIR=/mnt/boot/EFI/limine; EFI_DIR_TARGET=/boot/EFI/limine;"),
-        "EFI_DIR defaults missing; script blob:\n{}", blob);
+    // The script must define TARGET_DIR/TARGET_DIR_RUNTIME defaults (non-USB)
+    assert!(blob.contains("TARGET_DIR=\"/mnt/boot/EFI/limine\""),
+        "TARGET_DIR default missing; script blob:\n{}", blob);
+    assert!(blob.contains("TARGET_DIR_RUNTIME=\"/boot/EFI/limine\""),
+        "TARGET_DIR_RUNTIME default missing; script blob:\n{}", blob);
 
-    // It must attempt to create the directory using the variable (not empty path)
-    assert!(blob.contains("mkdir -p \"$EFI_DIR\""),
-        "mkdir does not target $EFI_DIR; script blob:\n{}", blob);
+    // It must attempt to create the directory using the literal path
+    assert!(blob.contains("install -d -m 0755 \"$TARGET_DIR\""),
+        "install -d not present; script blob:\n{}", blob);
 
     // The plan should include the message for skipping efibootmgr in case of unknown parent
     assert!(blob.contains("Skipping efibootmgr (USB install or unknown parent device)"),

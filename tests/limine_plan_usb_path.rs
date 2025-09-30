@@ -15,11 +15,11 @@ fn limine_plan_includes_usb_efi_boot_path_handling() {
     let plan = archinstall_rs::core::services::bootloader::BootloaderService::build_plan(&state, "/dev/fake");
     let blob = plan.commands.join("\n");
 
-    // UEFI stage: ensure USB branch sets EFI_DIR/EFI_DIR_TARGET to EFI/BOOT
-    assert!(blob.contains("EFI_DIR=/mnt/boot/EFI/BOOT"),
-        "USB EFI_DIR assignment missing; blob:\n{}", blob);
-    assert!(blob.contains("EFI_DIR_TARGET=/boot/EFI/BOOT"),
-        "USB EFI_DIR_TARGET assignment missing; blob:\n{}", blob);
+    // UEFI stage: ensure USB branch sets TARGET_DIR/TARGET_DIR_RUNTIME to EFI/BOOT
+    assert!(blob.contains("TARGET_DIR=\"/mnt/boot/EFI/BOOT\""),
+        "USB TARGET_DIR assignment missing; blob:\n{}", blob);
+    assert!(blob.contains("TARGET_DIR_RUNTIME=\"/boot/EFI/BOOT\""),
+        "USB TARGET_DIR_RUNTIME assignment missing; blob:\n{}", blob);
 
     // Config generation stage: ensure CONFIG_DIR may switch to EFI/BOOT
     assert!(blob.contains("CONFIG_DIR=/mnt/boot/EFI/BOOT"),

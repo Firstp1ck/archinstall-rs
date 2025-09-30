@@ -108,14 +108,23 @@ PARENT_DEV=$(lsblk -no pkname $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
 if [ -z "$PARENT_DEV" ]; then echo "WARN: PARENT_DEV empty; defaulting to internal disk assumption"; fi;
 IS_USB=$(if [ -n "$PARENT_DEV" ] && [ "$(udevadm info --no-pager --query=property --property=ID_BUS --value --name=/dev/$PARENT_DEV 2>/dev/null)" = "usb" ]; then echo 1; else echo 0; fi);
 echo "USB detection: IS_USB=$IS_USB PARENT_DEV=$PARENT_DEV";
-# Set EFI_DIR defaults; override if USB
-EFI_DIR=/mnt/boot/EFI/limine; EFI_DIR_TARGET=/boot/EFI/limine;
-if [ "$IS_USB" = "1" ]; then EFI_DIR=/mnt/boot/EFI/BOOT; EFI_DIR_TARGET=/boot/EFI/BOOT; fi;
-echo "Creating directory: $EFI_DIR";
-mkdir -p "$EFI_DIR" || { echo "ERROR: Failed to create $EFI_DIR"; exit 1; };
-cp /mnt/usr/share/limine/BOOTIA32.EFI "$EFI_DIR/" 2>/dev/null || true;
-cp /mnt/usr/share/limine/BOOTX64.EFI "$EFI_DIR/" 2>/dev/null || true;
-echo "Copied Limine EFI binaries to $EFI_DIR";
+
+# Decide target directories without relying on prior var state
+if [ "$IS_USB" = "1" ]; then
+  TARGET_DIR="/mnt/boot/EFI/BOOT";
+  TARGET_DIR_RUNTIME="/boot/EFI/BOOT";
+else
+  TARGET_DIR="/mnt/boot/EFI/limine";
+  TARGET_DIR_RUNTIME="/boot/EFI/limine";
+fi
+
+if [ -z "$TARGET_DIR" ]; then echo "ERROR: TARGET_DIR empty"; exit 1; fi;
+echo "Creating directory: $TARGET_DIR";
+install -d -m 0755 "$TARGET_DIR" || { echo "ERROR: Failed to create $TARGET_DIR"; exit 1; };
+cp /mnt/usr/share/limine/BOOTIA32.EFI "$TARGET_DIR/" 2>/dev/null || true;
+cp /mnt/usr/share/limine/BOOTX64.EFI "$TARGET_DIR/" 2>/dev/null || true;
+echo "Copied Limine EFI binaries to $TARGET_DIR";
+
 if [ "$IS_USB" != "1" ] && [ -n "$PARENT_DEV" ]; then
   PART_NUM=$(lsblk -no PARTNUM $(findmnt -n -o SOURCE /mnt/boot) 2>/dev/null);
   EFI_BITNESS=$(cat /sys/firmware/efi/fw_platform_size 2>/dev/null || echo 64);
@@ -129,6 +138,7 @@ if [ "$IS_USB" != "1" ] && [ -n "$PARENT_DEV" ]; then
 else
   echo "Skipping efibootmgr (USB install or unknown parent device)";
 fi;
+
 mkdir -p /mnt/etc/pacman.d/hooks;
 cat > /mnt/etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF
 [Trigger]
@@ -140,7 +150,7 @@ Target = limine
 [Action]
 Description = Deploying Limine after upgrade...
 When = PostTransaction
-Exec = /bin/sh -c "/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $EFI_DIR_TARGET/ 2>/dev/null || true && /usr/bin/cp /usr/share/limine/BOOTX64.EFI $EFI_DIR_TARGET/"
+Exec = /bin/sh -c "/usr/bin/cp /usr/share/limine/BOOTIA32.EFI $TARGET_DIR_RUNTIME/ 2>/dev/null || true && /usr/bin/cp /usr/share/limine/BOOTX64.EFI $TARGET_DIR_RUNTIME/"
 HOOK_EOF
 "#.to_string());
                 } else {
@@ -207,12 +217,12 @@ KERNEL_PARAMS="root=UUID=$ROOT_UUID rw""#.to_string()
 
                 // Determine path_root setup and config dir selection based on UEFI/BIOS
                 let path_root_setup = if state.is_uefi() {
-                    r#"CONFIG_DIR=/mnt/boot/EFI/limine; if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; fi;
+                    r#"# Choose config dir similarly to the UEFI deployment target
+if [ -d /mnt/boot/EFI/BOOT ]; then CONFIG_DIR=/mnt/boot/EFI/BOOT; else CONFIG_DIR=/mnt/boot/EFI/limine; fi;
 BOOT_DEV=$(findmnt -n -o SOURCE /mnt/boot 2>/dev/null);
 BOOT_UUID=$(blkid -s UUID -o value "$BOOT_DEV" 2>/dev/null || echo '');
 if [ -z "$BOOT_UUID" ]; then BOOT_UUID=$(awk '$2=="/boot"{print $1}' /mnt/etc/fstab 2>/dev/null | sed -n 's/^UUID=//p' | head -n1); fi;
 path_root="uuid(${BOOT_UUID})";
-# Ensure CONFIG_DIR not empty
 if [ -z "$CONFIG_DIR" ]; then CONFIG_DIR=/mnt/boot/EFI/limine; fi;"#.to_string()
                 } else {
                     r#"CONFIG_DIR=/mnt/boot/limine; path_root="boot()";
