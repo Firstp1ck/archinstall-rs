@@ -246,17 +246,29 @@ fn run_loop_inner(
                 }
             }
 
-            // If reboot prompt is open, handle Y/N keys
+            // If reboot prompt is open, handle Y/N keys (accept Y/J for yes to support locales)
             if app.reboot_prompt_open {
                 if let crossterm::event::Event::Key(key) = &ev {
                     use crossterm::event::KeyCode;
                     match key.code {
-                        KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                        KeyCode::Char(c) => {
+                            let lc = c.to_ascii_lowercase();
+                            if lc == 'y' || lc == 'j' {
+                                app.reboot_confirmed = Some(true);
+                                app.reboot_prompt_open = false;
+                                debug_log(app.debug_enabled, "state: reboot_confirmed=true");
+                            } else if lc == 'n' {
+                                app.reboot_confirmed = Some(false);
+                                app.reboot_prompt_open = false;
+                                debug_log(app.debug_enabled, "state: reboot_confirmed=false");
+                            }
+                        }
+                        KeyCode::Enter => {
                             app.reboot_confirmed = Some(true);
                             app.reboot_prompt_open = false;
                             debug_log(app.debug_enabled, "state: reboot_confirmed=true");
                         }
-                        KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        KeyCode::Esc => {
                             app.reboot_confirmed = Some(false);
                             app.reboot_prompt_open = false;
                             debug_log(app.debug_enabled, "state: reboot_confirmed=false");
