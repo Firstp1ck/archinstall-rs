@@ -13,20 +13,34 @@ if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
 fi
 
 BIN_DIR=$(cd "$(dirname "$0")" && pwd)
-APP="$BIN_DIR/target/release/archinstall-rs"
+# Candidate binary locations (bundled first, then workspace targets)
+CANDIDATES=(
+  "$BIN_DIR/archinstall-rs"
+  "$BIN_DIR/bin/archinstall-rs"
+  "$BIN_DIR/target/release/archinstall-rs"
+  "$BIN_DIR/../target/release/archinstall-rs"
+)
 
-if [[ -x "$APP" ]]; then
-  exec "$APP" "$@"
+for APP in "${CANDIDATES[@]}"; do
+  if [[ -x "$APP" ]]; then
+    exec "$APP" "$@"
+  fi
+done
+
+echo "No bundled binary found. Attempting to build via cargo..."
+if command -v cargo >/dev/null 2>&1; then
+  cargo build --release || true
+  for APP in "${CANDIDATES[@]}"; do
+    if [[ -x "$APP" ]]; then
+      exec "$APP" "$@"
+    fi
+  done
+  # Last resort: cargo run
+  exec cargo run --release -- "$@"
+else
+  echo "Error: cargo is not available and no prebuilt binary was found." >&2
+  echo "Please provide a bundled archinstall-rs binary in one of: ${CANDIDATES[*]}" >&2
+  exit 127
 fi
-
-echo "Binary not found at $APP. Building and running via cargo..."
-cargo build --release
-
-if [[ -x "$APP" ]]; then
-  exec "$APP" "$@"
-fi
-
-# Fallback: run through cargo so it always launches even if the binary path differs
-exec cargo run --release -- "$@"
 
 

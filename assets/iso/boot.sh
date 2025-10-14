@@ -64,7 +64,10 @@ else
     # Wayland minimal: cage + foot (+ seatd for DRM access)
     qrun pacman -S --needed --noconfirm cage foot seatd || true
     if command -v seatd >/dev/null 2>&1; then
-      qrun systemctl start seatd.service || true
+      # Try starting seatd; ignore socket errors and continue (kms_swrast fallback works)
+      qrun systemctl start seatd.service || log "WARN: seatd not started; continuing without it"
+    else
+      log "INFO: seatd not installed; continuing without it"
     fi
     if command -v cage >/dev/null 2>&1 && command -v foot >/dev/null 2>&1; then
       export TERM=${TERM:-xterm-256color}
