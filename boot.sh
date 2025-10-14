@@ -36,7 +36,13 @@ log "ENV: TERM=${TERM:-} COLORTERM=${COLORTERM:-} DISPLAY=${DISPLAY:-} WAYLAND_D
 # Default wrapper and flags
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 WRAPPER="$SCRIPT_DIR/run-tui.sh"
-INSTALLER_FLAGS=${INSTALLER_FLAGS:---dry-run --debug}
+# No flags by default; set INSTALLER_FLAGS explicitly when desired (e.g., "--dry-run --debug")
+INSTALLER_FLAGS=${INSTALLER_FLAGS:-}
+
+# Optional sizing knobs (columns/rows) and font size; override when invoking boot.sh
+AI_TERM_COLS=${AI_TERM_COLS:-160}
+AI_TERM_ROWS=${AI_TERM_ROWS:-48}
+AI_FONT_SIZE=${AI_FONT_SIZE:-12}
 
 # Locate wrapper from common locations
 for cand in \
@@ -58,7 +64,11 @@ maybe_launch_graphical() {
       log "Launching $term for installer..."
       case "$term" in
         kitty)
-          ( kitty --override font_family='JetBrains Mono' -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ( kitty \
+              --override font_family='JetBrains Mono' \
+              --override initial_window_width=${AI_TERM_COLS}c \
+              --override initial_window_height=${AI_TERM_ROWS}c \
+              -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         alacritty)
           tmpcfg="/tmp/alacritty-archinstall.yml"
@@ -66,11 +76,15 @@ maybe_launch_graphical() {
 "font:" \
 "  normal:" \
 "    family: JetBrains Mono" \
-"  size: 12" > "$tmpcfg"
+"  size: ${AI_FONT_SIZE}" \
+"window:" \
+"  dimensions:" \
+"    columns: ${AI_TERM_COLS}" \
+"    lines: ${AI_TERM_ROWS}" > "$tmpcfg"
           ( alacritty --config-file "$tmpcfg" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         xterm)
-          ( xterm -fa 'JetBrains Mono' -fs 12 -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ( xterm -fa 'JetBrains Mono' -fs ${AI_FONT_SIZE} -geometry ${AI_TERM_COLS}x${AI_TERM_ROWS} -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         *)
           ( "$term" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
@@ -106,7 +120,7 @@ else
       export TERM=${TERM:-xterm-256color}
       export COLORTERM=${COLORTERM:-truecolor}
       log "Starting Xorg (xinit) with xterm (JetBrains Mono)..."
-      exec xinit /usr/bin/xterm -fa 'JetBrains Mono' -fs 12 -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
+      exec xinit /usr/bin/xterm -fa 'JetBrains Mono' -fs ${AI_FONT_SIZE} -geometry ${AI_TERM_COLS}x${AI_TERM_ROWS} -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
     fi
   fi
 fi
