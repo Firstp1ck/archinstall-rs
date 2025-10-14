@@ -1,6 +1,5 @@
 pub use ratatui::Frame;
-use ratatui::style::{Color, Style};
-use ratatui::widgets::{Block, Clear};
+use ratatui::widgets::Clear;
 
 use crate::app::AppState;
 
@@ -12,8 +11,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
     // Paint full-screen background
     let full_area = frame.area();
     frame.render_widget(Clear, full_area);
-    let bg = Block::default().style(Style::default().bg(Color::Black));
-    frame.render_widget(bg, full_area);
+    // Respect terminal theme/background: do not force a solid background color.
     // Render sections
     sections::draw_sections(frame, app);
 

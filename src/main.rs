@@ -155,6 +155,32 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
         had_warning = true;
     }
 
+    // Check terminal color capabilities and advise for best experience
+    let term = std::env::var("TERM").unwrap_or_default();
+    let colorterm = std::env::var("COLORTERM").unwrap_or_default();
+    let is_linux_console = term == "linux" || term == "dumb";
+    let has_truecolor = colorterm.to_ascii_lowercase().contains("truecolor")
+        || colorterm.to_ascii_lowercase().contains("24bit");
+    let has_256 = has_truecolor || term.to_ascii_lowercase().contains("256color");
+    debug_log(
+        debug_enabled,
+        &format!(
+            "preflight: TERM='{}' COLORTERM='{}' linux_console={} has_256={} has_truecolor={}",
+            term, colorterm, is_linux_console, has_256, has_truecolor
+        ),
+    );
+    if is_linux_console || !has_256 {
+        had_warning = true;
+        print_info(
+            debug_enabled,
+            "Note: For proper colors, run in a terminal emulator (not raw TTY).",
+        );
+        print_info(
+            debug_enabled,
+            "Recommended: export TERM=xterm-256color and COLORTERM=truecolor",
+        );
+    }
+
     had_warning
 }
 
