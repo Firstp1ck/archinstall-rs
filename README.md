@@ -12,7 +12,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 
 ### What works at the moment:
 - 64bit system
-- UEFI Systems
+- UEFI and BIOS systems
 - Best-Effort Partitioning and Simple Manual Partitioning
 - Only Grub and Systemd Bootloader
 - NetworkManager and Copy ISO Network mode available
@@ -81,7 +81,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - **⚡ Fast & Efficient**: Written in Rust for optimal performance and memory safety
 - **🔧 Flexible Configuration**: Support for various installation scenarios and customization options
 - **💾 Configuration Saving**: Save and load installation configurations in TOML format
-- **🔐 Disk Encryption**: Support for LUKS encryption with multiple encryption types
+- **🔐 Disk Encryption (experimental)**: LUKS groundwork present; passphrase handling WIP
 - **🌍 Localization**: Comprehensive locale, timezone, and keyboard layout configuration
 - **📦 Package Management**: Configure mirrors, optional repositories, and additional packages
 - **👤 User Management**: Create users with sudo privileges and secure password handling
@@ -99,7 +99,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 ## 📋 Requirements
 
 ### Build Requirements
-- Rust 1.70 or later (2024 edition)
+- Rust (edition 2024) on a recent stable toolchain (1.84+ recommended)
 - Cargo package manager
 
 ### Runtime Requirements
@@ -285,7 +285,7 @@ It logs to the path printed on start and exits with an error if a GUI cannot be 
 - File system configuration
 
 #### 4. **Disk Encryption**
-- LUKS encryption support
+- Experimental LUKS support (non-interactive passphrase pipeline is WIP)
 - Password-based encryption
 - Partition-specific encryption
 
@@ -415,19 +415,9 @@ is_sudo = true
 #description = "Web browser"
 ```
 
-### Loading a Configuration
+### Loading a Configuration (planned)
 
-```bash
-# Load from default location
-./archinstall-rs --config archinstall-rs.config.toml
-
-# Load from custom location
-./archinstall-rs --config /path/to/config.toml
-```
-
-Notes when loading a config:
-- For safety, partitioning is not auto-applied. Re-select the target disk and set up partitions in the Disks section.
-- Plaintext passwords (root and users) are not loaded; re-enter them during installation.
+The CLI flag `--config` is not implemented yet. Configuration save/load works inside the TUI, and CLI loading will be added in a future release.
 
 ## 🏗️ Project Structure
 
@@ -435,62 +425,24 @@ Notes when loading a config:
 archinstall-rs/
 ├── src/
 │   ├── main.rs                     # Entry point
-│   └── ui/
-│       ├── mod.rs                  # UI module root
-│       ├── app.rs                  # App state and screen registry
-│       ├── app/                    # Installation sections
-│       │   ├── abort.rs            # Abort/exit screen with confirmation
-│       │   ├── additional_packages.rs # Manage additional packages list
-│       │   ├── audio.rs            # Select audio system
-│       │   ├── automatic_time_sync.rs # Enable/disable NTP time sync
-│       │   ├── bootloader.rs       # Choose bootloader
-│       │   ├── config/             # Config save/load/types and summary
-│       │   │   ├── io.rs           # Build/save/load TOML configuration
-│       │   │   ├── mod.rs          # Module glue
-│       │   │   ├── types.rs        # Serializable config schema
-│       │   │   └── view.rs         # Config summary UI
-│       │   ├── disk_encryption.rs  # LUKS encryption configuration
-│       │   ├── disks.rs            # Disk selection and partitioning plan
-│       │   ├── experience_mode.rs  # Desktop/Minimal/Server/Xorg profiles
-│       │   ├── hostname.rs         # Hostname screen
-│       │   ├── install/            # Install action screens/logic
-│       │   ├── kernels.rs          # Kernel selection
-│       │   ├── locales.rs          # Keyboard layout and locale
-│       │   ├── mirrors.rs          # Mirrors and repositories
-│       │   ├── network_configuration.rs # Network mode selection
-│       │   ├── root_password.rs    # Root password entry
-│       │   ├── save_configuration.rs # Save/load configuration actions
-│       │   ├── swap_partition.rs   # Swap toggle and automatic sizing
-│       │   ├── timezone.rs         # Timezone selection
-│       │   ├── unified_kernel_images.rs # Unified Kernel Images (UKI) toggle
-│       │   └── user_account.rs     # Manage user accounts and sudo
-│       ├── common/
-│       │   ├── mod.rs              # Shared UI utilities module
-│       │   ├── popups.rs           # Common popup components
-│       │   └── utils.rs            # Misc UI helpers
-│       ├── core/
-│       │   ├── mod.rs              # Core app plumbing
-│       │   ├── state.rs            # Global app state
-│       │   └── types.rs            # Core shared types
-│       ├── input/
-│       │   ├── cmdline.rs          # Command line input (Locales)
-│       │   ├── mod.rs              # Input modules root
-│       │   ├── popup/              # Popup input handlers
-│       │   ├── screens/            # Screen-specific input handlers
-│       │   └── top.rs              # Top-level crossterm event dispatcher
-│       └── render/
-│           ├── cmdline.rs          # Render the command line input
-│           ├── mod.rs              # Rendering modules root
-│           ├── popup/              # Popup rendering
-│           └── sections/           # Screen content rendering
-├── Documents/
-│   ├── arch_manual.md
-│   └── HOW_TO.md
-├── Images/
-│   └── example_v0.0.1.png
+│   ├── lib.rs
+│   ├── runner.rs                   # TUI run loop and helpers
+│   ├── app/                        # Installation sections and install flow
+│   │   ├── install/                # Flow builder and UI for install
+│   │   ├── config/                 # TOML save/load/types and summary view
+│   │   └── *.rs                    # Screens (disks, bootloader, etc.)
+│   ├── common/                     # Shared UI utilities and popups
+│   ├── core/                       # Core plumbing and services
+│   │   ├── services/               # partitioning, mounting, bootloader, ...
+│   │   └── state.rs                # Global app state
+│   ├── input/                      # Input handling (screens, popups, cmdline)
+│   └── render/                     # Rendering (sections, popups, theme)
+├── assets/
+│   └── limine/                     # Limine assets (experimental)
+├── boot.sh                         # Minimal GUI bootstrap helper
+├── run-tui.sh                      # Wrapper to launch prebuilt binary in a terminal
 ├── archinstall-rs.config.toml      # Example configuration
 ├── Cargo.toml
-├── Cargo.lock
 └── README.md
 ```
 
