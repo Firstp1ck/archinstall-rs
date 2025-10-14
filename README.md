@@ -48,7 +48,6 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Custom mount points
   - [x] Help system with contextual information
   - [x] Installation progress visualization
-  - [ ] EFISTUB and Limine bootloaders
   - [x] Profile system (Desktop, Server, Minimal)
   - [x] AUR helper integration
   - [x] Post-installation script support
@@ -56,6 +55,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Log viewer
 
 - [ ] **v0.3.0** - Advanced Disk & System Features
+  - [ ] EFISTUB and Limine bootloaders
   - [ ] LVM support
   - [ ] RAID configuration
   - [ ] Unified Kernel Images generation

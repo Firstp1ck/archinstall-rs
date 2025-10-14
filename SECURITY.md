@@ -8,8 +8,8 @@ The project is pre-1.0 and under active development. We generally provide securi
 
 | Version/Branch | Supported |
 | -------------- | --------- |
-| `main` (unreleased) | :white_check_mark: best-effort |
-| 0.1.x | :white_check_mark: |
+| `main` (unreleased) | ✅ best-effort |
+| 0.2.0 | ✅ |
 | < 0.1.0 | :x: |
 
 Notes:

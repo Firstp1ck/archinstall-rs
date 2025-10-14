@@ -78,7 +78,7 @@ impl BootloaderService {
                 }
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
             }
-            // TODO(v0.2.0+): Implement EFISTUB boot entry creation and kernel cmdline.
+            // TODO(v0.3.0+): Implement EFISTUB boot entry creation and kernel cmdline.
             2 => {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }

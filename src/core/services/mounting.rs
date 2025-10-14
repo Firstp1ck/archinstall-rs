@@ -30,7 +30,7 @@ impl MountingService {
 
     pub fn build_plan(state: &AppState, device: &str) -> MountPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Handle btrfs subvolumes and custom mount layout (v0.2.0+ / README Roadmap).
+        // TODO: Handle btrfs subvolumes and custom mount layout (v0.3.0+ / README Roadmap).
         let luks = state.disk_encryption_type_index == 1;
         cmds.push("mkdir -p /mnt".into());
         if luks {

@@ -16,7 +16,7 @@ pub struct FstabService;
 impl FstabService {
     pub fn build_checks_and_fstab(state: &AppState, device: &str) -> FstabPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Add fstab tuning for btrfs subvolumes and mount options (v0.2.0+).
+        // TODO: Add fstab tuning for btrfs subvolumes and mount options (v0.3.0+).
 
         // Basic device partition paths
         let p1 = format!("{device}1");

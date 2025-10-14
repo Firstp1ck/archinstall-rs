@@ -637,7 +637,7 @@ impl AppState {
     }
 
     fn build_locales_plan(&self) -> Vec<String> {
-        // TODO(v0.2.0): Implement locales pre-install steps as needed.
+        // TODO(v0.3.0): Implement locales pre-install steps as needed.
         Vec::new()
     }
     fn build_mirrors_plan(&self) -> Vec<String> {

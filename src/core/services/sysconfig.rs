@@ -17,7 +17,7 @@ impl SysConfigService {
     pub fn build_plan(state: &AppState) -> SysConfigPlan {
         let mut cmds: Vec<String> = Vec::new();
         // TODO: Add keyboard layout for Xorg/Wayland DEs beyond Hyprland (v0.3.0 UX).
-        // TODO: Add additional system configuration (hosts, mkinitcpio hooks for LUKS/UKI) (v0.2.0+).
+        // TODO: Add additional system configuration (hosts, mkinitcpio hooks for LUKS/UKI) (v0.3.0+).
 
         // Helper: wrap a command to run inside the target system via arch-chroot
         fn chroot_cmd(inner: &str) -> String {
