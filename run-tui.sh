@@ -5,6 +5,13 @@ set -euo pipefail
 export TERM=${TERM:-xterm-256color}
 export COLORTERM=${COLORTERM:-truecolor}
 
+# Require a graphical session (terminal emulator). Do not run on raw TTY.
+if [[ -z "${DISPLAY:-}" && -z "${WAYLAND_DISPLAY:-}" ]]; then
+  echo "Error: No graphical session detected (DISPLAY/WAYLAND_DISPLAY not set)." >&2
+  echo "Please run inside a terminal emulator or use the ISO boot helper." >&2
+  exit 1
+fi
+
 BIN_DIR=$(cd "$(dirname "$0")" && pwd)
 APP="$BIN_DIR/target/release/archinstall-rs"
 
