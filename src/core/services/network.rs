@@ -78,6 +78,12 @@ impl NetworkService {
         cmds.push(chroot_cmd(
             "target=/run/systemd/resolve/stub-resolv.conf; cur=$(readlink -f /etc/resolv.conf 2>/dev/null || true); if [ \"$cur\" = \"$target\" ]; then :; else rm -f /etc/resolv.conf && ln -s \"$target\" /etc/resolv.conf; fi"
         ));
+
+        // Soft network availability check (does not fail install)
+        cmds.push("getent hosts archlinux.org >/dev/null 2>&1 && echo 'Network check (host): archlinux.org OK' || echo 'WARN: Network check (host): archlinux.org FAILED'".into());
+        cmds.push(chroot_cmd(
+            "getent hosts archlinux.org >/dev/null 2>&1 && echo 'Network check (target): archlinux.org OK' || echo 'WARN: Network check (target): archlinux.org FAILED (may be expected before first boot if systemd-resolved is not running)'"
+        ));
     }
 
     /// Build plan for manual network configuration
@@ -103,6 +109,12 @@ impl NetworkService {
         // Ensure resolv.conf is properly linked to systemd-resolved (idempotent)
         cmds.push(chroot_cmd(
             "target=/run/systemd/resolve/stub-resolv.conf; cur=$(readlink -f /etc/resolv.conf 2>/dev/null || true); if [ \"$cur\" = \"$target\" ]; then :; else rm -f /etc/resolv.conf && ln -s \"$target\" /etc/resolv.conf; fi"
+        ));
+
+        // Soft network availability check (does not fail install)
+        cmds.push("getent hosts archlinux.org >/dev/null 2>&1 && echo 'Network check (host): archlinux.org OK' || echo 'WARN: Network check (host): archlinux.org FAILED'".into());
+        cmds.push(chroot_cmd(
+            "getent hosts archlinux.org >/dev/null 2>&1 && echo 'Network check (target): archlinux.org OK' || echo 'WARN: Network check (target): archlinux.org FAILED (may be expected before first boot if systemd-resolved is not running)'"
         ));
     }
 
@@ -201,17 +213,18 @@ impl NetworkService {
 
         if output.status.success() {
             // Check for DHCP configuration in systemd-networkd
-            let config_path = "/etc/systemd/network/".to_string();
-            if std::path::Path::new(&config_path).exists() {
-                for entry in std::fs::read_dir(&config_path)? {
-                    let entry = entry?;
-                    if let Some(name) = entry.file_name().to_str()
-                        && name.ends_with(".network")
-                        && let Ok(content) = std::fs::read_to_string(entry.path())
-                        && content.contains(&format!("Name={}", interface))
-                        && content.contains("DHCP=yes")
-                    {
-                        return Ok(true);
+            for dir in ["/etc/systemd/network/", "/usr/lib/systemd/network/"] {
+                if std::path::Path::new(dir).exists() {
+                    for entry in std::fs::read_dir(dir)? {
+                        let entry = entry?;
+                        if let Some(name) = entry.file_name().to_str()
+                            && name.ends_with(".network")
+                            && let Ok(content) = std::fs::read_to_string(entry.path())
+                            && content.contains(&format!("Name={}", interface))
+                            && content.contains("DHCP=yes")
+                        {
+                            return Ok(true);
+                        }
                     }
                 }
             }
@@ -265,18 +278,29 @@ impl NetworkService {
 
     /// Get DNS servers from resolv.conf
     fn get_dns_servers() -> Result<Option<String>, Box<dyn std::error::Error>> {
-        if let Ok(content) = std::fs::read_to_string("/etc/resolv.conf") {
-            let mut dns_servers = Vec::new();
-            for line in content.lines() {
-                if line.starts_with("nameserver ") {
-                    let server = line.strip_prefix("nameserver ").unwrap_or("");
-                    if !server.is_empty() {
-                        dns_servers.push(server);
+        // Prefer real upstream DNS from resolved's runtime file
+        for path in [
+            "/run/systemd/resolve/resolv.conf",
+            "/etc/resolv.conf", // fallback (filter stub 127.0.0.53)
+        ] {
+            if let Ok(content) = std::fs::read_to_string(path) {
+                let mut dns_servers: Vec<String> = Vec::new();
+                for line in content.lines() {
+                    if let Some(rest) = line.strip_prefix("nameserver ") {
+                        let server = rest.trim();
+                        if server.is_empty() {
+                            continue;
+                        }
+                        // Skip stub listener address; we want upstream servers
+                        if server == "127.0.0.53" || server == "::1" {
+                            continue;
+                        }
+                        dns_servers.push(server.to_string());
                     }
                 }
-            }
-            if !dns_servers.is_empty() {
-                return Ok(Some(dns_servers.join(",")));
+                if !dns_servers.is_empty() {
+                    return Ok(Some(dns_servers.join(",")));
+                }
             }
         }
         Ok(None)
