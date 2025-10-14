@@ -15,7 +15,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - UEFI Systems
 - Best-Effort Partitioning and Simple Manual Partitioning
 - Only Grub and Systemd Bootloader
-- Only NetworkManager available yet
+- NetworkManager and Copy ISO Network mode available
 - Only Experience Mode "Desktop Environment" yet (due to NetworkManager)
 - No Encryption yet
 - No Custom Server/Repos yet
@@ -31,8 +31,8 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Disk selection and partitioning plan preview (Info popup)
   - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
   - [x] Partitioning execution via parted/mkfs/cryptsetup with safety checks
-    - [x] Abort if target has mounted partitions
-    - [x] Wipe confirmation if device appears already partitioned
+  - [x] Abort if target has mounted partitions
+  - [x] Wipe confirmation if device appears already partitioned
   - [x] Dry-run mode shows full command plan without changes
   - [x] Mirror configuration (regions via reflector, custom servers, optional/custom repos persisted)
   - [x] Mount filesystems, enable swap, pacstrap base and selected packages
@@ -90,6 +90,11 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - **🔗 Network Configuration**: Configure network settings for your installation
 - **⚙️ Kernel Selection**: Choose from various kernel options
 - **💱 Swap Configuration**: Optional swap partition setup
+- **🎨 Catppuccin Mocha Theme**: Consistent, readable palette across the TUI
+- **🌈 Truecolor-ready**: Best visuals with `TERM=xterm-256color` and `COLORTERM=truecolor`
+- **🌐 Copy ISO Network mode**: Replicates the Arch ISO network (systemd-networkd/resolved) to the target
+- **📶 Desktop NM guard**: For KDE Plasma and GNOME, the installer prompts to switch to NetworkManager if not selected
+- **🪟 Minimal GUI bootstrap (`boot.sh`)**: Optional helper that prepares a lightweight GUI (cage+foot) and logs progress
 
 ## 📋 Requirements
 
@@ -220,6 +225,23 @@ chmod +x archinstall-rs
 | `q` | Discard changes and return to menu |
 | any other text | Close without action |
 
+#### Reboot Prompt (after successful install)
+
+| Key | Action |
+|-----|--------|
+| `Y` / `y` / `J` / `j` / `Enter` | Reboot now |
+| `N` / `n` / `Esc` | Cancel reboot |
+
+### Optional: Launch with a Minimal GUI
+
+If you’re on a bare TTY, use the included helper which prepares a tiny graphical session and prints progress:
+
+```bash
+./boot.sh
+```
+
+It logs to the path printed on start and exits with an error if a GUI cannot be prepared.
+
 ### Configuration Sections
 
 #### 1. **Locales**
@@ -281,8 +303,8 @@ chmod +x archinstall-rs
 - linux-zen (performance-focused)
 
 #### 12. **Network Configuration**
-- NetworkManager
-- systemd-networkd
+- NetworkManager (required for KDE Plasma and GNOME; the installer will prompt to switch)
+- Copy ISO network configuration (systemd-networkd & systemd-resolved from the live ISO)
 - Manual configuration
 
 #### 13. **Additional Packages**
@@ -378,6 +400,10 @@ is_sudo = true
 # Load from custom location
 ./archinstall-rs --config /path/to/config.toml
 ```
+
+Notes when loading a config:
+- For safety, partitioning is not auto-applied. Re-select the target disk and set up partitions in the Disks section.
+- Plaintext passwords (root and users) are not loaded; re-enter them during installation.
 
 ## 🏗️ Project Structure
 
