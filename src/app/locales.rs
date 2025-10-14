@@ -33,6 +33,9 @@ impl AppState {
         } else {
             let _ = Command::new("loadkeys").arg(layout).status();
         }
+        // Show a short toast in the bottom-right for feedback
+        self.toast_message = Some(format!("Keyboard layout: {layout}"));
+        self.toast_deadline = Some(std::time::Instant::now() + std::time::Duration::from_secs(2));
     }
 
     pub fn current_keyboard_layout(&self) -> String {

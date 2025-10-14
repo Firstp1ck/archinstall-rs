@@ -257,6 +257,10 @@ pub struct AppState {
     pub install_click_targets: Vec<(ratatui::layout::Rect, InstallClickTarget)>,
     // Keyboard selection within Install decision menu (index into install_click_targets)
     pub install_focus_index: usize,
+
+    // Ephemeral toast overlay (bottom-right)
+    pub toast_message: Option<String>,
+    pub toast_deadline: Option<std::time::Instant>,
 }
 
 impl AppState {
@@ -602,6 +606,9 @@ impl AppState {
             pending_install_sections: None,
             install_click_targets: Vec::new(),
             install_focus_index: 0,
+
+            toast_message: None,
+            toast_deadline: None,
         };
         // Initialize dynamic option lists and apply startup defaults
         let _ = s.load_locales_options();
