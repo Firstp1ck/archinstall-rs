@@ -1,12 +1,13 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem};
 
 use crate::app::{AppState, Focus};
+use crate::render::theme::Theme;
 
-pub fn draw_menu(frame: &mut Frame, app: &mut AppState, area: Rect) {
+pub fn draw_menu_with_theme(frame: &mut Frame, app: &mut AppState, area: Rect, theme: Theme) {
     // Ensure the entire menu area is cleared so the background is fully filled
     // even when the list has fewer items than the available height.
     frame.render_widget(Clear, area);
@@ -28,8 +29,8 @@ pub fn draw_menu(frame: &mut Frame, app: &mut AppState, area: Rect) {
         _ => " Main Menu ",
     };
     let highlight_color = match app.focus {
-        Focus::Menu => Color::Yellow,
-        _ => Color::White,
+        Focus::Menu => theme.highlight,
+        _ => theme.subtext,
     };
 
     let menu = List::new(items)

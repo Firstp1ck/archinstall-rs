@@ -4,8 +4,9 @@ fn draw_install_split(
     app: &mut AppState,
     left: ratatui::layout::Rect,
     right: ratatui::layout::Rect,
+    theme: crate::render::theme::Theme,
 ) {
-    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::style::{Modifier, Style};
     use ratatui::text::{Line, Span};
     use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
     // Left: Overall Progress
@@ -13,7 +14,7 @@ fn draw_install_split(
     left_lines.push(Line::from(Span::styled(
         "Overall Progress",
         Style::default()
-            .fg(Color::Cyan)
+            .fg(theme.accent)
             .add_modifier(Modifier::BOLD),
     )));
     left_lines.push(Line::from(""));
@@ -29,12 +30,12 @@ fn draw_install_split(
         };
         let style = if is_current {
             Style::default()
-                .fg(Color::Yellow)
+                .fg(theme.highlight)
                 .add_modifier(Modifier::BOLD)
         } else if is_done {
-            Style::default().fg(Color::Green)
+            Style::default().fg(theme.success)
         } else {
-            Style::default().fg(Color::White)
+            Style::default().fg(theme.subtext)
         };
         left_lines.push(Line::from(vec![
             Span::styled(format!("{marker} "), style),
@@ -88,13 +89,14 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use crate::app::{AppState, KEYBINDS_WIDTH, LEFT_MENU_WIDTH, Screen};
+use crate::render::theme::Theme;
 
 pub mod content;
 pub mod info;
 pub mod keybinds;
 pub mod menu;
 
-pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
+pub fn draw_sections_with_theme(frame: &mut Frame, app: &mut AppState, theme: Theme) {
     let size = frame.area();
 
     // Draw background content first
@@ -109,7 +111,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             .split(size);
         app.last_menu_rect = cols[0];
         app.last_content_rect = cols[1];
-        draw_install_split(frame, app, cols[0], cols[1]);
+        draw_install_split(frame, app, cols[0], cols[1], theme);
     } else {
         let left_constraint = Constraint::Length(LEFT_MENU_WIDTH);
         let hide_keybinds = app.install_running;
@@ -156,7 +158,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
         app.last_content_rect = content_rect;
 
         if !app.install_running {
-            menu::draw_menu(frame, app, left_menu_rect);
+            menu::draw_menu_with_theme(frame, app, left_menu_rect, theme);
         }
         if app.current_screen() != Screen::Install {
             info::draw_info(frame, app, infobox_rect);
@@ -169,7 +171,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
 
     // Then overlay the reboot prompt if open (clear the area first so underlying text doesn't bleed through)
     if app.reboot_prompt_open {
-        use ratatui::style::{Color, Modifier, Style};
+        use ratatui::style::{Modifier, Style};
         use ratatui::text::{Line, Span};
         use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
         let area = ratatui::layout::Rect {
@@ -187,7 +189,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             Line::from(Span::styled(
                 "Installation completed.",
                 Style::default()
-                    .fg(Color::Green)
+                    .fg(theme.success)
                     .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
@@ -195,7 +197,7 @@ pub fn draw_sections(frame: &mut Frame, app: &mut AppState) {
             Line::from(""),
             Line::from(Span::styled(
                 "Press Y/Enter to reboot, N/Esc to cancel.",
-                Style::default().fg(Color::Yellow),
+                Style::default().fg(theme.highlight),
             )),
         ];
         let par = Paragraph::new(text).block(block).wrap(Wrap { trim: false });
