@@ -4,3 +4,14 @@
 RELEASE*.md
 possible_debug.md
 limine_implementation_plan.md
+# Ignore everything in target
+/target/*
+
+# Allow the release dir
+!/target/release/
+
+# Ignore everything inside release by default
+/target/release/*
+
+# Keep only the binary
+!/target/release/archinstall-rs

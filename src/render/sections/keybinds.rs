@@ -1,29 +1,29 @@
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
-pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
+pub fn draw_keybinds_with_theme(frame: &mut Frame, area: Rect, theme: crate::render::theme::Theme) {
     let key_lines = vec![
         Line::from(Span::styled(
             "Keybindings",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         Line::from(Span::styled(
             "Global",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
             Span::styled(
                 "q, ESC",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — back / close"),
@@ -32,14 +32,14 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
         Line::from(Span::styled(
             "Main Menu",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
             Span::styled(
                 "Enter",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — select section"),
@@ -48,7 +48,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "j/k, ↑/↓",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — move selection"),
@@ -57,14 +57,14 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
         Line::from(Span::styled(
             "Decision Menu",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
             Span::styled(
                 "Tab / Shift-Tab",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — switch field"),
@@ -73,7 +73,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "h/l, ←/→",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — change value"),
@@ -82,7 +82,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 ":",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — open command line"),
@@ -91,7 +91,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "Enter",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — activate item / Continue"),
@@ -100,14 +100,14 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
         Line::from(Span::styled(
             "Popups",
             Style::default()
-                .fg(Color::Cyan)
+                .fg(theme.accent)
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(vec![
             Span::styled(
                 "j/k, ↑/↓",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — move selection"),
@@ -116,7 +116,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "/",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — start search"),
@@ -125,7 +125,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "Backspace",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — delete character"),
@@ -134,7 +134,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "Space",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — toggle (multi-select)"),
@@ -143,7 +143,7 @@ pub fn draw_keybinds(frame: &mut Frame, area: Rect) {
             Span::styled(
                 "Enter",
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(theme.highlight)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw(" — select / close"),

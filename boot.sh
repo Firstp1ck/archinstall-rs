@@ -56,7 +56,26 @@ maybe_launch_graphical() {
   for term in foot kitty alacritty xterm; do
     if command -v "$term" >/dev/null 2>&1; then
       log "Launching $term for installer..."
-      ( "$term" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+      case "$term" in
+        kitty)
+          ( kitty --override font_family='JetBrains Mono' -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ;;
+        alacritty)
+          tmpcfg="/tmp/alacritty-archinstall.yml"
+          printf '%s\n' \
+"font:" \
+"  normal:" \
+"    family: JetBrains Mono" \
+"  size: 12" > "$tmpcfg"
+          ( alacritty --config-file "$tmpcfg" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ;;
+        xterm)
+          ( xterm -fa 'JetBrains Mono' -fs 12 -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ;;
+        *)
+          ( "$term" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ;;
+      esac
     fi
   done
   return 1
@@ -68,7 +87,8 @@ else
   log "No graphical session detected. Installing a minimal environment..."
   if command -v pacman >/dev/null 2>&1; then
     qrun pacman -Sy --noconfirm || true
-    qrun pacman -S --needed --noconfirm cage foot seatd || true
+    # Install minimal terminal stacks and JetBrains Mono font
+    qrun pacman -S --needed --noconfirm cage foot seatd ttf-jetbrains-mono || true
     if command -v seatd >/dev/null 2>&1; then
       qrun systemctl start seatd.service || log "WARN: seatd not started; continuing without it"
     else
@@ -81,12 +101,12 @@ else
       exec cage -s -- foot -e bash -lc "$WRAPPER $INSTALLER_FLAGS"
     fi
 
-    qrun pacman -S --needed --noconfirm xorg-server xorg-xinit xterm || true
+    qrun pacman -S --needed --noconfirm xorg-server xorg-xinit xterm ttf-jetbrains-mono || true
     if command -v xinit >/dev/null 2>&1 && command -v xterm >/dev/null 2>&1; then
       export TERM=${TERM:-xterm-256color}
       export COLORTERM=${COLORTERM:-truecolor}
-      log "Starting Xorg (xinit) with xterm..."
-      exec xinit /usr/bin/xterm -fa Monospace -fs 12 -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
+      log "Starting Xorg (xinit) with xterm (JetBrains Mono)..."
+      exec xinit /usr/bin/xterm -fa 'JetBrains Mono' -fs 12 -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
     fi
   fi
 fi

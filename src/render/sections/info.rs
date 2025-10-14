@@ -24,7 +24,7 @@ mod timezone;
 mod unified_kernel_images;
 mod user_account;
 
-pub fn draw_info(frame: &mut Frame, app: &mut AppState, area: Rect) {
+pub fn draw_info_with_theme(frame: &mut Frame, app: &mut AppState, area: Rect, _theme: crate::render::theme::Theme) {
     match app.current_screen() {
         Screen::Locales => locales::render(frame, app, area),
         Screen::MirrorsRepos => mirrors_repos::render(frame, app, area),

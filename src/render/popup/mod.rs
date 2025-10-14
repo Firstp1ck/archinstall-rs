@@ -1,6 +1,6 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
@@ -16,6 +16,7 @@ mod text_input;
 mod xorg;
 
 pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
+    let t = crate::render::theme::catppuccin_mocha();
     let area = frame.area();
     let (width, height) = if matches!(app.popup_kind, Some(PopupKind::Info)) {
         // Make Info popups (e.g., "Reboot now?") a bit larger
@@ -158,7 +159,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
     let popup_block = Block::default()
         .borders(Borders::ALL)
         .title(title_text)
-        .border_style(Style::default().fg(Color::Yellow));
+        .border_style(Style::default().fg(t.highlight));
     frame.render_widget(popup_block, popup_rect);
 
     let inner = Layout::default()
@@ -183,7 +184,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             ratatui::text::Span::styled(
                 search_label,
                 Style::default()
-                    .fg(Color::Cyan)
+                    .fg(t.accent)
                     .add_modifier(Modifier::BOLD),
             ),
             ratatui::text::Span::raw(app.popup_search_query.clone()),

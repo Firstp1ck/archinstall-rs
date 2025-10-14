@@ -1,16 +1,17 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use crate::app::{AppState, NetworkConfigMode};
 
 pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
+    let t = crate::render::theme::catppuccin_mocha();
     let mut info_lines = vec![Line::from(Span::styled(
         "Info",
         Style::default()
-            .fg(Color::Cyan)
+            .fg(t.accent)
             .add_modifier(Modifier::BOLD),
     ))];
 
@@ -42,7 +43,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let mut desc_lines = vec![Line::from(Span::styled(
         "Description",
         Style::default()
-            .fg(Color::Cyan)
+            .fg(t.accent)
             .add_modifier(Modifier::BOLD),
     ))];
     let description_text = match app.network_mode_index {

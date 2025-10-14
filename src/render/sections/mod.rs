@@ -161,10 +161,10 @@ pub fn draw_sections_with_theme(frame: &mut Frame, app: &mut AppState, theme: Th
             menu::draw_menu_with_theme(frame, app, left_menu_rect, theme);
         }
         if app.current_screen() != Screen::Install {
-            info::draw_info(frame, app, infobox_rect);
+            info::draw_info_with_theme(frame, app, infobox_rect, theme);
         }
         if !hide_keybinds {
-            keybinds::draw_keybinds(frame, keybinds_rect);
+            keybinds::draw_keybinds_with_theme(frame, keybinds_rect, theme);
         }
         content::draw_content(frame, app, content_rect);
     }
