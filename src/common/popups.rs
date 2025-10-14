@@ -17,6 +17,18 @@ impl AppState {
                     } else {
                         self.keyboard_layout_index = idx;
                     }
+                    // Apply immediately to live environment
+                    if let Some(layout) = self
+                        .keyboard_layout_options
+                        .get(if self.editing_locales {
+                            self.draft_keyboard_layout_index
+                        } else {
+                            self.keyboard_layout_index
+                        })
+                        .cloned()
+                    {
+                        self.apply_live_keyboard_layout(&layout);
+                    }
                 }
                 Some(PopupKind::LocaleLanguage) => {
                     if self.editing_locales {

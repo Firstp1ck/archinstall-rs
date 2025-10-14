@@ -17,11 +17,20 @@ pub(crate) fn change_locales_value(app: &mut AppState, next: bool) {
         return;
     }
     match app.locales_focus_index {
-        0 => cycle_index(
-            &mut app.draft_keyboard_layout_index,
-            app.keyboard_layout_options.len(),
-            next,
-        ),
+        0 => {
+            cycle_index(
+                &mut app.draft_keyboard_layout_index,
+                app.keyboard_layout_options.len(),
+                next,
+            );
+            if let Some(layout) = app
+                .keyboard_layout_options
+                .get(app.draft_keyboard_layout_index)
+                .cloned()
+            {
+                app.apply_live_keyboard_layout(&layout);
+            }
+        }
         1 => cycle_index(
             &mut app.draft_locale_language_index,
             app.locale_language_options.len(),

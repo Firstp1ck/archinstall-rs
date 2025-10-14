@@ -377,6 +377,14 @@ impl AppState {
             {
                 self.keyboard_layout_index = idx;
                 self.last_load_missing_sections.retain(|s| s != "Locales: keyboard_layout");
+                // Apply to live environment immediately
+                if let Some(layout) = self
+                    .keyboard_layout_options
+                    .get(self.keyboard_layout_index)
+                    .cloned()
+                {
+                    self.apply_live_keyboard_layout(&layout);
+                }
             }
         } else {
             self.last_load_missing_sections

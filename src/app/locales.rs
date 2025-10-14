@@ -27,6 +27,14 @@ impl std::fmt::Display for LocalesLoadError {
 impl std::error::Error for LocalesLoadError {}
 
 impl AppState {
+    pub fn apply_live_keyboard_layout(&mut self, layout: &str) {
+        if self.dry_run {
+            self.info_message = format!("[DRY-RUN] Would run: loadkeys {layout}");
+        } else {
+            let _ = Command::new("loadkeys").arg(layout).status();
+        }
+    }
+
     pub fn current_keyboard_layout(&self) -> String {
         let idx = if self.editing_locales {
             self.draft_keyboard_layout_index
@@ -138,11 +146,7 @@ impl AppState {
             .get(self.keyboard_layout_index)
             .cloned()
         {
-            if self.dry_run {
-                self.info_message = format!("[DRY-RUN] Would run: loadkeys {layout}");
-            } else {
-                let _ = Command::new("loadkeys").arg(&layout).status();
-            }
+            self.apply_live_keyboard_layout(&layout);
         }
     }
 
