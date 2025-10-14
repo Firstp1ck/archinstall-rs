@@ -32,6 +32,7 @@ qrun() {
 
 log "==== archinstall-rs boot helper starting at $(date -Iseconds) ===="
 log "ENV: TERM=${TERM:-} COLORTERM=${COLORTERM:-} DISPLAY=${DISPLAY:-} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-}"
+echo "Starting archinstall-rs… see $LOG_FILE for details" >&2
 
 # Default wrapper and flags
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -62,12 +63,13 @@ maybe_launch_graphical() {
   for term in foot kitty alacritty xterm; do
     if command -v "$term" >/dev/null 2>&1; then
       log "Launching $term for installer..."
+      echo "Launching $term…" >&2
       case "$term" in
         kitty)
           ( kitty \
               --override font_family='JetBrains Mono' \
-              --override initial_window_width=${AI_TERM_COLS}c \
-              --override initial_window_height=${AI_TERM_ROWS}c \
+              --override initial_window_width="${AI_TERM_COLS}"c \
+              --override initial_window_height="${AI_TERM_ROWS}"c \
               -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         alacritty)
@@ -84,7 +86,7 @@ maybe_launch_graphical() {
           ( alacritty --config-file "$tmpcfg" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         xterm)
-          ( xterm -fa 'JetBrains Mono' -fs ${AI_FONT_SIZE} -geometry ${AI_TERM_COLS}x${AI_TERM_ROWS} -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
+          ( xterm -fa 'JetBrains Mono' -fs "${AI_FONT_SIZE}" -geometry "${AI_TERM_COLS}"x"${AI_TERM_ROWS}" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
           ;;
         *)
           ( "$term" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" ) && exit 0 || true
@@ -99,11 +101,15 @@ if [[ -n "${WAYLAND_DISPLAY:-}" || -n "${DISPLAY:-}" ]]; then
   maybe_launch_graphical || true
 else
   log "No graphical session detected. Installing a minimal environment..."
+  echo "No GUI session: preparing minimal environment (this may take ~10s)…" >&2
   if command -v pacman >/dev/null 2>&1; then
+    echo "Syncing package database…" >&2
     qrun pacman -Sy --noconfirm || true
     # Install minimal terminal stacks and JetBrains Mono font
+    echo "Installing cage, foot, seatd, JetBrains Mono…" >&2
     qrun pacman -S --needed --noconfirm cage foot seatd ttf-jetbrains-mono || true
     if command -v seatd >/dev/null 2>&1; then
+      echo "Starting seatd.service…" >&2
       qrun systemctl start seatd.service || log "WARN: seatd not started; continuing without it"
     else
       log "INFO: seatd not installed; continuing without it"
@@ -112,6 +118,7 @@ else
       export TERM=${TERM:-xterm-256color}
       export COLORTERM=${COLORTERM:-truecolor}
       log "Starting Wayland (cage) with foot..."
+      echo "Launching Wayland/foot…" >&2
       exec cage -s -- foot -e bash -lc "$WRAPPER $INSTALLER_FLAGS"
     fi
 
@@ -120,7 +127,8 @@ else
       export TERM=${TERM:-xterm-256color}
       export COLORTERM=${COLORTERM:-truecolor}
       log "Starting Xorg (xinit) with xterm (JetBrains Mono)..."
-      exec xinit /usr/bin/xterm -fa 'JetBrains Mono' -fs ${AI_FONT_SIZE} -geometry ${AI_TERM_COLS}x${AI_TERM_ROWS} -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
+      echo "Launching Xorg/xterm…" >&2
+      exec xinit /usr/bin/xterm -fa 'JetBrains Mono' -fs "${AI_FONT_SIZE}" -geometry "${AI_TERM_COLS}"x"${AI_TERM_ROWS}" -e bash -lc "$WRAPPER $INSTALLER_FLAGS" -- :1
     fi
   fi
 fi
