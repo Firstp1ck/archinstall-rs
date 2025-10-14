@@ -52,6 +52,9 @@ impl NetworkService {
         cmds.push("systemctl --root=/mnt enable systemd-networkd".into());
         cmds.push("systemctl --root=/mnt enable systemd-resolved".into());
 
+        // Ensure networkd configuration directory exists on target
+        cmds.push("install -d /mnt/etc/systemd/network".into());
+
         // Copy current network configuration from the ISO
         if let Ok(iso_configs) = Self::detect_iso_network_config() {
             for config in iso_configs {
@@ -71,9 +74,9 @@ impl NetworkService {
             }
         }
 
-        // Ensure resolv.conf is properly linked to systemd-resolved
+        // Ensure resolv.conf is properly linked to systemd-resolved (idempotent)
         cmds.push(chroot_cmd(
-            "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf"
+            "target=/run/systemd/resolve/stub-resolv.conf; cur=$(readlink -f /etc/resolv.conf 2>/dev/null || true); if [ \"$cur\" = \"$target\" ]; then :; else rm -f /etc/resolv.conf && ln -s \"$target\" /etc/resolv.conf; fi"
         ));
     }
 
@@ -89,19 +92,23 @@ impl NetworkService {
         cmds.push("systemctl --root=/mnt enable systemd-networkd".into());
         cmds.push("systemctl --root=/mnt enable systemd-resolved".into());
 
+        // Ensure networkd configuration directory exists on target
+        cmds.push("install -d /mnt/etc/systemd/network".into());
+
         // Create configuration files for each manually configured interface
         for config in &state.network_configs {
             Self::create_networkd_config(config, cmds);
         }
 
-        // Ensure resolv.conf is properly linked to systemd-resolved
+        // Ensure resolv.conf is properly linked to systemd-resolved (idempotent)
         cmds.push(chroot_cmd(
-            "ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf"
+            "target=/run/systemd/resolve/stub-resolv.conf; cur=$(readlink -f /etc/resolv.conf 2>/dev/null || true); if [ \"$cur\" = \"$target\" ]; then :; else rm -f /etc/resolv.conf && ln -s \"$target\" /etc/resolv.conf; fi"
         ));
     }
 
     /// Detect current network configuration from the ISO environment
-    fn detect_iso_network_config() -> Result<Vec<NetworkInterfaceConfig>, Box<dyn std::error::Error>> {
+    fn detect_iso_network_config() -> Result<Vec<NetworkInterfaceConfig>, Box<dyn std::error::Error>>
+    {
         let mut configs = Vec::new();
 
         // Get list of network interfaces (excluding loopback)
@@ -114,10 +121,10 @@ impl NetworkService {
                 .output()
             {
                 let ip_text = String::from_utf8_lossy(&ip_output.stdout);
-                
+
                 // Check if interface has an IP address (not just link-local)
                 let has_ip = ip_text.contains("inet ") && !ip_text.contains("127.0.0.1");
-                
+
                 if has_ip {
                     // Try to determine if it's DHCP or static
                     let mode = if Self::is_dhcp_configured(&interface)? {
@@ -179,7 +186,9 @@ impl NetworkService {
     /// Get the first non-loopback network interface
     fn get_first_network_interface() -> Result<String, Box<dyn std::error::Error>> {
         let interfaces = Self::get_network_interfaces()?;
-        interfaces.into_iter().next()
+        interfaces
+            .into_iter()
+            .next()
             .ok_or_else(|| "No network interfaces found".into())
     }
 
@@ -192,18 +201,17 @@ impl NetworkService {
 
         if output.status.success() {
             // Check for DHCP configuration in systemd-networkd
-            let config_path = format!("/etc/systemd/network/");
+            let config_path = "/etc/systemd/network/".to_string();
             if std::path::Path::new(&config_path).exists() {
                 for entry in std::fs::read_dir(&config_path)? {
                     let entry = entry?;
-                    if let Some(name) = entry.file_name().to_str() {
-                        if name.ends_with(".network") {
-                            if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                                if content.contains(&format!("Name={}", interface)) && content.contains("DHCP=yes") {
-                                    return Ok(true);
-                                }
-                            }
-                        }
+                    if let Some(name) = entry.file_name().to_str()
+                        && name.ends_with(".network")
+                        && let Ok(content) = std::fs::read_to_string(entry.path())
+                        && content.contains(&format!("Name={}", interface))
+                        && content.contains("DHCP=yes")
+                    {
+                        return Ok(true);
                     }
                 }
             }
@@ -245,10 +253,10 @@ impl NetworkService {
         for line in text.lines() {
             if line.contains("default via") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
-                if let Some(via_idx) = parts.iter().position(|&x| x == "via") {
-                    if via_idx + 1 < parts.len() {
-                        return Ok(Some(parts[via_idx + 1].to_string()));
-                    }
+                if let Some(via_idx) = parts.iter().position(|&x| x == "via")
+                    && via_idx + 1 < parts.len()
+                {
+                    return Ok(Some(parts[via_idx + 1].to_string()));
                 }
             }
         }
@@ -284,10 +292,7 @@ impl NetworkService {
                 )
             }
             NetworkConfigMode::Static => {
-                let mut content = format!(
-                    "[Match]\nName={}\n\n[Network]\n",
-                    config.interface
-                );
+                let mut content = format!("[Match]\nName={}\n\n[Network]\n", config.interface);
 
                 if let Some(ip_cidr) = &config.ip_cidr {
                     content.push_str(&format!("Address={}\n", ip_cidr));
