@@ -45,7 +45,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD),
     ))];
-    desc_lines.push(Line::from("Network configuration in Arch Linux sets up wired or wireless connections, assigns IP addresses (dynamic by DHCP or manually), and manages DNS. Tools like systemd-networkd, NetworkManager, or iproute2 can be used, but only one network manager should be active at a time to avoid conflicts."));
+    let description_text = match app.network_mode_index {
+        0 => "Copy ISO network configuration: Automatically detects and replicates the current network setup from the Arch Linux installation environment. Uses systemd-networkd and systemd-resolved, which are the default network management tools in the Arch ISO. This option preserves your existing network configuration including DHCP or static IP settings.",
+        1 => "Manual configuration: Allows you to manually configure network interfaces with custom IP addresses, gateways, and DNS servers. Uses systemd-networkd for network management.",
+        2 => "Use NetworkManager: Installs and enables NetworkManager, which provides a comprehensive network management solution with GUI support. Required for desktop environments like KDE and GNOME.",
+        _ => "Network configuration in Arch Linux sets up wired or wireless connections, assigns IP addresses (dynamic by DHCP or manually), and manages DNS. Tools like systemd-networkd, NetworkManager, or iproute2 can be used, but only one network manager should be active at a time to avoid conflicts.",
+    };
+    desc_lines.push(Line::from(description_text));
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

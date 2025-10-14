@@ -1,0 +1,107 @@
+Starting dry-run (no commands will be executed)...
+Logging dry-run output to: /home/firstpick/Dokumente/GitHub/archinstall-rs/dry-run.log
+::section_start::Mirrors & Repos
+=== Mirrors & Repos ===
+[Dry-Run] $ install -d /etc/pacman.d
+[Dry-Run] $ install -d /mnt/etc/pacman.d
+[Dry-Run] $ reflector --verbose --protocol https --latest 20 --sort rate -c "CH" --save /etc/pacman.d/mirrorlist
+[Dry-Run] $ install -Dm644 /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist
+::section_done::Mirrors & Repos
+
+::section_start::Pre-cleanup
+=== Pre-cleanup ===
+[Dry-Run] $ swapoff -a || true
+[Dry-Run] $ umount -R /mnt 2>/dev/null || true
+[Dry-Run] $ udevadm settle || true
+::section_done::Pre-cleanup
+
+::section_start::Partitioning
+=== Partitioning ===
+[Dry-Run] $ wipefs -a /dev/sdb
+[Dry-Run] $ parted -s /dev/sdb mklabel gpt
+[Dry-Run] $ partprobe /dev/sdb || true
+[Dry-Run] $ udevadm settle
+[Dry-Run] $ parted -s /dev/sdb mkpart ESP fat32 1MiB 1025MiB
+[Dry-Run] $ parted -s /dev/sdb set 1 esp on
+[Dry-Run] $ mkfs.fat -F 32 /dev/sdb1
+[Dry-Run] $ parted -s /dev/sdb mkpart swap linux-swap 1025MiB 5121MiB
+[Dry-Run] $ mkswap /dev/sdb2
+[Dry-Run] $ parted -s /dev/sdb mkpart root btrfs 5121MiB 100%
+[Dry-Run] $ mkfs.btrfs -f /dev/sdb3
+::section_done::Partitioning
+
+::section_start::Mounting
+=== Mounting ===
+[Dry-Run] $ mkdir -p /mnt
+[Dry-Run] $ mount /dev/sdb3 /mnt
+[Dry-Run] $ modprobe -q vfat || true
+[Dry-Run] $ modprobe -q fat || true
+[Dry-Run] $ mount --mkdir /dev/sdb1 /mnt/boot
+[Dry-Run] $ swapon /dev/sdb2
+::section_done::Mounting
+
+::section_start::System pre-install
+=== System pre-install ===
+[Dry-Run] $ test -f /mnt/etc/pacman.conf || install -Dm644 /etc/pacman.conf /mnt/etc/pacman.conf
+[Dry-Run] $ sed -i '/^#\s*\[multilib\]/,/^#\s*Include/s/^#\s*//' /mnt/etc/pacman.conf
+::section_done::System pre-install
+
+::section_start::System package installations
+=== System package installations ===
+[Dry-Run] $ pacman -Syy --noconfirm --noprogressbar --color never
+[Dry-Run] $ PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt base base-devel curl efibootmgr git grub intel-ucode linux linux-firmware man-db man-pages pam pipewire pipewire-pulse sudo wireplumber xdg-user-dirs || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt base base-devel curl efibootmgr git grub intel-ucode linux linux-firmware man-db man-pages pam pipewire pipewire-pulse sudo wireplumber xdg-user-dirs )
+::section_done::System package installations
+
+::section_start::fstab and checks
+=== fstab and checks ===
+[Dry-Run] $ blkid -o export /dev/sdb1 | grep -Eq 'PARTLABEL=ESP|PARTLABEL=EFI System Partition|PARTTYPE=EF00|PARTUUID=' || echo 'WARN: ESP not detected on /dev/sdb1'
+[Dry-Run] $ blkid /dev/sdb2 | grep -q 'TYPE="swap"' || echo 'WARN: swap not found on /dev/sdb2'
+[Dry-Run] $ blkid /dev/sdb3 | grep -q 'TYPE="btrfs"' || echo 'WARN: btrfs not found on /dev/sdb3'
+[Dry-Run] $ mountpoint -q /mnt || echo 'ERROR: /mnt is not mounted'
+[Dry-Run] $ mountpoint -q /mnt/boot || echo 'ERROR: /mnt/boot is not mounted'
+[Dry-Run] $ swapon --noheadings --raw | grep -q '^' || echo 'ERROR: swap not active'
+[Dry-Run] $ genfstab -U /mnt >> /mnt/etc/fstab
+::section_done::fstab and checks
+
+::section_start::System configuration
+=== System configuration ===
+[Dry-Run] $ arch-chroot /mnt bash -lc 'ln -sf /usr/share/zoneinfo/Europe/Zurich /etc/localtime'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'hwclock --systohc'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'sed -i '\''s/^#\s*de_CH.UTF-8 UTF-8/de_CH.UTF-8 UTF-8/'\'' /etc/locale.gen'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'grep -q '\''^de_CH.UTF-8 UTF-8$'\'' /etc/locale.gen || echo '\''de_CH.UTF-8 UTF-8'\'' >> /etc/locale.gen'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'locale-gen'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''LANG=%s\n'\'' '\''de_CH.UTF-8'\'' > /etc/locale.conf'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''KEYMAP=%s\n'\'' '\''de_CH-latin1'\'' > /etc/vconsole.conf'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''%s\n'\'' '\''Archlinux'\'' > /etc/hostname'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''%s\n%s\n%s\n'\'' '\''127.0.0.1   localhost'\'' '\''::1         localhost'\'' '\''127.0.1.1   Archlinux.localdomain Archlinux'\'' > /etc/hosts'
+[Dry-Run] $ systemctl --root=/mnt enable systemd-timesyncd
+[Dry-Run] $ arch-chroot /mnt bash -lc 'echo "root:<REDACTED>" | chpasswd'
+::section_done::System configuration
+
+::section_start::Network configuration
+=== Network configuration ===
+[Dry-Run] $ systemctl --root=/mnt enable systemd-networkd
+[Dry-Run] $ systemctl --root=/mnt enable systemd-resolved
+[Dry-Run] $ printf '[Match]\nName=wlan0\n\n[Network]\nAddress=192.168.1.109/24\nGateway=192.168.1.1\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-wlan0.network
+[Dry-Run] $ printf '[Match]\nName=enp0s31f6\n\n[Network]\nAddress=192.168.1.110/24\nGateway=192.168.1.1\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-enp0s31f6.network
+[Dry-Run] $ printf '[Match]\nName=virbr0\n\n[Network]\nAddress=192.168.122.1/24\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-virbr0.network
+[Dry-Run] $ printf '[Match]\nName=br-c9c3b92a41b7\n\n[Network]\nAddress=172.18.0.1/16\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-br-c9c3b92a41b7.network
+[Dry-Run] $ printf '[Match]\nName=docker0\n\n[Network]\nAddress=172.17.0.1/16\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-docker0.network
+[Dry-Run] $ arch-chroot /mnt bash -lc 'ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf'
+::section_done::Network configuration
+
+::section_start::Bootloader setup
+=== Bootloader setup ===
+[Dry-Run] $ arch-chroot /mnt bash -lc 'grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'grub-mkconfig -o /boot/grub/grub.cfg'
+::section_done::Bootloader setup
+
+::section_start::User setup
+=== User setup ===
+[Dry-Run] $ arch-chroot /mnt bash -lc 'id -u first >/dev/null 2>&1 || useradd -m -s /bin/bash -G wheel first'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'echo "first:<REDACTED>" | chpasswd'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'sed -i '\''s/^#\s*%wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/'\'' /etc/sudoers'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'sed -i '\''s/^#\s*%sudo ALL=(ALL:ALL) ALL/%sudo ALL=(ALL:ALL) ALL/'\'' /etc/sudoers'
+::section_done::User setup
+
+Dry-run completed.

@@ -1,6 +1,7 @@
 use crate::app::{AppState, PopupKind};
 use crate::core::services::fstab::FstabService;
 use crate::core::services::mounting::MountingService;
+use crate::core::services::network::NetworkService;
 use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
@@ -519,6 +520,10 @@ impl AppState {
         sections.push((
             "System configuration".into(),
             SysConfigService::build_plan(self).commands,
+        ));
+        sections.push((
+            "Network configuration".into(),
+            NetworkService::build_plan(self).commands,
         ));
         sections.push((
             "Bootloader setup".into(),
