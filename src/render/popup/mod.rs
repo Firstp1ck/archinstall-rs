@@ -103,6 +103,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::DiskEncryptionPartitionList) => " Select Partition to encrypt ",
         Some(PopupKind::AbortConfirm) => " Confirm Abort (Exit) ",
         Some(PopupKind::WipeConfirm) => " Confirm Disk Wipe ",
+        Some(PopupKind::NetworkManagerSwitchConfirm) => " NetworkManager required ",
         Some(PopupKind::DesktopEnvSelect) => {
             " Select Desktop/WM (space to toggle, Enter to close) "
         }

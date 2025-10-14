@@ -794,6 +794,17 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                 app.close_popup();
             }
         }
+        Some(PopupKind::NetworkManagerSwitchConfirm) => {
+            if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                let yes = global_idx == 0;
+                app.close_popup();
+                if yes {
+                    // Switch to NetworkManager mode (index 2)
+                    app.network_mode_index = 2;
+                    app.info_message = "Network configuration set to NetworkManager".into();
+                }
+            }
+        }
         Some(PopupKind::WipeConfirm) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
                 let yes = global_idx == 0;

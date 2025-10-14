@@ -368,6 +368,7 @@ impl AppState {
         self.last_load_missing_sections.clear();
 
         // Locales
+        // When updating a section successfully, remove its missing marker if present
         if !cfg.locales.keyboard_layout.is_empty() {
             if let Some(idx) = self
                 .keyboard_layout_options
@@ -375,6 +376,7 @@ impl AppState {
                 .position(|s| s == &cfg.locales.keyboard_layout)
             {
                 self.keyboard_layout_index = idx;
+                self.last_load_missing_sections.retain(|s| s != "Locales: keyboard_layout");
             }
         } else {
             self.last_load_missing_sections
@@ -387,6 +389,7 @@ impl AppState {
                 .position(|s| s == &cfg.locales.locale_language)
             {
                 self.locale_language_index = idx;
+                self.last_load_missing_sections.retain(|s| s != "Locales: locale_language");
             }
         } else {
             self.last_load_missing_sections
@@ -399,6 +402,7 @@ impl AppState {
                 .position(|s| s == &cfg.locales.locale_encoding)
             {
                 self.locale_encoding_index = idx;
+                self.last_load_missing_sections.retain(|s| s != "Locales: locale_encoding");
             }
         } else {
             self.last_load_missing_sections
@@ -416,6 +420,9 @@ impl AppState {
                 self.mirrors_regions_selected.insert(idx);
             }
         }
+        if !self.mirrors_regions_selected.is_empty() {
+            self.last_load_missing_sections.retain(|s| s != "Mirrors: regions");
+        }
         self.optional_repos_selected.clear();
         if cfg.mirrors.optional_repos.is_empty() {
             self.last_load_missing_sections
@@ -425,6 +432,9 @@ impl AppState {
             if let Some(idx) = self.optional_repos_options.iter().position(|s| s == &name) {
                 self.optional_repos_selected.insert(idx);
             }
+        }
+        if !self.optional_repos_selected.is_empty() {
+            self.last_load_missing_sections.retain(|s| s != "Mirrors: optional_repos");
         }
         // Load aur_helper
         if let Some(helper) = cfg.mirrors.aur_helper.clone() {
@@ -464,6 +474,9 @@ impl AppState {
         if self.custom_repos.is_empty() {
             self.last_load_missing_sections
                 .push("Mirrors: custom_repos".into());
+        }
+        if !self.custom_repos.is_empty() {
+            self.last_load_missing_sections.retain(|s| s != "Mirrors: custom_repos");
         }
 
         // Disks
@@ -532,6 +545,12 @@ impl AppState {
                 encrypt: p.encrypt,
             })
             .collect();
+        // Safety: require the user to re-confirm partitioning on every load.
+        // Ignore device selection and partitions from the config; force a fresh setup.
+        self.disks_selected_device = None;
+        self.disks_partitions.clear();
+        self.last_load_missing_sections
+            .push("Disks: reconfigure partitioning (safety)".into());
 
         // Disk encryption
         if cfg.disk_encryption.encryption_type.is_empty() {
@@ -547,6 +566,9 @@ impl AppState {
         if self.disk_encryption_selected_partition.is_none() {
             self.last_load_missing_sections
                 .push("DiskEncryption: partition".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "DiskEncryption: partition");
         }
         // do not load plaintext password; hash in config is not converted back
 
@@ -557,6 +579,9 @@ impl AppState {
         if cfg.bootloader.kind.is_empty() {
             self.last_load_missing_sections
                 .push("Bootloader: kind".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "Bootloader: kind");
         }
         let bootloader_kind = cfg.bootloader.kind.clone();
         self.bootloader_index = match bootloader_kind.as_str() {
@@ -570,17 +595,26 @@ impl AppState {
         if cfg.system.hostname.is_empty() {
             self.last_load_missing_sections
                 .push("System: hostname".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "System: hostname");
         }
         self.hostname_value = cfg.system.hostname;
         self.root_password_hash = cfg.system.root_password_hash; // keep as hash only
         if self.root_password_hash.is_none() {
             self.last_load_missing_sections
                 .push("System: root_password_hash".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "System: root_password_hash");
         }
         self.ats_enabled = cfg.system.automatic_time_sync;
         if cfg.system.timezone.is_empty() {
             self.last_load_missing_sections
                 .push("System: timezone".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "System: timezone");
         }
         self.timezone_value = cfg.system.timezone;
 
@@ -592,6 +626,9 @@ impl AppState {
         if self.selected_kernels.is_empty() {
             self.last_load_missing_sections
                 .push("Kernels: selected".into());
+        } else {
+            self.last_load_missing_sections
+                .retain(|s| s != "Kernels: selected");
         }
 
         // Audio

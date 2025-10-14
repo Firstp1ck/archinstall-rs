@@ -29,8 +29,8 @@ impl NetworkService {
                 Self::build_manual_plan(state, &mut cmds);
             }
             2 => {
-                // NetworkManager (already handled in sysconfig.rs)
-                // No additional commands needed here
+                // NetworkManager: add explicit steps so dry-run shows actions (idempotent in live)
+                Self::build_networkmanager_plan(state, &mut cmds);
             }
             _ => {
                 // Default to NetworkManager
@@ -341,6 +341,25 @@ impl NetworkService {
             "printf '{}' > {}",
             config_content.replace('\n', "\\n"),
             config_file
+        ));
+    }
+
+    /// Build plan for NetworkManager mode (show actions in dry-run; safe in live)
+    fn build_networkmanager_plan(_state: &AppState, cmds: &mut Vec<String>) {
+        fn chroot_cmd(inner: &str) -> String {
+            let escaped = inner.replace("'", "'\\''");
+            format!("arch-chroot /mnt bash -lc '{escaped}'")
+        }
+
+        // Ensure NetworkManager is enabled on the target (duplicated in sysconfig; idempotent)
+        cmds.push("systemctl --root=/mnt enable NetworkManager".into());
+
+        // Informative note for dry-run/logs
+        cmds.push("echo 'NetworkManager will manage connections after first boot.'".into());
+
+        // Soft connectivity check inside target environment
+        cmds.push(chroot_cmd(
+            "getent hosts archlinux.org >/dev/null 2>&1 && echo 'Network check (target): archlinux.org OK' || echo 'WARN: Network check (target): archlinux.org FAILED (may be expected before first boot)'",
         ));
     }
 }

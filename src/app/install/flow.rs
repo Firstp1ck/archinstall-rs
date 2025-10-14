@@ -17,6 +17,24 @@ impl AppState {
             self.open_info_popup("Installation already running. Please wait...".into());
             return;
         }
+        // Guard: Desktop (KDE/GNOME) requires NetworkManager
+        let desktop_selected = self.experience_mode_index == 0;
+        let selects_kde = self.selected_desktop_envs.contains("KDE Plasma");
+        let selects_gnome = self.selected_desktop_envs.contains("GNOME");
+        let needs_nm = desktop_selected && (selects_kde || selects_gnome);
+        if needs_nm && self.network_mode_index != 2 {
+            self.popup_kind = Some(crate::core::types::PopupKind::NetworkManagerSwitchConfirm);
+            self.popup_open = true;
+            self.popup_items = vec![
+                "Switch to NetworkManager and continue".into(),
+                "Cancel (I'll change it manually)".into(),
+            ];
+            self.popup_visible_indices = vec![0, 1];
+            self.popup_selected_visible = 0;
+            self.popup_in_search = false;
+            self.popup_search_query.clear();
+            return;
+        }
         // Validate required sections before proceeding
         if let Some(msg) = self.validate_install_requirements() {
             self.debug_log("start_install: rejected, requirements not met");
@@ -49,10 +67,17 @@ impl AppState {
             let (tx, rx) = std::sync::mpsc::channel::<String>();
             self.install_log_rx = Some(rx);
 
-            // Resolve absolute log path up-front
-            let log_path_buf = std::env::current_dir()
-                .unwrap_or_else(|_| std::path::PathBuf::from("."))
-                .join("dry-run.log");
+            // Resolve absolute log path up-front, honoring env override and ensuring parent exists
+            let log_path_buf = if let Ok(custom) = std::env::var("ARCHINSTALL_DRY_RUN_LOG") {
+                std::path::PathBuf::from(custom)
+            } else {
+                std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from("."))
+                    .join("dry-run.log")
+            };
+            if let Some(parent) = log_path_buf.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
             let log_path_display = log_path_buf.to_string_lossy().to_string();
             self.debug_log(&format!(
                 "dry-run: will write log to {} and stream {} sections",
@@ -80,6 +105,13 @@ impl AppState {
                     if let Some(f) = file.as_mut() {
                         use std::io::Write as _;
                         let _ = writeln!(f, "{line}");
+                    }
+                };
+                let flush_log = |file: &mut Option<std::fs::File>| {
+                    if let Some(f) = file.as_mut() {
+                        use std::io::Write as _;
+                        let _ = f.flush();
+                        let _ = f.sync_all();
                     }
                 };
                 let dbg = |msg: &str| {
@@ -136,11 +168,13 @@ impl AppState {
                     send(&tx, done);
                     write_log(&mut log_file, "");
                     send(&tx, String::new());
+                    flush_log(&mut log_file);
                     std::thread::sleep(std::time::Duration::from_millis(20));
                 }
                 let complete = "Dry-run completed.".to_string();
                 write_log(&mut log_file, &complete);
                 send(&tx, complete);
+                flush_log(&mut log_file);
                 dbg("thread exiting normally");
             });
             return;
@@ -458,6 +492,15 @@ impl AppState {
         // Timezone must be non-empty
         if self.timezone_value.trim().is_empty() {
             issues.push("Timezone is not set.".into());
+        }
+
+        // Desktop environments that require NetworkManager
+        let desktop_selected = self.experience_mode_index == 0; // 0: Desktop
+        let selects_kde = self.selected_desktop_envs.contains("KDE Plasma");
+        let selects_gnome = self.selected_desktop_envs.contains("GNOME");
+        let needs_nm = desktop_selected && (selects_kde || selects_gnome);
+        if needs_nm && self.network_mode_index != 2 {
+            issues.push("Desktop selection (KDE/GNOME) requires NetworkManager (Network Configuration).".into());
         }
 
         if issues.is_empty() {

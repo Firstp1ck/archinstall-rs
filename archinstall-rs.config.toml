@@ -14,42 +14,17 @@ custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
-selected_device = "/dev/sda"
-selected_device_model = "KINGSTON SUV500240G"
+selected_device = "/dev/sdb"
+selected_device_model = "ST2000DM006-2DM164"
 selected_device_devtype = "disk"
-selected_device_size = "223.6 GiB"
-selected_device_freespace = "1.6 MiB"
+selected_device_size = "1.8 TiB"
+selected_device_freespace = "1.8 TiB"
 selected_device_sector_size = "512/4096 B"
 selected_device_read_only = false
 label = "gpt"
 wipe = true
 align = "1MiB"
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "BOOT"
-fs = "fat32"
-start = "0"
-size = "1073741824"
-flags = []
-mountpoint = "/boot"
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "SWAP"
-fs = "linux-swap"
-start = "1073741824"
-size = "4294967296"
-flags = []
-
-[[disks.partitions]]
-name = "/dev/sdb"
-role = "ROOT"
-fs = "btrfs"
-start = "5368709120"
-size = "1995012308992"
-flags = []
-mountpoint = "/"
+partitions = []
 
 [disk_encryption]
 encryption_type = "None"
@@ -76,18 +51,49 @@ selected = ["linux"]
 kind = "pipewire"
 
 [experience]
-mode = "Minimal"
-desktop_envs = []
+mode = "Desktop"
+desktop_envs = ["KDE Plasma"]
 server_types = []
 xorg_types = []
+login_manager = "sddm"
 login_manager_user_set = false
-graphic_drivers = []
+graphic_drivers = [
+    "intel-media-driver",
+    "libva-intel-driver",
+    "mesa",
+    "vulkan-intel",
+    "vulkan-nouveau",
+    "vulkan-radeon",
+    "xf86-video-amdgpu",
+    "xf86-video-ati",
+    "xf86-video-nouveau",
+    "xorg-server",
+    "xorg-xinit",
+]
 
 [experience.desktop_env_packages]
+"KDE Plasma" = [
+    "ark",
+    "dolphin",
+    "htop",
+    "iwd",
+    "kate",
+    "konsole",
+    "nano",
+    "openssh",
+    "plasma-meta",
+    "plasma-workspace",
+    "smartmontools",
+    "vim",
+    "wget",
+    "wireless_tools",
+    "wpa_supplicant",
+    "xdg-utils",
+]
 
 [experience.server_packages]
 
 [experience.xorg_packages]
 
 [network]
-mode = "CopyISO"
+mode = "NetworkManager"

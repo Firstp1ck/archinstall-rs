@@ -1,16 +1,17 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use crate::app::AppState;
 
 pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
+    let t = crate::render::theme::catppuccin_mocha();
     let mut info_lines = vec![Line::from(Span::styled(
         "Info",
         Style::default()
-            .fg(Color::Cyan)
+            .fg(t.accent)
             .add_modifier(Modifier::BOLD),
     ))];
 
@@ -29,7 +30,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let mut desc_lines = vec![Line::from(Span::styled(
         "Description",
         Style::default()
-            .fg(Color::Cyan)
+            .fg(t.accent)
             .add_modifier(Modifier::BOLD),
     ))];
     desc_lines.push(Line::from("Configuration lets you save or load your installation setup for Arch Linux, making it easy to reuse or share selections across multiple installs. When you load a configuration, sensitive data like passwords and certain custom settings need to be re-entered, ensuring security while streamlining system setup and consistency."));

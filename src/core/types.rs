@@ -79,6 +79,8 @@ pub enum PopupKind {
     NetworkGateway,
     NetworkDNS,
     WipeConfirm,
+    // Prompt: Desktop (KDE/GNOME) requires NetworkManager; allow switching or cancel.
+    NetworkManagerSwitchConfirm,
     ManualPartitionTable,
     ManualPartitionCreate,
     ManualPartitionKindSelect,

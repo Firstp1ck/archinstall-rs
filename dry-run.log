@@ -49,7 +49,7 @@ Logging dry-run output to: /home/firstpick/Dokumente/GitHub/archinstall-rs/dry-r
 ::section_start::System package installations
 === System package installations ===
 [Dry-Run] $ pacman -Syy --noconfirm --noprogressbar --color never
-[Dry-Run] $ PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt base base-devel curl efibootmgr git grub intel-ucode linux linux-firmware man-db man-pages pam pipewire pipewire-pulse sudo wireplumber xdg-user-dirs || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt base base-devel curl efibootmgr git grub intel-ucode linux linux-firmware man-db man-pages pam pipewire pipewire-pulse sudo wireplumber xdg-user-dirs )
+[Dry-Run] $ PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt ark base base-devel curl dolphin efibootmgr git grub htop intel-media-driver intel-ucode iwd kate konsole libva-intel-driver linux linux-firmware man-db man-pages mesa nano networkmanager openssh pam pipewire pipewire-pulse plasma-meta plasma-workspace sddm smartmontools sudo vim vulkan-intel vulkan-nouveau vulkan-radeon wget wireless_tools wireplumber wpa_supplicant xdg-user-dirs xdg-utils xf86-video-amdgpu xf86-video-ati xf86-video-nouveau xorg-server xorg-xinit || (pacman -Syy --noconfirm --noprogressbar --color never && PACMAN="pacman --noconfirm --noprogressbar --color never" pacstrap -K /mnt ark base base-devel curl dolphin efibootmgr git grub htop intel-media-driver intel-ucode iwd kate konsole libva-intel-driver linux linux-firmware man-db man-pages mesa nano networkmanager openssh pam pipewire pipewire-pulse plasma-meta plasma-workspace sddm smartmontools sudo vim vulkan-intel vulkan-nouveau vulkan-radeon wget wireless_tools wireplumber wpa_supplicant xdg-user-dirs xdg-utils xf86-video-amdgpu xf86-video-ati xf86-video-nouveau xorg-server xorg-xinit )
 ::section_done::System package installations
 
 ::section_start::fstab and checks
@@ -74,20 +74,16 @@ Logging dry-run output to: /home/firstpick/Dokumente/GitHub/archinstall-rs/dry-r
 [Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''KEYMAP=%s\n'\'' '\''de_CH-latin1'\'' > /etc/vconsole.conf'
 [Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''%s\n'\'' '\''Archlinux'\'' > /etc/hostname'
 [Dry-Run] $ arch-chroot /mnt bash -lc 'printf '\''%s\n%s\n%s\n'\'' '\''127.0.0.1   localhost'\'' '\''::1         localhost'\'' '\''127.0.1.1   Archlinux.localdomain Archlinux'\'' > /etc/hosts'
+[Dry-Run] $ systemctl --root=/mnt enable NetworkManager
 [Dry-Run] $ systemctl --root=/mnt enable systemd-timesyncd
 [Dry-Run] $ arch-chroot /mnt bash -lc 'echo "root:<REDACTED>" | chpasswd'
 ::section_done::System configuration
 
 ::section_start::Network configuration
 === Network configuration ===
-[Dry-Run] $ systemctl --root=/mnt enable systemd-networkd
-[Dry-Run] $ systemctl --root=/mnt enable systemd-resolved
-[Dry-Run] $ printf '[Match]\nName=wlan0\n\n[Network]\nAddress=192.168.1.109/24\nGateway=192.168.1.1\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-wlan0.network
-[Dry-Run] $ printf '[Match]\nName=enp0s31f6\n\n[Network]\nAddress=192.168.1.110/24\nGateway=192.168.1.1\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-enp0s31f6.network
-[Dry-Run] $ printf '[Match]\nName=virbr0\n\n[Network]\nAddress=192.168.122.1/24\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-virbr0.network
-[Dry-Run] $ printf '[Match]\nName=br-c9c3b92a41b7\n\n[Network]\nAddress=172.18.0.1/16\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-br-c9c3b92a41b7.network
-[Dry-Run] $ printf '[Match]\nName=docker0\n\n[Network]\nAddress=172.17.0.1/16\nDNS=192.168.1.1\nDNS=2a02:1210:1c2b:6500:def5:1bff:fe70:ffa0\n' > /mnt/etc/systemd/network/20-docker0.network
-[Dry-Run] $ arch-chroot /mnt bash -lc 'ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf'
+[Dry-Run] $ systemctl --root=/mnt enable NetworkManager
+[Dry-Run] $ echo 'NetworkManager will manage connections after first boot.'
+[Dry-Run] $ arch-chroot /mnt bash -lc 'getent hosts archlinux.org >/dev/null 2>&1 && echo '\''Network check (target): archlinux.org OK'\'' || echo '\''WARN: Network check (target): archlinux.org FAILED (may be expected before first boot)'\'''
 ::section_done::Network configuration
 
 ::section_start::Bootloader setup
@@ -102,6 +98,7 @@ Logging dry-run output to: /home/firstpick/Dokumente/GitHub/archinstall-rs/dry-r
 [Dry-Run] $ arch-chroot /mnt bash -lc 'echo "first:<REDACTED>" | chpasswd'
 [Dry-Run] $ arch-chroot /mnt bash -lc 'sed -i '\''s/^#\s*%wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/'\'' /etc/sudoers'
 [Dry-Run] $ arch-chroot /mnt bash -lc 'sed -i '\''s/^#\s*%sudo ALL=(ALL:ALL) ALL/%sudo ALL=(ALL:ALL) ALL/'\'' /etc/sudoers'
+[Dry-Run] $ systemctl --root=/mnt enable sddm
 ::section_done::User setup
 
 Dry-run completed.
