@@ -120,8 +120,28 @@ linux /arch/boot/x86_64/vmlinuz-linux archisobasedir=arch cow_spacesize=8G
 ## 🚀 Installation
 
 ```bash
-# Set keyboard layout to Swiss German
+# (optional) Set keyboard layout, e.g. Swiss German
 loadkeys de_CH-latin1
+```
+
+### Quickstart (recommended, ISO TTY)
+
+```bash
+# 1) Clone this repository (network required)
+git clone https://github.com/Firstp1ck/archinstall-rs.git
+cd archinstall-rs
+
+# 2) Launch the installer helper
+./boot.sh
+
+# Notes:
+# - The helper prepares a minimal GUI (Wayland cage + foot or Xorg + xterm), prints progress,
+#   and logs to the path shown on start.
+# - If the prebuilt binary is not present, boot.sh will download the latest release automatically.
+# - If a GUI cannot be prepared, the helper exits with an error (no half-started state).
+
+# Optional: Dry-run (no changes) with verbose logs
+ARCHINSTALL_DRY_RUN_LOG=/tmp/ai-dry.log ./boot.sh INSTALLER_FLAGS="--dry-run --debug"
 ```
 
 ### From Source
@@ -150,15 +170,16 @@ cargo run
 
 ### Pre-built Binary
 
-*(Coming soon)*
-
 ```bash
-# Download the latest release
+# Download the latest release (if not already present)
 wget https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/archinstall-rs
 chmod +x archinstall-rs
 
-# Run the installer
-./archinstall-rs
+# Recommended from ISO TTY: use the helper to bootstrap a minimal GUI and run the installer
+./boot.sh
+
+# Dry-run preview from TTY (no changes), with verbose logging
+ARCHINSTALL_DRY_RUN_LOG=/tmp/ai-dry.log ./boot.sh INSTALLER_FLAGS="--dry-run --debug"
 ```
 
 ## 🎮 Usage
@@ -167,14 +188,17 @@ chmod +x archinstall-rs
 
 1. Boot into Arch Linux live environment
 2. Ensure you have an internet connection
-3. Run the installer:
+3. Clone the repository.
+4. cd into archinstall-rs
+4. Start the installer from the Arch ISO TTY (recommended):
    ```bash
-   ./archinstall-rs
+   ./boot.sh
    ```
-4. Navigate through the installation sections using arrow keys
-5. Configure each section according to your preferences
-6. Review your configuration
-7. Start the installation
+   This helper prepares a tiny graphical session (Wayland cage + foot or Xorg + xterm), prints progress to the console, and logs to the path shown at start. If a GUI cannot be prepared, it exits with an error so nothing half-starts.
+5. Navigate through the installation sections using arrow keys
+6. Configure each section according to your preferences
+7. Review your configuration
+8. Start the installation
 
 ### Navigation
 

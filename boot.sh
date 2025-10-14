@@ -59,6 +59,45 @@ for cand in \
 done
 log "Using installer wrapper: $WRAPPER"
 
+# Ensure the prebuilt binary exists; download latest release if missing.
+ensure_binary() {
+  local -a CANDIDATES=(
+    "/target/release/archinstall-rs"
+    "$SCRIPT_DIR/archinstall-rs"
+    "$SCRIPT_DIR/target/release/archinstall-rs"
+    "$SCRIPT_DIR/../target/release/archinstall-rs"
+    "/usr/local/archinstall-rs/target/release/archinstall-rs"
+    "/usr/local/archinstall-rs/archinstall-rs"
+  )
+  for app in "${CANDIDATES[@]}"; do
+    if [[ -x "$app" ]]; then
+      log "Found archinstall binary: $app"
+      return 0
+    fi
+  done
+  echo "Binary not found locally. Downloading latest release…" >&2
+  local url="https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/archinstall-rs"
+  local dst="$SCRIPT_DIR/archinstall-rs"
+  if command -v wget >/dev/null 2>&1; then
+    qrun wget -O "$dst" "$url" || true
+  elif command -v curl >/dev/null 2>&1; then
+    qrun curl -fL -o "$dst" "$url" || true
+  else
+    echo "Error: neither wget nor curl available to download the binary" >&2
+    return 1
+  fi
+  if [[ -f "$dst" ]]; then
+    chmod +x "$dst" || true
+    log "Downloaded archinstall binary to $dst"
+    return 0
+  fi
+  echo "Error: failed to download archinstall binary" >&2
+  return 1
+}
+
+# Try to ensure the binary before launching any terminal
+ensure_binary || true
+
 maybe_launch_graphical() {
   for term in foot kitty alacritty xterm; do
     if command -v "$term" >/dev/null 2>&1; then
