@@ -58,7 +58,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "limine"
+kind = "grub"
 
 [system]
 hostname = "Archlinux"
@@ -90,4 +90,4 @@ graphic_drivers = []
 [experience.xorg_packages]
 
 [network]
-mode = "NetworkManager"
+mode = "CopyISO"
