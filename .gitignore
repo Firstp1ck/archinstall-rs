@@ -17,3 +17,6 @@ limine_implementation_plan.md
 !/target/release/archinstall-rs
 
 *release*
+
+dev/COMMIT/*
+dev/PR/*
