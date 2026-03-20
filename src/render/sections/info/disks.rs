@@ -60,6 +60,18 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         if let Some(align) = &app.disks_align {
             left_info.push(Line::from(format!("Align: {align}")));
         }
+        let has_btrfs_root = app.disks_partitions.iter().any(|p| {
+            p.role.as_deref().map(|r| r.eq_ignore_ascii_case("ROOT")).unwrap_or(false)
+                && p.fs.as_deref() == Some("btrfs")
+        });
+        if has_btrfs_root {
+            let btrfs_preset_label = match app.btrfs_subvolume_preset {
+                1 => "Standard (@, @home, @snapshots)",
+                2 => "Extended (@, @home, @var_log, @snapshots)",
+                _ => "Flat (no subvolumes)",
+            };
+            left_info.push(Line::from(format!("Btrfs subvolumes: {btrfs_preset_label}")));
+        }
         let left_block = Paragraph::new(left_info)
             .block(Block::default().borders(Borders::ALL).title(" Info "))
             .wrap(Wrap { trim: true });

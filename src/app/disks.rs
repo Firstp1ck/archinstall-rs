@@ -69,7 +69,11 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     };
     let is_preset_focused = app.disks_focus_index == 3;
     let is_preset_active = is_preset_focused && matches!(app.focus, super::Focus::Content);
-    let preset_available = app.disks_mode_index == 0;
+    let has_btrfs_root = app.disks_partitions.iter().any(|p| {
+        p.role.as_deref().map(|r| r.eq_ignore_ascii_case("ROOT")).unwrap_or(false)
+            && p.fs.as_deref() == Some("btrfs")
+    });
+    let preset_available = app.disks_mode_index == 0 || (app.disks_mode_index == 1 && has_btrfs_root);
     let preset_bullet = if is_preset_focused { "▶" } else { " " };
     let preset_style = if is_preset_active && preset_available {
         Style::default()

@@ -46,8 +46,11 @@ impl MountingService {
         // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
         if state.is_uefi() {
             // Ensure kernel filesystem drivers are available (some ISOs need explicit load)
-            cmds.push("modprobe -q vfat || true".into());
             cmds.push("modprobe -q fat || true".into());
+            cmds.push("modprobe -q vfat || true".into());
+            cmds.push("modprobe -q nls_cp437 || true".into());
+            cmds.push("modprobe -q nls_iso8859_1 || true".into());
+            cmds.push("modprobe -q nls_ascii || true".into());
             let esp_part = Self::partition_path(device, 1);
             cmds.push(format!("mount --mkdir {esp_part} /mnt/boot"));
         }

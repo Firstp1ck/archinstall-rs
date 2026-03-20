@@ -14,30 +14,49 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .add_modifier(Modifier::BOLD),
     ))];
 
-    let enc_type = if app.disk_encryption_type_index == 1 {
-        "LUKS"
+    if !app.disk_encryption_available() {
+        let mode_name = match app.disks_mode_index {
+            1 => "Manual Partitioning",
+            _ => "Pre-mounted configuration",
+        };
+        info_lines.push(Line::from(format!("Disk mode: {mode_name}")));
+        info_lines.push(Line::from(""));
+        info_lines.push(Line::from("Full-disk encryption (LUKS) is only"));
+        info_lines.push(Line::from("available with Best-effort partition layout."));
+        info_lines.push(Line::from(""));
+        if app.disks_mode_index == 1 {
+            info_lines.push(Line::from("In manual mode, you can enable encryption"));
+            info_lines.push(Line::from("per-partition when creating partitions."));
+        } else {
+            info_lines.push(Line::from("In pre-mounted mode, set up encryption"));
+            info_lines.push(Line::from("before mounting your filesystems."));
+        }
     } else {
-        "None"
-    };
-    info_lines.push(Line::from(format!("Type: {enc_type}")));
-    if app.disk_encryption_type_index == 1 {
-        let pwd_set = if app.disk_encryption_password.is_empty() {
-            "(not set)"
+        let enc_type = if app.disk_encryption_type_index == 1 {
+            "LUKS"
         } else {
-            "(set)"
+            "None"
         };
-        let pwd_conf = if app.disk_encryption_password_confirm.is_empty() {
-            "(not set)"
-        } else {
-            "(set)"
-        };
-        info_lines.push(Line::from(format!("Password: {pwd_set}")));
-        info_lines.push(Line::from(format!("Confirm: {pwd_conf}")));
-        let part = app
-            .disk_encryption_selected_partition
-            .clone()
-            .unwrap_or_else(|| "(none)".into());
-        info_lines.push(Line::from(format!("Partition: {part}")));
+        info_lines.push(Line::from(format!("Type: {enc_type}")));
+        if app.disk_encryption_type_index == 1 {
+            let pwd_set = if app.disk_encryption_password.is_empty() {
+                "(not set)"
+            } else {
+                "(set)"
+            };
+            let pwd_conf = if app.disk_encryption_password_confirm.is_empty() {
+                "(not set)"
+            } else {
+                "(set)"
+            };
+            info_lines.push(Line::from(format!("Password: {pwd_set}")));
+            info_lines.push(Line::from(format!("Confirm: {pwd_conf}")));
+            let part = app
+                .disk_encryption_selected_partition
+                .clone()
+                .unwrap_or_else(|| "(none)".into());
+            info_lines.push(Line::from(format!("Partition: {part}")));
+        }
     }
 
     let mut desc_lines = vec![Line::from(Span::styled(

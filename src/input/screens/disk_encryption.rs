@@ -4,6 +4,10 @@ pub(crate) fn move_diskenc_up(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
+    if !app.disk_encryption_available() {
+        app.diskenc_focus_index = 0;
+        return;
+    }
     let max = if app.disk_encryption_type_index == 1 {
         5
     } else {
@@ -19,6 +23,10 @@ pub(crate) fn move_diskenc_down(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
+    if !app.disk_encryption_available() {
+        app.diskenc_focus_index = 0;
+        return;
+    }
     let max = if app.disk_encryption_type_index == 1 {
         5
     } else {
@@ -28,6 +36,9 @@ pub(crate) fn move_diskenc_down(app: &mut AppState) {
 }
 pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
+        return;
+    }
+    if !app.disk_encryption_available() {
         return;
     }
     if app.diskenc_focus_index == 0 {
@@ -42,6 +53,10 @@ pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
 }
 
 pub(crate) fn handle_enter_diskenc(app: &mut AppState) {
+    if !app.disk_encryption_available() {
+        super::common::advance(app);
+        return;
+    }
     let continue_index = if app.disk_encryption_type_index == 1 {
         4
     } else {

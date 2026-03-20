@@ -446,6 +446,9 @@ impl StoragePlan {
                     cmds.push("umount /mnt".into());
                 }
             }
+
+            cmds.push(format!("partprobe {} || true", device.path));
+            cmds.push("udevadm settle".into());
         }
 
         cmds
@@ -468,24 +471,39 @@ impl StoragePlan {
                     opts.insert(0, format!("subvol={sv}"));
                 }
 
-                if mount.target == "/mnt/boot" {
-                    cmds.push("modprobe -q vfat || true".into());
+                if mount.target == "/mnt/boot" && mount.fstype == "vfat" {
                     cmds.push("modprobe -q fat || true".into());
+                    cmds.push("modprobe -q vfat || true".into());
+                    cmds.push("modprobe -q nls_cp437 || true".into());
+                    cmds.push("modprobe -q nls_iso8859_1 || true".into());
+                    cmds.push("modprobe -q nls_ascii || true".into());
                 }
+
+                let type_flag = if mount.fstype == "vfat" {
+                    "-t vfat "
+                } else {
+                    ""
+                };
 
                 if opts.is_empty() {
                     if mount.target == "/mnt" {
-                        cmds.push(format!("mount {} /mnt", mount.source));
+                        cmds.push(format!("mount {type_flag}{} /mnt", mount.source));
                     } else {
-                        cmds.push(format!("mount --mkdir {} {}", mount.source, mount.target));
+                        cmds.push(format!(
+                            "mount {type_flag}--mkdir {} {}",
+                            mount.source, mount.target
+                        ));
                     }
                 } else {
                     let opt_str = opts.join(",");
                     if mount.target == "/mnt" {
-                        cmds.push(format!("mount -o {opt_str} {} /mnt", mount.source));
+                        cmds.push(format!(
+                            "mount {type_flag}-o {opt_str} {} /mnt",
+                            mount.source
+                        ));
                     } else {
                         cmds.push(format!(
-                            "mount --mkdir -o {opt_str} {} {}",
+                            "mount {type_flag}--mkdir -o {opt_str} {} {}",
                             mount.source, mount.target
                         ));
                     }

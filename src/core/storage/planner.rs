@@ -354,6 +354,18 @@ impl StoragePlanner {
                 None
             };
 
+            let is_btrfs_root = role == PartitionRole::Root && fs == "btrfs";
+            let subvolumes = if is_btrfs_root {
+                let preset = match state.btrfs_subvolume_preset {
+                    1 => BtrfsSubvolumePreset::Standard,
+                    2 => BtrfsSubvolumePreset::Extended,
+                    _ => BtrfsSubvolumePreset::Flat,
+                };
+                preset.subvolumes()
+            } else {
+                vec![]
+            };
+
             partitions.push(PlannedPartition {
                 number: part_num,
                 role: role.clone(),
@@ -365,7 +377,7 @@ impl StoragePlanner {
                 },
                 flags,
                 encryption: encryption.clone(),
-                subvolumes: vec![],
+                subvolumes: subvolumes.clone(),
             });
 
             let part_path = StoragePlan::partition_path(&device_path, part_num);
@@ -387,6 +399,36 @@ impl StoragePlanner {
                     });
                 }
                 PartitionRole::BiosBoot => {}
+                _ if !subvolumes.is_empty() => {
+                    let mut subvol_mounts: Vec<PlannedMount> = subvolumes
+                        .iter()
+                        .map(|sv| {
+                            let target = if sv.mountpoint == "/" {
+                                "/mnt".into()
+                            } else {
+                                format!("/mnt{}", sv.mountpoint)
+                            };
+                            PlannedMount {
+                                source: source.clone(),
+                                target,
+                                fstype: "btrfs".into(),
+                                options: sv.mount_options.clone(),
+                                is_swap: false,
+                                subvolume: Some(sv.name.clone()),
+                            }
+                        })
+                        .collect();
+                    subvol_mounts.sort_by(|a, b| {
+                        if a.target == "/mnt" {
+                            return std::cmp::Ordering::Less;
+                        }
+                        if b.target == "/mnt" {
+                            return std::cmp::Ordering::Greater;
+                        }
+                        a.target.cmp(&b.target)
+                    });
+                    mounts.extend(subvol_mounts);
+                }
                 _ => {
                     let mountpoint = spec
                         .mountpoint
@@ -966,10 +1008,13 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/sda3 /mnt");
-        assert_eq!(cmds[2], "modprobe -q vfat || true");
-        assert_eq!(cmds[3], "modprobe -q fat || true");
-        assert_eq!(cmds[4], "mount --mkdir /dev/sda1 /mnt/boot");
-        assert_eq!(cmds[5], "swapon /dev/sda2");
+        assert_eq!(cmds[2], "modprobe -q fat || true");
+        assert_eq!(cmds[3], "modprobe -q vfat || true");
+        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[7], "mount -t vfat --mkdir /dev/sda1 /mnt/boot");
+        assert_eq!(cmds[8], "swapon /dev/sda2");
     }
 
     #[test]
@@ -979,10 +1024,13 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/mapper/cryptroot /mnt");
-        assert_eq!(cmds[2], "modprobe -q vfat || true");
-        assert_eq!(cmds[3], "modprobe -q fat || true");
-        assert_eq!(cmds[4], "mount --mkdir /dev/sda1 /mnt/boot");
-        assert_eq!(cmds[5], "swapon /dev/sda2");
+        assert_eq!(cmds[2], "modprobe -q fat || true");
+        assert_eq!(cmds[3], "modprobe -q vfat || true");
+        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[7], "mount -t vfat --mkdir /dev/sda1 /mnt/boot");
+        assert_eq!(cmds[8], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1003,10 +1051,13 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/sda2 /mnt");
-        assert_eq!(cmds[2], "modprobe -q vfat || true");
-        assert_eq!(cmds[3], "modprobe -q fat || true");
-        assert_eq!(cmds[4], "mount --mkdir /dev/sda1 /mnt/boot");
-        assert_eq!(cmds.len(), 5);
+        assert_eq!(cmds[2], "modprobe -q fat || true");
+        assert_eq!(cmds[3], "modprobe -q vfat || true");
+        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[7], "mount -t vfat --mkdir /dev/sda1 /mnt/boot");
+        assert_eq!(cmds.len(), 8);
     }
 
     // ── Fstab command tests ──

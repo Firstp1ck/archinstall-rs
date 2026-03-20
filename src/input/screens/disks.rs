@@ -24,7 +24,15 @@ pub(crate) fn change_disks_value(app: &mut AppState, _next: bool) {
 
 pub(crate) fn handle_enter_disks(app: &mut AppState) {
     if app.disks_focus_index <= 2 {
+        let prev_mode = app.disks_mode_index;
         app.disks_mode_index = app.disks_focus_index;
+        if prev_mode == 0 && app.disks_mode_index != 0 {
+            app.disk_encryption_type_index = 0;
+            app.disk_encryption_password.clear();
+            app.disk_encryption_password_confirm.clear();
+            app.disk_encryption_selected_partition = None;
+            app.diskenc_focus_index = 0;
+        }
         if app.disks_mode_index == 0 || app.disks_mode_index == 1 {
             app.open_disks_device_list();
         } else if app.disks_mode_index == 2 {
@@ -60,8 +68,11 @@ pub(crate) fn handle_enter_disks(app: &mut AppState) {
             }
         }
     } else if app.disks_focus_index == 3 {
-        // Btrfs subvolume preset selector (only active for automatic mode)
-        if app.disks_mode_index == 0 {
+        let has_btrfs_root = app.disks_partitions.iter().any(|p| {
+            p.role.as_deref().map(|r| r.eq_ignore_ascii_case("ROOT")).unwrap_or(false)
+                && p.fs.as_deref() == Some("btrfs")
+        });
+        if app.disks_mode_index == 0 || (app.disks_mode_index == 1 && has_btrfs_root) {
             app.open_btrfs_subvolume_preset_popup();
         }
     } else if app.disks_focus_index == 4 {
