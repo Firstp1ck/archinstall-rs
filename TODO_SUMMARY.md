@@ -29,12 +29,21 @@ This backlog groups repository TODOs by feature area and dependency, then orders
 
 **Goal:** Reliable advanced storage layout as the base for all install modes.
 
-- [ ] Advanced manual partition editor and pre-mounted flow.
-- [ ] btrfs subvolume-aware mount layout.
-- [ ] btrfs-aware fstab tuning/mount options.
-- [ ] LVM + RAID support and advanced btrfs layout options.
+- [x] Normalized storage model (`StoragePlan`) and planner introduced (Phase 1).
+- [x] Install flow wired to use `StoragePlanner` instead of hardcoded services (Phase 2).
+- [x] Manual partition editor validation and planner hardening (Phase 3).
+- [x] btrfs subvolume-aware mount layout and fstab tuning (Phase 4).
+- [x] Pre-mounted flow (Phase 5).
+- [x] LVM + RAID extensibility (Phase 6).
 
-**Depends on:** Existing best-effort partitioning path.  
+**Progress:** All phases (1-6) and all follow-up items complete. See `Documents/Plans/STORAGE_LAYOUT_PLAN.md` for full details.
+
+Follow-ups completed:
+
+- [x] `DeviceStack::setup_commands()` wired for LUKS/LVM/RAID command generation.
+- [x] `BootloaderService` accepts `&StoragePlan` with LUKS-aware kernel cmdline.
+- [x] Btrfs subvolume preset TUI selector on Disks screen.
+
 **Unblocks:** Encryption, UKI, non-default bootloaders, unattended reliability.
 
 ### 2) Boot and Kernel Delivery (P0)
@@ -97,7 +106,7 @@ This backlog groups repository TODOs by feature area and dependency, then orders
 
 ### Now (next sprint)
 
-- [ ] Workstream 1: Disk Architecture and Storage Stack
+- [x] Workstream 1: Disk Architecture and Storage Stack (all phases complete)
 - [ ] Workstream 2: Boot and Kernel Delivery (start EFISTUB first)
 - [ ] Workstream 3: Encryption and Early-Boot Integration (design + plumbing)
 
@@ -125,9 +134,9 @@ This semantic backlog is derived from TODO markers currently found in:
 - `src/app/save_configuration.rs`
 - `src/app/unified_kernel_images.rs`
 - `src/core/services/bootloader.rs`
-- `src/core/services/fstab.rs`
-- `src/core/services/mounting.rs`
-- `src/core/services/partitioning.rs`
+- `src/core/services/fstab.rs` *(deprecated — replaced by StoragePlan)*
+- `src/core/services/mounting.rs` *(deprecated — replaced by StoragePlan)*
+- `src/core/services/partitioning.rs` *(deprecated — replaced by StoragePlan)*
 - `src/core/services/sysconfig.rs`
 - `src/core/services/system.rs`
 - `src/core/services/usersetup.rs`

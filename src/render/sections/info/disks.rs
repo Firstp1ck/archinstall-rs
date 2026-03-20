@@ -225,6 +225,13 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             }
         }
 
+        let btrfs_preset_label = match app.btrfs_subvolume_preset {
+            1 => "Standard (@, @home, @snapshots)",
+            2 => "Extended (@, @home, @var_log, @snapshots)",
+            _ => "Flat (no subvolumes)",
+        };
+        info_lines.push(Line::from(format!("Btrfs subvolumes: {btrfs_preset_label}")));
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
@@ -244,9 +251,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .wrap(Wrap { trim: true });
         frame.render_widget(info, chunks[1]);
     } else {
+        // Pre-mounted mode info panel
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
             .split(area);
 
         let description = Paragraph::new(desc_lines)
@@ -258,14 +266,97 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
-        let info = Paragraph::new(vec![Line::from(Span::styled(
-            "Info",
+        let mut info_lines = vec![Line::from(Span::styled(
+            "Pre-mounted Configuration",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        ))])
-        .block(Block::default().borders(Borders::ALL).title(" Info "))
-        .wrap(Wrap { trim: true });
+        ))];
+        info_lines.push(Line::from(
+            "Filesystems should be mounted at /mnt before proceeding.",
+        ));
+        info_lines.push(Line::from(""));
+
+        // Detect mounts under /mnt for display
+        if let Ok(output) = std::process::Command::new("findmnt")
+            .args(["-J", "-R", "--target", "/mnt"])
+            .output()
+            && output.status.success()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+            && let Some(filesystems) = json.get("filesystems").and_then(|v| v.as_array())
+        {
+            fn collect_display_lines(
+                fs_array: &[serde_json::Value],
+                lines: &mut Vec<Line<'static>>,
+            ) {
+                for fs in fs_array {
+                    let target = fs
+                        .get("target")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let source = fs
+                        .get("source")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    let fstype = fs
+                        .get("fstype")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string();
+                    if !target.is_empty() && !source.is_empty() {
+                        lines.push(Line::from(format!(
+                            "  {source} -> {target} ({fstype})"
+                        )));
+                    }
+                    if let Some(children) = fs.get("children").and_then(|v| v.as_array()) {
+                        collect_display_lines(children, lines);
+                    }
+                }
+            }
+
+            info_lines.push(Line::from(Span::styled(
+                "Detected mounts:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            collect_display_lines(filesystems, &mut info_lines);
+        } else {
+            info_lines.push(Line::from(Span::styled(
+                "No mounts detected under /mnt",
+                Style::default().fg(Color::Red),
+            )));
+            info_lines.push(Line::from(
+                "Mount your filesystems at /mnt first, then select this mode.",
+            ));
+        }
+
+        // Show swap status
+        if let Ok(out) = std::process::Command::new("swapon")
+            .args(["--raw", "--noheadings"])
+            .output()
+            && out.status.success()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let swap_devices: Vec<&str> = text
+                .lines()
+                .filter_map(|l| l.split_whitespace().next())
+                .collect();
+            if !swap_devices.is_empty() {
+                info_lines.push(Line::from(""));
+                info_lines.push(Line::from(Span::styled(
+                    "Active swap:",
+                    Style::default().add_modifier(Modifier::BOLD),
+                )));
+                for dev in swap_devices {
+                    info_lines.push(Line::from(format!("  {dev}")));
+                }
+            }
+        }
+
+        let info = Paragraph::new(info_lines)
+            .block(Block::default().borders(Borders::ALL).title(" Info "))
+            .wrap(Wrap { trim: true });
         frame.render_widget(info, chunks[1]);
     }
 }

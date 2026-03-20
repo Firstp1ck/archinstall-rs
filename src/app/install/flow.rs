@@ -1,10 +1,8 @@
 use crate::app::{AppState, PopupKind};
-use crate::core::services::fstab::FstabService;
-use crate::core::services::mounting::MountingService;
 use crate::core::services::network::NetworkService;
-use crate::core::services::partitioning::PartitioningService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
+use crate::core::storage::planner::StoragePlanner;
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
 use std::thread;
@@ -46,9 +44,16 @@ impl AppState {
     }
 
     pub fn start_install_flow(&mut self) {
-        let Some(target) = self.select_target_and_run_prechecks() else {
-            self.debug_log("start_install_flow: target selection/prechecks returned None");
-            return;
+        // Pre-mounted mode (index 2) skips device selection/prechecks — filesystems are ready
+        let target = if self.disks_mode_index == 2 {
+            self.debug_log("start_install_flow: pre-mounted mode, skipping prechecks");
+            String::new()
+        } else {
+            let Some(t) = self.select_target_and_run_prechecks() else {
+                self.debug_log("start_install_flow: target selection/prechecks returned None");
+                return;
+            };
+            t
         };
         let sections = self.build_install_sections(&target);
         self.debug_log(&format!(
@@ -467,8 +472,8 @@ impl AppState {
             issues.push("Region is not selected (Mirrors & Repositories).".into());
         }
 
-        // Disk partitioning target device must be selected
-        if self.disks_selected_device.is_none() {
+        // Disk partitioning target device must be selected (not required for pre-mounted mode)
+        if self.disks_mode_index != 2 && self.disks_selected_device.is_none() {
             issues.push("Disk partitioning: target device is not selected.".into());
         }
 
@@ -503,6 +508,13 @@ impl AppState {
             issues.push("Desktop selection (KDE/GNOME) requires NetworkManager (Network Configuration).".into());
         }
 
+        // Pre-flight storage plan validation
+        if let Err(errors) = StoragePlanner::compile(self) {
+            for e in &errors {
+                issues.push(format!("Storage: {}", e.message));
+            }
+        }
+
         if issues.is_empty() {
             self.debug_log("validate_install_requirements: ok (no issues)");
             None
@@ -520,6 +532,17 @@ impl AppState {
 
     fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<String>)> {
         let mut sections: Vec<(String, Vec<String>)> = Vec::new();
+
+        // Compile the storage plan (validated at start_install time, safe to unwrap-or here)
+        let storage_plan = match StoragePlanner::compile(self) {
+            Ok(plan) => plan,
+            Err(errors) => {
+                let msg = errors.iter().map(|e| e.message.as_str()).collect::<Vec<_>>().join(", ");
+                self.debug_log(&format!("build_install_sections: storage plan failed: {msg}"));
+                return vec![("Error".into(), vec![format!("echo 'Storage plan error: {msg}'")])];
+            }
+        };
+
         let locales = self.build_locales_plan();
         if !locales.is_empty() {
             sections.push(("Locales".into(), locales));
@@ -528,26 +551,34 @@ impl AppState {
         if !mirrors.is_empty() {
             sections.push(("Mirrors & Repos".into(), mirrors));
         }
-        // Pre-cleanup to avoid device busy if re-running installer or previous mounts exist
-        sections.push((
-            "Pre-cleanup".into(),
-            vec![
-                // Try to disable any swap using the target disk
-                format!("swapoff -a || true"),
-                // Unmount any mounts under /mnt from a previous attempt
-                "umount -R /mnt 2>/dev/null || true".into(),
-                // Settle devices
-                "udevadm settle || true".into(),
-            ],
-        ));
-        sections.push((
-            "Partitioning".into(),
-            PartitioningService::build_plan(self, target).commands,
-        ));
-        sections.push((
-            "Mounting".into(),
-            MountingService::build_plan(self, target).commands,
-        ));
+        // Pre-cleanup to avoid device busy if re-running installer or previous mounts exist.
+        // Skip for pre-mounted mode — the user's mounts must stay intact.
+        if storage_plan.mode != crate::core::storage::StorageMode::PreMounted {
+            sections.push((
+                "Pre-cleanup".into(),
+                vec![
+                    "swapoff -a || true".into(),
+                    "umount -R /mnt 2>/dev/null || true".into(),
+                    "udevadm settle || true".into(),
+                ],
+            ));
+        }
+
+        let part_cmds = storage_plan.partition_commands();
+        if !part_cmds.is_empty() {
+            sections.push(("Partitioning".into(), part_cmds));
+        }
+
+        let stack_cmds = storage_plan.stack_setup_commands();
+        if !stack_cmds.is_empty() {
+            sections.push(("Volume stack setup (LVM/RAID)".into(), stack_cmds));
+        }
+
+        let mount_cmds = storage_plan.mount_commands();
+        if !mount_cmds.is_empty() {
+            sections.push(("Mounting".into(), mount_cmds));
+        }
+
         sections.push((
             "System pre-install".into(),
             SystemService::build_pre_install_plan(self).commands,
@@ -556,10 +587,12 @@ impl AppState {
             "System package installations".into(),
             SystemService::build_pacstrap_plan(self).commands,
         ));
-        sections.push((
-            "fstab and checks".into(),
-            FstabService::build_checks_and_fstab(self, target).commands,
-        ));
+
+        let fstab_cmds = storage_plan.fstab_check_commands();
+        if !fstab_cmds.is_empty() {
+            sections.push(("fstab and checks".into(), fstab_cmds));
+        }
+
         sections.push((
             "System configuration".into(),
             SysConfigService::build_plan(self).commands,
@@ -570,7 +603,7 @@ impl AppState {
         ));
         sections.push((
             "Bootloader setup".into(),
-            crate::core::services::bootloader::BootloaderService::build_plan(self, target).commands,
+            crate::core::services::bootloader::BootloaderService::build_plan(self, target, &storage_plan).commands,
         ));
         sections.push((
             "User setup".into(),

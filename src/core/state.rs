@@ -75,6 +75,7 @@ pub struct AppState {
     pub disks_wipe: bool,
     pub disks_align: Option<String>,
     pub disks_partitions: Vec<DiskPartitionSpec>,
+    pub btrfs_subvolume_preset: usize, // 0=Flat, 1=Standard, 2=Extended
 
     // Manual Partitioning: create partition popup state
     pub manual_create_units_index: usize, // 0: B, 1: KiB/KB, 2: MiB/MB, 3: GiB/GB
@@ -432,6 +433,7 @@ impl AppState {
             disks_wipe: true,
             disks_align: Some("1MiB".into()),
             disks_partitions: Vec::new(),
+            btrfs_subvolume_preset: 0, // Flat (no subvolumes) by default
 
             manual_create_units_index: 0,
             manual_create_free_start_bytes: 0,

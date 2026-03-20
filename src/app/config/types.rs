@@ -43,6 +43,7 @@ pub struct ConfigDisks {
     pub wipe: Option<bool>,    // wipe the disk before partitioning
     pub align: Option<String>, // e.g. "1MiB"
     pub partitions: Vec<ConfigPartition>,
+    pub btrfs_subvolume_preset: Option<String>, // "flat", "standard", "extended"
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

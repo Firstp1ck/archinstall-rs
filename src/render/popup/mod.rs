@@ -42,6 +42,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::NetworkGateway)
             | Some(PopupKind::NetworkDNS)
             | Some(PopupKind::AurHelperSelect)
+            | Some(PopupKind::BtrfsSubvolumePreset)
     ) {
         let w = area.width.clamp(28, 56);
         let h = area.height.clamp(9, 12);
@@ -114,6 +115,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::UserEditUsername) => " Edit username ",
         Some(PopupKind::TimezoneSelect) => " Select Timezone ",
         Some(PopupKind::AurHelperSelect) => " Choose AUR helper ",
+        Some(PopupKind::BtrfsSubvolumePreset) => " Btrfs Subvolume Layout ",
         None => " Select ",
     };
 
@@ -178,6 +180,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
             | Some(PopupKind::ManualPartitionMountpoint)
             | Some(PopupKind::ManualPartitionEdit)
             | Some(PopupKind::AurHelperSelect)
+            | Some(PopupKind::BtrfsSubvolumePreset)
     );
     if !hide_search {
         let search_label = if app.popup_in_search { "/" } else { "" };

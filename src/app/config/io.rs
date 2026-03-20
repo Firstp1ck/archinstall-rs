@@ -105,6 +105,14 @@ impl AppState {
                     encrypt: p.encrypt,
                 })
                 .collect(),
+            btrfs_subvolume_preset: Some(
+                match self.btrfs_subvolume_preset {
+                    1 => "standard",
+                    2 => "extended",
+                    _ => "flat",
+                }
+                .into(),
+            ),
         };
         let encryption_type = match self.disk_encryption_type_index {
             0 => "None",
@@ -537,6 +545,11 @@ impl AppState {
         if let Some(a) = cfg.disks.align.clone() {
             self.disks_align = Some(a);
         }
+        self.btrfs_subvolume_preset = match cfg.disks.btrfs_subvolume_preset.as_deref() {
+            Some("standard") => 1,
+            Some("extended") => 2,
+            _ => 0,
+        };
         self.disks_partitions = cfg
             .disks
             .partitions

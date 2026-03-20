@@ -34,7 +34,8 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     ];
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
-    // TODO(v0.3.0): Implement Manual Partitioning editor and Pre-mounted flow.
+    // NOTE: Manual partitioning validation handled by StoragePlanner (Phase 3).
+    // Pre-mounted flow is Phase 5.
     for (label, idx) in options {
         let is_focused_line = app.disks_focus_index == idx;
         let is_active_line = is_focused_line && matches!(app.focus, super::Focus::Content);
@@ -60,7 +61,32 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
         lines.push(line);
     }
 
-    let continue_style = if app.disks_focus_index == 3 && matches!(app.focus, super::Focus::Content)
+    // Btrfs subvolume preset row (only interactive when mode 0 is active)
+    let preset_label = match app.btrfs_subvolume_preset {
+        1 => "Standard (@, @home, @snapshots)",
+        2 => "Extended (@, @home, @var_log, @snapshots)",
+        _ => "Flat (no subvolumes)",
+    };
+    let is_preset_focused = app.disks_focus_index == 3;
+    let is_preset_active = is_preset_focused && matches!(app.focus, super::Focus::Content);
+    let preset_available = app.disks_mode_index == 0;
+    let preset_bullet = if is_preset_focused { "▶" } else { " " };
+    let preset_style = if is_preset_active && preset_available {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else if !preset_available {
+        Style::default().fg(Color::DarkGray)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled(format!("{preset_bullet} "), preset_style),
+        Span::styled(format!("Btrfs Subvolumes: {preset_label}"), preset_style),
+    ]));
+
+    let continue_style = if app.disks_focus_index == 4 && matches!(app.focus, super::Focus::Content)
     {
         Style::default()
             .fg(Color::Yellow)
@@ -580,5 +606,19 @@ impl AppState {
         self.popup_selected_visible = 0;
         self.popup_in_search = false;
         self.popup_search_query.clear();
+    }
+
+    pub fn open_btrfs_subvolume_preset_popup(&mut self) {
+        self.popup_kind = Some(super::PopupKind::BtrfsSubvolumePreset);
+        self.popup_items = vec![
+            "Flat (no subvolumes)".to_string(),
+            "Standard (@, @home, @snapshots)".to_string(),
+            "Extended (@, @home, @var_log, @snapshots)".to_string(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = self.btrfs_subvolume_preset;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        self.popup_open = true;
     }
 }

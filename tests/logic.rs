@@ -186,12 +186,51 @@ fn system_pacstrap_plan_includes_pacstrap_when_not_dry_run() {
 
 #[test]
 fn bootloader_systemd_boot_writes_loader_and_entries() {
-    let state = make_state(); // default bootloader_index = 0 (systemd-boot)
+    let mut state = make_state(); // default bootloader_index = 0 (systemd-boot)
+    state.disks_selected_device = Some("/dev/sda".into());
     let device = "/dev/sda";
-    let plan = ai::core::services::bootloader::BootloaderService::build_plan(&state, device);
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
     assert!(joined.contains("loader.conf"), "{joined}");
     assert!(joined.contains("arch.conf"), "{joined}");
     assert!(joined.contains("arch-fallback.conf"), "{joined}");
+    // Non-encrypted: should use simple root=UUID= options
+    assert!(!joined.contains("rd.luks.name"), "{joined}");
+}
+
+#[test]
+fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("bootctl"), "{joined}");
+    assert!(joined.contains("rd.luks.name"), "{joined}");
+    assert!(joined.contains("arch.conf"), "{joined}");
+}
+
+#[test]
+fn bootloader_grub_luks_injects_cmdline() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 1; // GRUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("grub-install"), "{joined}");
+    assert!(joined.contains("GRUB_CMDLINE_LINUX"), "{joined}");
+    assert!(joined.contains("grub-mkconfig"), "{joined}");
 }

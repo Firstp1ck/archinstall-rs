@@ -41,16 +41,22 @@ fn finalize_manual_partition(app: &mut AppState) {
             .cloned()
     };
 
-    // Mountpoint
+    // Mountpoint — required for all non-swap partitions
     let mountpoint = if app.manual_create_kind_index == 1 {
+        // SWAP has no mountpoint
         None
     } else {
-        let mp = if app.manual_create_kind_index == 0 {
-            "/boot"
-        } else if app.manual_create_kind_index == 2 {
-            "/"
-        } else {
-            app.manual_create_mountpoint.as_str()
+        let mp = match app.manual_create_kind_index {
+            0 => "/boot",
+            2 => "/",
+            _ => {
+                let raw = app.manual_create_mountpoint.trim();
+                if raw.is_empty() {
+                    app.open_info_popup("Mountpoint is required for this partition.".into());
+                    return;
+                }
+                raw
+            }
         };
         Some(mp.to_string())
     };
@@ -815,6 +821,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         Some(PopupKind::DesktopEnvSelect)
         | Some(PopupKind::ServerTypeSelect)
         | Some(PopupKind::XorgTypeSelect) => {
+            app.close_popup();
+        }
+        Some(PopupKind::BtrfsSubvolumePreset) => {
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                app.btrfs_subvolume_preset = gi;
+            }
             app.close_popup();
         }
         None => {

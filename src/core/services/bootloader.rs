@@ -1,4 +1,5 @@
 use crate::core::state::AppState;
+use crate::core::storage::StoragePlan;
 
 #[derive(Clone, Debug)]
 pub struct BootloaderPlan {
@@ -14,32 +15,51 @@ impl BootloaderPlan {
 pub struct BootloaderService;
 
 impl BootloaderService {
-    pub fn build_plan(state: &AppState, _device: &str) -> BootloaderPlan {
+    pub fn build_plan(state: &AppState, device: &str, storage_plan: &StoragePlan) -> BootloaderPlan {
         let mut cmds: Vec<String> = Vec::new();
+        let encrypted = storage_plan.has_encryption();
 
         fn chroot_cmd(inner: &str) -> String {
             let escaped = inner.replace("'", "'\\''");
             format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
-        // Debug: entering bootloader plan build
         state.debug_log(&format!(
-            "bootloader: build_plan start (uefi={}, bootloader_index={}, device={})",
+            "bootloader: build_plan start (uefi={}, bootloader_index={}, device={}, encrypted={})",
             state.is_uefi(),
             state.bootloader_index,
-            _device
+            device,
+            encrypted
         ));
+
+        // Kernel options differ depending on whether LUKS encryption is active.
+        // With LUKS we use rd.luks.name to auto-open the container at boot;
+        // without it we simply pass root=UUID=<uuid>.
+        let boot_options_script = if encrypted {
+            // Discover the underlying LUKS partition UUID at install time
+            "rootdev=$(findmnt -n -o SOURCE /); \
+             if cryptsetup status \"$(basename \"$rootdev\")\" >/dev/null 2>&1; then \
+               underlying=$(cryptsetup status \"$(basename \"$rootdev\")\" | awk '/device:/{print $2}'); \
+               luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
+               mapper=$(basename \"$rootdev\"); \
+               echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
+             else \
+               rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+               echo \"root=UUID=$rootuuid rw\"; \
+             fi"
+        } else {
+            "rootdev=$(findmnt -n -o SOURCE /); \
+             rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+             echo \"root=UUID=$rootuuid rw\""
+        };
 
         match state.bootloader_index {
             // 0: systemd-boot
             0 => {
-                // Install systemd-boot. Avoid touching EFI variables on some firmwares that hang.
-                // Explicitly point to ESP and boot paths; skip writing NVRAM entries (we keep fallback).
                 cmds.push(chroot_cmd(
                     "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 30s bootctl --no-pager install --no-variables --esp-path=/boot --boot-path=/boot",
                 ));
 
-                // Build loader.conf
                 cmds.push(chroot_cmd(
                     "install -d -m 0755 /boot/loader && install -d -m 0755 /boot/loader/entries",
                 ));
@@ -47,19 +67,16 @@ impl BootloaderService {
                     "bash -lc 'cat > /boot/loader/loader.conf <<EOF\ndefault  arch.conf\ntimeout  4\nconsole-mode auto\neditor   no\nEOF'",
                 ));
 
-                // Build arch.conf and fallback with inline UUID discovery
-                cmds.push(chroot_cmd(
-                    "rootdev=$(findmnt -n -o SOURCE /); rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); cat > /boot/loader/entries/arch.conf <<EOF\ntitle   Arch Linux\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions root=UUID=$rootuuid rw\nEOF",
-                ));
-                cmds.push(chroot_cmd(
-                    "rootdev=$(findmnt -n -o SOURCE /); rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); cat > /boot/loader/entries/arch-fallback.conf <<EOF\ntitle   Arch Linux (fallback initramfs)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions root=UUID=$rootuuid rw\nEOF",
-                ));
+                // Build arch.conf and fallback using the dynamic options script
+                cmds.push(chroot_cmd(&format!(
+                    "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch.conf <<EOF\ntitle   Arch Linux\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions $OPTS\nEOF"
+                )));
+                cmds.push(chroot_cmd(&format!(
+                    "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch-fallback.conf <<EOF\ntitle   Arch Linux (fallback initramfs)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions $OPTS\nEOF"
+                )));
 
-                // Verify entries
                 cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
-                // Fallback: if bootctl install failed, attempt efibootmgr
-                // Guard on efivarfs presence and add a timeout to avoid hangs on buggy firmware
                 cmds.push(chroot_cmd(
                     "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || { if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }",
                 ));
@@ -71,31 +88,31 @@ impl BootloaderService {
                         "grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB",
                     ));
                 } else {
-                    // BIOS mode install to disk (not a partition)
                     cmds.push(chroot_cmd(&format!(
-                        "grub-install --target=i386-pc {_device}"
+                        "grub-install --target=i386-pc {device}"
                     )));
+                }
+
+                // For LUKS, inject cryptdevice into GRUB_CMDLINE_LINUX before generating config
+                if encrypted {
+                    cmds.push(chroot_cmd(
+                        &format!("OPTS=$({boot_options_script}); \
+                         sed -i \"s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\\\"$OPTS\\\"|\" /etc/default/grub")
+                    ));
                 }
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
             }
-            // TODO(v0.3.0+): Implement EFISTUB boot entry creation and kernel cmdline.
             2 => {
                 cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
             }
-            // Limine bootloader (index 3): ensure package is present first
-            // Implemented: install package inside chroot, copy helper script into target, run it inside chroot,
-            // and write an example limine.conf into the target filesystem.
-            // Limine bootloader (index 3): ensure package is present first
-            // Placeholder for Limine (index 3)
             3 => {
                 cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());
             }
             _ => {}
         }
 
-        // Debug summary
         state.debug_log(&format!(
-            "bootloader: choice={} mode={} (uefi={})",
+            "bootloader: choice={} mode={} (uefi={}, encrypted={})",
             match state.bootloader_index {
                 0 => "systemd-boot",
                 1 => "grub",
@@ -104,7 +121,8 @@ impl BootloaderService {
                 _ => "unknown",
             },
             if state.is_uefi() { "UEFI" } else { "BIOS" },
-            state.is_uefi()
+            state.is_uefi(),
+            encrypted
         ));
 
         BootloaderPlan::new(cmds)

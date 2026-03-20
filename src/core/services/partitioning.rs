@@ -1,3 +1,7 @@
+// DEPRECATED: Superseded by `crate::core::storage::StoragePlan` + `StoragePlanner`.
+// Kept temporarily so existing integration tests in tests/logic.rs still compile.
+// Remove once those tests migrate to the storage planner API.
+
 use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
@@ -70,7 +74,7 @@ impl PartitioningService {
     }
 
     fn build_automatic_partition_plan(state: &AppState, device: &str, part_cmds: &mut Vec<String>) {
-        // TODO(v0.4.0): Add LVM/RAID support and advanced btrfs subvolume layouts.
+        // NOTE: LVM/RAID and btrfs subvolume layouts are handled by StoragePlanner (Phase 4-6).
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
             part_cmds.push(format!("wipefs -a {device}"));

@@ -1,3 +1,6 @@
+// DEPRECATED: Superseded by `crate::core::storage::StoragePlan::mount_commands()`.
+// Kept temporarily so existing integration tests in tests/logic.rs still compile.
+
 use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
@@ -30,7 +33,7 @@ impl MountingService {
 
     pub fn build_plan(state: &AppState, device: &str) -> MountPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Handle btrfs subvolumes and custom mount layout (v0.3.0+ / README Roadmap).
+        // NOTE: Btrfs subvolumes and custom mount layout are handled by StoragePlanner (Phase 4).
         let luks = state.disk_encryption_type_index == 1;
         cmds.push("mkdir -p /mnt".into());
         if luks {
