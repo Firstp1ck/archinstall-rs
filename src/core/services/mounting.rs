@@ -45,17 +45,19 @@ impl MountingService {
         }
         // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
         if state.is_uefi() {
-            // Ensure kernel filesystem drivers are available (some ISOs need explicit load)
-            cmds.push("modprobe -q fat || true".into());
-            cmds.push("modprobe -q vfat || true".into());
-            cmds.push("modprobe -q msdos || true".into());
-            cmds.push("modprobe -q nls_cp437 || true".into());
-            cmds.push("modprobe -q nls_iso8859_1 || true".into());
-            cmds.push("modprobe -q nls_ascii || true".into());
+            // Load FAT-related kernel modules (may already be built-in)
+            cmds.push(
+                "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
+                    .into(),
+            );
             let esp_part = Self::partition_path(device, 1);
-            // Try multiple filesystem types for ESP mount compatibility
+            // Verify FAT support is available before attempting mount
             cmds.push(format!(
-                "{{ mount -t vfat --mkdir {esp_part} /mnt/boot || mount -t fat --mkdir {esp_part} /mnt/boot || mount -t msdos --mkdir {esp_part} /mnt/boot || mount --mkdir {esp_part} /mnt/boot; }} || {{ echo 'ERROR: Failed to mount ESP {esp_part} - ensure FAT/vfat filesystem support is available' >&2; exit 1; }}"
+                "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {esp_part} — ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}"
+            ));
+            // Mount ESP with fallback across FAT type names
+            cmds.push(format!(
+                "mount -t vfat --mkdir {esp_part} /mnt/boot || mount -t fat --mkdir {esp_part} /mnt/boot || mount -t msdos --mkdir {esp_part} /mnt/boot"
             ));
         }
         if state.swap_enabled {

@@ -1,5 +1,14 @@
 # Arch Linux Installation Guide - Basic Hyprland Setup
 
+# Setup: Increase memory size for update and installs in the Installprocess
+```bash
+# increase memory size to 4gb
+mount -o remount,size=4G /run/archiso/cowspace
+
+# Verify new size
+df -h /run/archiso/cowspace
+```
+
 ## Initial Setup
 ```bash
 # List Keymaps

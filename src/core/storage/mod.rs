@@ -535,14 +535,18 @@ impl StoragePlan {
                     opts.insert(0, format!("subvol={sv}"));
                 }
 
-                // Load FAT filesystem modules for any vfat mount (not just /mnt/boot)
+                // Load FAT filesystem modules and verify support before mounting
                 if mount.fstype == "vfat" {
-                    cmds.push("modprobe -q fat || true".into());
-                    cmds.push("modprobe -q vfat || true".into());
-                    cmds.push("modprobe -q msdos || true".into());
-                    cmds.push("modprobe -q nls_cp437 || true".into());
-                    cmds.push("modprobe -q nls_iso8859_1 || true".into());
-                    cmds.push("modprobe -q nls_ascii || true".into());
+                    // Load all FAT-related kernel modules (may already be built-in)
+                    cmds.push(
+                        "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
+                            .into(),
+                    );
+                    // Verify FAT support is actually available before attempting mount
+                    cmds.push(format!(
+                        "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {} — ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}",
+                        mount.source
+                    ));
                 }
 
                 let build_mount_cmd = |fstype: Option<&str>| -> String {
@@ -567,17 +571,12 @@ impl StoragePlan {
                 };
 
                 if mount.fstype == "vfat" {
-                    // Some environments expose FAT only as "fat" (or require autodetect),
-                    // so avoid hard-failing when "vfat" is unavailable.
+                    // FAT support verified above; try vfat first, fall back to fat/msdos
+                    // for environments that register the type under a different name.
                     let cmd_vfat = build_mount_cmd(Some("vfat"));
                     let cmd_fat = build_mount_cmd(Some("fat"));
                     let cmd_msdos = build_mount_cmd(Some("msdos"));
-                    let cmd_auto = build_mount_cmd(None);
-                    // Try each filesystem type in order, with a clear error if all fail
-                    cmds.push(format!(
-                        "{{ {cmd_vfat} || {cmd_fat} || {cmd_msdos} || {cmd_auto}; }} || {{ echo 'ERROR: Failed to mount {} - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }}",
-                        mount.source
-                    ));
+                    cmds.push(format!("{cmd_vfat} || {cmd_fat} || {cmd_msdos}"));
                 } else {
                     cmds.push(build_mount_cmd(None));
                 }

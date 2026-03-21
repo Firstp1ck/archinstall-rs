@@ -1033,17 +1033,17 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/sda3 /mnt");
-        assert_eq!(cmds[2], "modprobe -q fat || true");
-        assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q msdos || true");
-        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[8],
-            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
+            cmds[2],
+            "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
         );
-        assert_eq!(cmds[9], "swapon /dev/sda2");
+        assert!(cmds[3].contains("grep -qE"));
+        assert!(cmds[3].contains("/proc/filesystems"));
+        assert_eq!(
+            cmds[4],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
+        );
+        assert_eq!(cmds[5], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1053,17 +1053,17 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/mapper/cryptroot /mnt");
-        assert_eq!(cmds[2], "modprobe -q fat || true");
-        assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q msdos || true");
-        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[8],
-            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
+            cmds[2],
+            "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
         );
-        assert_eq!(cmds[9], "swapon /dev/sda2");
+        assert!(cmds[3].contains("grep -qE"));
+        assert!(cmds[3].contains("/proc/filesystems"));
+        assert_eq!(
+            cmds[4],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
+        );
+        assert_eq!(cmds[5], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1084,17 +1084,17 @@ mod tests {
 
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/sda2 /mnt");
-        assert_eq!(cmds[2], "modprobe -q fat || true");
-        assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q msdos || true");
-        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[8],
-            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
+            cmds[2],
+            "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
         );
-        assert_eq!(cmds.len(), 9);
+        assert!(cmds[3].contains("grep -qE"));
+        assert!(cmds[3].contains("/proc/filesystems"));
+        assert_eq!(
+            cmds[4],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
+        );
+        assert_eq!(cmds.len(), 5);
     }
 
     // ── Fstab command tests ──
