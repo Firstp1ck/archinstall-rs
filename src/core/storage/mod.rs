@@ -537,23 +537,21 @@ impl StoragePlan {
 
                 // Load FAT filesystem modules and verify support before mounting
                 if mount.fstype == "vfat" {
-                    // Load all FAT-related kernel modules; try modprobe first, then
-                    // fall back to insmod with explicit paths for environments where
-                    // modprobe cannot resolve module dependencies (e.g. mismatched
-                    // kernel module directory on some ISOs).
+                    // Try modprobe first (handles compressed .ko.zst modules).
+                    // If that fails, rebuild module deps and retry — on some ISOs
+                    // modules.dep is missing or stale, causing modprobe to silently
+                    // fail even though the .ko files exist on disk.
                     cmds.push(
                         "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
                             .into(),
                     );
-                    // If modprobe didn't work, try loading modules via insmod from
-                    // the running kernel's module tree as a last resort.
                     cmds.push(
-                        "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then KDIR=/lib/modules/$(uname -r)/kernel/fs; for m in fat/fat.ko vfat/vfat.ko nls/nls_cp437.ko nls/nls_ascii.ko nls/nls_iso8859-1.ko; do f=$(find \"$KDIR\" -path \"*/$m*\" 2>/dev/null | head -1); [ -n \"$f\" ] && insmod \"$f\" 2>/dev/null; done; true; fi"
+                        "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
                             .into(),
                     );
                     // Verify FAT support is actually available before attempting mount
                     cmds.push(format!(
-                        "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}",
+                        "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Tried: modprobe, depmod -a + modprobe retry.' >&2; echo 'Module directory: /lib/modules/'$(uname -r) >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}",
                         mount.source
                     ));
                 }

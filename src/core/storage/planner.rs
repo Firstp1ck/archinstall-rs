@@ -1035,9 +1035,8 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/sda3 /mnt");
         // cmds[2]: modprobe chain
         assert!(cmds[2].contains("modprobe -q fat"));
-        // cmds[3]: insmod fallback
-        assert!(cmds[3].contains("insmod"));
-        assert!(cmds[3].contains("fat.ko"));
+        // cmds[3]: depmod + modprobe retry fallback
+        assert!(cmds[3].contains("depmod -a"));
         // cmds[4]: /proc/filesystems verification
         assert!(cmds[4].contains("grep -qE"));
         assert!(cmds[4].contains("/proc/filesystems"));
@@ -1056,7 +1055,7 @@ mod tests {
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/mapper/cryptroot /mnt");
         assert!(cmds[2].contains("modprobe -q fat"));
-        assert!(cmds[3].contains("insmod"));
+        assert!(cmds[3].contains("depmod -a"));
         assert!(cmds[4].contains("grep -qE"));
         assert!(cmds[4].contains("/proc/filesystems"));
         assert_eq!(
@@ -1085,7 +1084,7 @@ mod tests {
         assert_eq!(cmds[0], "mkdir -p /mnt");
         assert_eq!(cmds[1], "mount /dev/sda2 /mnt");
         assert!(cmds[2].contains("modprobe -q fat"));
-        assert!(cmds[3].contains("insmod"));
+        assert!(cmds[3].contains("depmod -a"));
         assert!(cmds[4].contains("grep -qE"));
         assert!(cmds[4].contains("/proc/filesystems"));
         assert_eq!(
