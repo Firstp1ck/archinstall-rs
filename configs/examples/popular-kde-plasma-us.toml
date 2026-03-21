@@ -1,10 +1,6 @@
 # KDE Plasma + US English — aligns with pkgstats (Plasma is the most common full desktop
 # among reporting Arch installs) and typical “recommended Arch desktop” threads.
-# Set root and user passwords in the TUI before install (presets omit password hashes).
-
-[[users]]
-username = "archie"
-is_sudo = true
+# Set the root password in the TUI before install (presets omit password hashes).
 
 additional_packages = []
 
@@ -16,7 +12,8 @@ locale_encoding = "UTF-8"
 [mirrors]
 # Exact line from `reflector --list-countries` (mirror counts change over time; re-copy if load misses).
 regions = ["United States          US   189"]
-optional_repos = ["multilib"]
+optional_repos = ["multilib", "AUR"]
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
@@ -30,7 +27,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "archlinux"

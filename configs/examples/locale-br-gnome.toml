@@ -1,8 +1,4 @@
-# Brazil: Portuguese (Brazil) locale + GNOME + local mirrors. Set passwords in the TUI before install.
-
-[[users]]
-username = "archie"
-is_sudo = true
+# Brazil: Portuguese (Brazil) locale + GNOME + local mirrors. Set the root password in the TUI before install.
 
 additional_packages = []
 
@@ -13,7 +9,8 @@ locale_encoding = "UTF-8"
 
 [mirrors]
 regions = ["Brazil                 BR    11"]
-optional_repos = ["multilib"]
+optional_repos = ["multilib", "AUR"]
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
@@ -27,7 +24,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "archlinux"

@@ -1,9 +1,5 @@
 # Hyprland + US English — tiling Wayland compositors (Hyprland, Sway) rank very high in
-# recent r/archlinux community surveys alongside traditional DEs. Set passwords in the TUI before install.
-
-[[users]]
-username = "archie"
-is_sudo = true
+# recent r/archlinux community surveys alongside traditional DEs. Set the root password in the TUI before install.
 
 additional_packages = []
 
@@ -14,7 +10,8 @@ locale_encoding = "UTF-8"
 
 [mirrors]
 regions = ["United States          US   189"]
-optional_repos = ["multilib"]
+optional_repos = ["multilib", "AUR"]
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
@@ -28,7 +25,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "archlinux"

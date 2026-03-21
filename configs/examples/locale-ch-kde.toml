@@ -1,10 +1,6 @@
-# Swiss German (Switzerland) + KDE Plasma — mirrors and locale for CH; typical multilib + PipeWire stack.
-# Set root and user passwords in the TUI before install (presets omit password hashes).
+# Swiss German (Switzerland) + KDE Plasma — mirrors and locale for CH; typical multilib, AUR (yay), and PipeWire stack.
+# Set the root password in the TUI before install (presets omit password hashes).
 # Disk layout is always re-confirmed in the TUI after load; this file omits a concrete device snapshot.
-
-[[users]]
-username = "archie"
-is_sudo = true
 
 additional_packages = []
 
@@ -16,7 +12,8 @@ locale_encoding = "UTF-8"
 [mirrors]
 # Exact line from `reflector --list-countries` (mirror counts change over time; re-copy if load misses).
 regions = ["Switzerland            CH    26"]
-optional_repos = ["multilib"]
+optional_repos = ["multilib", "AUR"]
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
@@ -30,7 +27,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "archlinux"

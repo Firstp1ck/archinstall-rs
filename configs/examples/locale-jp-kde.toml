@@ -1,9 +1,5 @@
 # Japan: Japanese locale + KDE Plasma + local mirrors. Add fonts (e.g. noto-fonts-cjk) in the
-# TUI or additional_packages if you need full CJK coverage. Set passwords in the TUI before install.
-
-[[users]]
-username = "archie"
-is_sudo = true
+# TUI or additional_packages if you need full CJK coverage. Set the root password in the TUI before install.
 
 additional_packages = []
 
@@ -14,7 +10,8 @@ locale_encoding = "UTF-8"
 
 [mirrors]
 regions = ["Japan                  JP    18"]
-optional_repos = ["multilib"]
+optional_repos = ["multilib", "AUR"]
+aur_helper = "yay"
 custom_servers = []
 custom_repos = []
 
@@ -28,7 +25,7 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "systemd-boot"
+kind = "grub"
 
 [system]
 hostname = "archlinux"
