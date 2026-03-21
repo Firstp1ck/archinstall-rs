@@ -147,6 +147,7 @@ impl AppState {
         self.popup_selected_visible = 0;
         self.popup_in_search = false;
         self.popup_search_query.clear();
+        self.config_popup_rows.clear();
     }
 
     pub fn filter_popup(&mut self) {

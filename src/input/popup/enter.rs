@@ -843,8 +843,9 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         }
         Some(PopupKind::ConfigLoadSelect) => {
             if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
-                && let Some(path) = app.config_popup_paths.get(gi).cloned()
+                && let Some(row) = app.config_popup_rows.get(gi)
             {
+                let path = row.path.clone();
                 app.close_popup();
                 let msg = app.load_config_and_message(&path);
                 app.open_info_popup(msg);

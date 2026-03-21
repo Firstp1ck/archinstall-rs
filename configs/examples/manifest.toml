@@ -1,0 +1,50 @@
+# Table metadata for the TUI "Load configuration" picker (must match a sibling .toml file name).
+
+[[preset]]
+file = "popular-kde-plasma-us.toml"
+country = "United States"
+language = "English (US)"
+desktop = "KDE Plasma"
+additional = "Often top desktop in Arch pkgstats; systemd-boot, PipeWire, NetworkManager, multilib. Timezone America/New_York."
+
+[[preset]]
+file = "popular-gnome-de.toml"
+country = "Germany"
+language = "German"
+desktop = "GNOME"
+additional = "Second major desktop in pkgstats-style rankings; mirrors Germany, Europe/Berlin."
+
+[[preset]]
+file = "popular-hyprland-us.toml"
+country = "United States"
+language = "English (US)"
+desktop = "Hyprland"
+additional = "Very common in r/archlinux surveys; Wayland compositor, SDDM, PipeWire. Timezone America/Los_Angeles."
+
+[[preset]]
+file = "popular-xfce4-gb.toml"
+country = "United Kingdom"
+language = "English (UK)"
+desktop = "Xfce4"
+additional = "Popular lightweight DE in pkgstats; UK mirrors, Europe/London, lightdm-gtk-greeter."
+
+[[preset]]
+file = "locale-jp-kde.toml"
+country = "Japan"
+language = "Japanese"
+desktop = "KDE Plasma"
+additional = "ja_JP.UTF-8, jp106, Japan mirrors, Asia/Tokyo. Add CJK fonts in TUI if needed."
+
+[[preset]]
+file = "locale-br-gnome.toml"
+country = "Brazil"
+language = "Portuguese (Brazil)"
+desktop = "GNOME"
+additional = "pt_BR.UTF-8, br-abnt2, Brazil mirrors, America/Sao_Paulo."
+
+[[preset]]
+file = "locale-fr-gnome.toml"
+country = "France"
+language = "French"
+desktop = "GNOME"
+additional = "fr_FR.UTF-8, fr-latin9, France mirrors, Europe/Paris."

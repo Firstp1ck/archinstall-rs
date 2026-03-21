@@ -8,7 +8,7 @@ The installer can save and load configuration as TOML for reproducible installs,
 Repository examples:
 
 - [`archinstall-rs.config.toml`](../archinstall-rs.config.toml) — fuller example from development (includes disk selection from a real machine).
-- [`configs/examples/`](../configs/examples/) — portable presets (no chosen disk):
+- [`configs/examples/`](../configs/examples/) — portable presets (no chosen disk). The Load Configuration table uses [`manifest.toml`](../configs/examples/manifest.toml) (`[[preset]]`: `file`, `country`, `language`, `desktop`, `additional`); files without an entry use `—` and a short fallback from the preset’s first comment line.
   - **Popular stacks** (roughly aligned with [Arch pkgstats](https://pkgstats.archlinux.de/) desktop rankings and recurring r/archlinux survey write-ups such as [Linuxiac’s summary](https://linuxiac.com/arch-linux-community-survey-results)): [KDE Plasma (US)](../configs/examples/popular-kde-plasma-us.toml), [GNOME (Germany)](../configs/examples/popular-gnome-de.toml), [Hyprland (US)](../configs/examples/popular-hyprland-us.toml), [Xfce4 (UK)](../configs/examples/popular-xfce4-gb.toml).
   - **Locale / region**: [Japan + KDE](../configs/examples/locale-jp-kde.toml), [Brazil + GNOME](../configs/examples/locale-br-gnome.toml), [France + GNOME](../configs/examples/locale-fr-gnome.toml).
 

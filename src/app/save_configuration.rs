@@ -1,4 +1,5 @@
 use super::{AppState, PopupKind};
+use crate::app::config::presets::{ConfigPresetTableRow, search_blob_for_row};
 
 impl AppState {
     #[allow(dead_code)]
@@ -10,31 +11,32 @@ impl AppState {
         self.popup_kind = Some(PopupKind::ConfigLoadSelect);
         self.popup_open = true;
 
-        let mut items: Vec<String> = Vec::new();
-        let mut paths: Vec<std::path::PathBuf> = Vec::new();
-
-        // First entry: the cwd config file (current save/load target)
         let cwd_path = Self::cwd_config_path();
-        let cwd_label = if cwd_path.exists() {
-            format!("[ Current ] {}", cwd_path.display())
-        } else {
-            format!("[ Current - not found ] {}", cwd_path.display())
+        let cwd_row = ConfigPresetTableRow {
+            path: cwd_path.clone(),
+            country: "(local)".into(),
+            language: "—".into(),
+            desktop: "—".into(),
+            additional: if cwd_path.exists() {
+                format!("Saved config at {}", cwd_path.display())
+            } else {
+                format!(
+                    "No file yet — will be created on save ({})",
+                    cwd_path.display()
+                )
+            },
         };
-        items.push(cwd_label);
-        paths.push(cwd_path);
 
-        // Append discovered example presets
-        for (label, path) in self
-            .config_preset_labels
-            .iter()
-            .zip(self.config_preset_paths.iter())
-        {
-            items.push(label.clone());
-            paths.push(path.clone());
+        let mut rows: Vec<ConfigPresetTableRow> = vec![cwd_row];
+        let mut items: Vec<String> = vec![search_blob_for_row(&rows[0])];
+
+        for r in &self.config_preset_rows {
+            items.push(search_blob_for_row(r));
+            rows.push(r.clone());
         }
 
+        self.config_popup_rows = rows;
         self.popup_items = items;
-        self.config_popup_paths = paths;
         self.popup_search_query.clear();
         self.popup_in_search = false;
         self.popup_visible_indices = (0..self.popup_items.len()).collect();

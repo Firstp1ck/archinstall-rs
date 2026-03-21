@@ -219,9 +219,8 @@ pub struct AppState {
 
     // Configuration screen state
     pub config_focus_index: usize, // 0: Save, 1: Load, 2: Continue
-    pub config_preset_labels: Vec<String>,
-    pub config_preset_paths: Vec<std::path::PathBuf>,
-    pub config_popup_paths: Vec<std::path::PathBuf>,
+    pub config_preset_rows: Vec<crate::app::config::presets::ConfigPresetTableRow>,
+    pub config_popup_rows: Vec<crate::app::config::presets::ConfigPresetTableRow>,
 
     // Load feedback
     pub last_load_missing_sections: Vec<String>,
@@ -583,9 +582,8 @@ impl AppState {
             useredit_reopen_after_info: false,
 
             config_focus_index: 0,
-            config_preset_labels: Vec::new(),
-            config_preset_paths: Vec::new(),
-            config_popup_paths: Vec::new(),
+            config_preset_rows: Vec::new(),
+            config_popup_rows: Vec::new(),
 
             last_load_missing_sections: Vec::new(),
 
@@ -698,11 +696,7 @@ impl AppState {
         }
 
         // Discover bundled/repo example config presets
-        let presets = crate::app::config::presets::list_example_presets();
-        for (label, path) in presets {
-            s.config_preset_labels.push(label);
-            s.config_preset_paths.push(path);
-        }
+        s.config_preset_rows = crate::app::config::presets::list_example_preset_rows();
 
         s
     }

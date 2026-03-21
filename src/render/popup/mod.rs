@@ -7,6 +7,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::app::{AppState, PopupKind};
 
+mod config_load;
 mod desktop;
 mod general;
 mod info;
@@ -56,6 +57,20 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
     ) {
         let w = area.width.clamp(28, 56);
         let h = area.height.clamp(9, 12);
+        (w, h)
+    } else if matches!(app.popup_kind, Some(PopupKind::ConfigLoadSelect)) {
+        let w = area
+            .width
+            .saturating_mul(9)
+            .saturating_div(10)
+            .max(72)
+            .min(area.width);
+        let h = area
+            .height
+            .saturating_mul(4)
+            .saturating_div(5)
+            .max(16)
+            .min(area.height);
         (w, h)
     } else {
         (
@@ -217,6 +232,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::DesktopEnvSelect) => desktop::draw(frame, app, inner[1]),
         Some(PopupKind::ServerTypeSelect) => server::draw(frame, app, inner[1]),
         Some(PopupKind::XorgTypeSelect) => xorg::draw(frame, app, inner[1]),
+        Some(PopupKind::ConfigLoadSelect) => config_load::draw(frame, app, inner[1]),
         _ => general::draw(frame, app, inner[1]),
     }
 }
