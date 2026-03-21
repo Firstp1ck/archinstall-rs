@@ -1,10 +1,11 @@
 use crate::app::{AppState, PopupKind};
 use crate::common::install_cmd::InstallCmd;
+use crate::common::install_stdout::pump_install_stdout;
+use crate::common::InstallLogMsg;
 use crate::core::services::network::NetworkService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
 use crate::core::storage::planner::StoragePlanner;
-use std::io::{BufRead, BufReader};
 use std::process::Stdio;
 use std::thread;
 
@@ -70,7 +71,7 @@ impl AppState {
             self.install_section_done = vec![false; self.install_section_titles.len()];
             self.install_current_section = None;
 
-            let (tx, rx) = std::sync::mpsc::channel::<String>();
+            let (tx, rx) = std::sync::mpsc::channel::<InstallLogMsg>();
             self.install_log_rx = Some(rx);
 
             // Resolve absolute log path up-front, honoring env override and ensuring parent exists
@@ -98,14 +99,14 @@ impl AppState {
                 {
                     Ok(f) => Some(f),
                     Err(e) => {
-                        let _ = tx.send(format!(
+                        let _ = tx.send(InstallLogMsg::Line(format!(
                             "WARN: Could not create log file at {log_path_display}: {e}"
-                        ));
+                        )));
                         None
                     }
                 };
-                let send = |tx: &std::sync::mpsc::Sender<String>, s: String| {
-                    let _ = tx.send(s);
+                let send_line = |tx: &std::sync::mpsc::Sender<InstallLogMsg>, s: String| {
+                    let _ = tx.send(InstallLogMsg::Line(s));
                 };
                 let write_log = |file: &mut Option<std::fs::File>, line: &str| {
                     if let Some(f) = file.as_mut() {
@@ -143,40 +144,40 @@ impl AppState {
 
                 let start_msg = "Starting dry-run (no commands will be executed)...".to_string();
                 write_log(&mut log_file, &start_msg);
-                send(&tx, start_msg);
+                send_line(&tx, start_msg);
                 std::thread::sleep(std::time::Duration::from_millis(15));
                 let path_msg = format!("Logging dry-run output to: {log_path_display}");
                 write_log(&mut log_file, &path_msg);
-                send(&tx, path_msg);
+                send_line(&tx, path_msg);
                 std::thread::sleep(std::time::Duration::from_millis(15));
                 for (title, cmds) in sections.into_iter() {
                     dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
                     let marker = format!("::section_start::{title}");
                     write_log(&mut log_file, &marker);
-                    send(&tx, marker);
+                    send_line(&tx, marker);
                     std::thread::sleep(std::time::Duration::from_millis(25));
                     let header = format!("=== {title} ===");
                     write_log(&mut log_file, &header);
-                    send(&tx, header);
+                    send_line(&tx, header);
                     std::thread::sleep(std::time::Duration::from_millis(25));
                     for cmd in cmds {
                         let line = format!("[Dry-Run] $ {}", cmd.for_log());
                         write_log(&mut log_file, &line);
-                        send(&tx, line);
+                        send_line(&tx, line);
                         std::thread::sleep(std::time::Duration::from_millis(8));
                     }
                     let done = format!("::section_done::{title}");
                     dbg(&format!("section_done: '{title}'"));
                     write_log(&mut log_file, &done);
-                    send(&tx, done);
+                    send_line(&tx, done);
                     write_log(&mut log_file, "");
-                    send(&tx, String::new());
+                    send_line(&tx, String::new());
                     flush_log(&mut log_file);
                     std::thread::sleep(std::time::Duration::from_millis(20));
                 }
                 let complete = "Dry-run completed.".to_string();
                 write_log(&mut log_file, &complete);
-                send(&tx, complete);
+                send_line(&tx, complete);
                 flush_log(&mut log_file);
                 dbg("thread exiting normally");
             });
@@ -188,7 +189,7 @@ impl AppState {
         self.install_section_done = vec![false; self.install_section_titles.len()];
         self.install_current_section = None;
 
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        let (tx, rx) = std::sync::mpsc::channel::<InstallLogMsg>();
         self.install_log_rx = Some(rx);
 
         let debug_enabled = self.debug_enabled;
@@ -295,8 +296,8 @@ impl AppState {
                 }
             };
             let thread_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                let send = |tx: &std::sync::mpsc::Sender<String>, s: String| {
-                    let _ = tx.send(s);
+                let send = |tx: &std::sync::mpsc::Sender<InstallLogMsg>, s: String| {
+                    let _ = tx.send(InstallLogMsg::Line(s));
                 };
 
                 send(&tx, "Starting installation...".to_string());
@@ -333,35 +334,39 @@ impl AppState {
                         let thin_pacstrap = cmd.is_thin_pacstrap();
                         let mut fmt = LogFormatter::new();
                         if let Some(stdout) = child.stdout.take() {
-                            let reader = BufReader::new(stdout);
-                            for line in reader.lines() {
-                                match line {
-                                    Ok(l) => {
-                                        let clean =
-                                            crate::common::utils::sanitize_terminal_output_line(&l);
-                                        if clean.is_empty() {
-                                            continue;
-                                        }
-                                        if thin_pacstrap {
-                                            let mut sent = false;
-                                            if fmt.handle_line(&clean, |msg| {
-                                                sent = true;
-                                                send(&tx, msg);
-                                            }) {
-                                                // consumed, skip raw
-                                                continue;
-                                            }
-                                            if sent {
-                                                continue;
-                                            }
-                                        }
-                                        send(&tx, clean);
+                            let mut line_buf = String::new();
+                            let mut byte_buf = Vec::new();
+                            let mut scratch = [0u8; 4096];
+                            if let Err(e) = pump_install_stdout(
+                                stdout,
+                                &mut line_buf,
+                                &mut byte_buf,
+                                &mut scratch,
+                                |raw| {
+                                    let clean =
+                                        crate::common::utils::sanitize_terminal_output_line(raw);
+                                    if clean.is_empty() {
+                                        return;
                                     }
-                                    Err(e) => {
-                                        dbg(&format!("error reading child stdout: {e}"));
-                                        break;
+                                    if thin_pacstrap {
+                                        let mut sent = false;
+                                        if fmt.handle_line(&clean, |msg| {
+                                            sent = true;
+                                            send(&tx, msg);
+                                        }) {
+                                            return;
+                                        }
+                                        if sent {
+                                            return;
+                                        }
                                     }
-                                }
+                                    send(&tx, clean);
+                                },
+                                |clean| {
+                                    let _ = tx.send(InstallLogMsg::ReplaceLastLine(clean.to_string()));
+                                },
+                            ) {
+                                dbg(&format!("error reading child stdout: {e}"));
                             }
                         } else {
                             dbg("stdout piping unavailable (child.stdout None)");

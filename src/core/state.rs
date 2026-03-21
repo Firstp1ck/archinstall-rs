@@ -3,6 +3,7 @@ use ratatui::widgets::ListState;
 use std::collections::BTreeSet;
 use std::sync::mpsc::{Receiver, Sender, TryRecvError};
 
+use crate::common::InstallLogMsg;
 use crate::core::types::{
     AdditionalPackage, CustomRepo, DiskPartitionSpec, Focus, InstallClickTarget, MenuEntry,
     NetworkInterfaceConfig, PopupKind, Screen, UserAccount,
@@ -247,8 +248,8 @@ pub struct AppState {
     // Live install logging state
     pub install_running: bool,
     pub install_log: Vec<String>,
-    pub install_log_tx: Option<Sender<String>>,
-    pub install_log_rx: Option<Receiver<String>>,
+    pub install_log_tx: Option<Sender<InstallLogMsg>>,
+    pub install_log_rx: Option<Receiver<InstallLogMsg>>,
     // Install progress (for in-TUI progress view)
     pub install_section_titles: Vec<String>,
     pub install_section_done: Vec<bool>,
@@ -696,42 +697,61 @@ impl AppState {
         self.menu_entries[self.selected_index].screen
     }
 
-    pub fn append_install_log_line(&mut self, line: String) {
-        // Interpret simple progress markers and update state
-        if let Some(rest) = line.strip_prefix("::section_start::") {
-            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
-                self.install_current_section = Some(idx);
-                self.debug_log(&format!(
-                    "append_install_log_line: section_start '{rest}' idx={idx}"
-                ));
-            }
-            return;
-        }
-        if let Some(rest) = line.strip_prefix("::section_done::") {
-            if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest)
-                && idx < self.install_section_done.len()
-            {
-                self.install_section_done[idx] = true;
-                self.debug_log(&format!(
-                    "append_install_log_line: section_done '{rest}' idx={idx}"
-                ));
-            }
-            return;
-        }
-
-        self.install_log.push(line);
-        // keep log reasonably small
-        // No log line limit: allow install_log to grow as needed
-        // Update info popup body if it's open as Info
+    fn refresh_install_info_popup_body(&mut self) {
         let info_open = self.popup_open && matches!(self.popup_kind, Some(PopupKind::Info));
-        if info_open {
-            let body = self.install_log.join("\n");
-            if self.popup_items.is_empty() {
-                self.popup_items.push(body);
-            } else {
-                self.popup_items[0] = body;
+        if !info_open {
+            return;
+        }
+        let body = self.install_log.join("\n");
+        if self.popup_items.is_empty() {
+            self.popup_items.push(body);
+        } else {
+            self.popup_items[0] = body;
+        }
+    }
+
+    /// Apply one message from the install thread (line append or in-place progress update).
+    pub fn append_install_log_msg(&mut self, msg: InstallLogMsg) {
+        match msg {
+            InstallLogMsg::Line(line) => {
+                // Interpret simple progress markers and update state
+                if let Some(rest) = line.strip_prefix("::section_start::") {
+                    if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest) {
+                        self.install_current_section = Some(idx);
+                        self.debug_log(&format!(
+                            "append_install_log_msg: section_start '{rest}' idx={idx}"
+                        ));
+                    }
+                    return;
+                }
+                if let Some(rest) = line.strip_prefix("::section_done::") {
+                    if let Some(idx) = self.install_section_titles.iter().position(|t| t == rest)
+                        && idx < self.install_section_done.len()
+                    {
+                        self.install_section_done[idx] = true;
+                        self.debug_log(&format!(
+                            "append_install_log_msg: section_done '{rest}' idx={idx}"
+                        ));
+                    }
+                    return;
+                }
+
+                self.install_log.push(line);
+                // No log line limit: allow install_log to grow as needed
+                self.refresh_install_info_popup_body();
             }
-            // Do not spam per-line here; drain_install_logs will log summary of updates
+            InstallLogMsg::ReplaceLastLine(line) => {
+                if line.is_empty() {
+                    return;
+                }
+                if self.install_log.is_empty() {
+                    self.install_log.push(line);
+                } else {
+                    let n = self.install_log.len().saturating_sub(1);
+                    self.install_log[n] = line;
+                }
+                self.refresh_install_info_popup_body();
+            }
         }
     }
 
@@ -742,11 +762,11 @@ impl AppState {
             }
             return;
         };
-        let mut drained: Vec<String> = Vec::new();
+        let mut drained: Vec<InstallLogMsg> = Vec::new();
         let mut disconnected = false;
         loop {
             match rx.try_recv() {
-                Ok(line) => drained.push(line),
+                Ok(msg) => drained.push(msg),
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => {
                     disconnected = true;
@@ -756,8 +776,8 @@ impl AppState {
             }
         }
         let drained_count = drained.len();
-        for line in drained {
-            self.append_install_log_line(line);
+        for msg in drained {
+            self.append_install_log_msg(msg);
         }
         // Update last_install_log_len for visual indicator
         self.last_install_log_len = Some(self.install_log.len());
