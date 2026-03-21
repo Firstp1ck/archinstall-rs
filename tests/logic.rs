@@ -213,11 +213,11 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
     assert!(joined.contains("arch.conf"), "{joined}");
     assert!(joined.contains("arch-fallback.conf"), "{joined}");
     // Non-encrypted: should use simple root=UUID= options
-    assert!(!joined.contains("cryptdevice="), "{joined}");
+    assert!(!joined.contains("rd.luks.name"), "{joined}");
 }
 
 #[test]
-fn bootloader_systemd_boot_luks_adds_cryptdevice() {
+fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
     let mut state = make_state();
     state.disks_selected_device = Some("/dev/sda".into());
     state.disk_encryption_type_index = 1; // LUKS
@@ -231,7 +231,7 @@ fn bootloader_systemd_boot_luks_adds_cryptdevice() {
     );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
-    assert!(joined.contains("cryptdevice=UUID="), "{joined}");
+    assert!(joined.contains("rd.luks.name="), "{joined}");
     assert!(joined.contains("arch.conf"), "{joined}");
 }
 

@@ -150,10 +150,10 @@ impl SysConfigService {
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
-        // mkinitcpio: add `encrypt` hook for LUKS and rebuild initramfs
+        // mkinitcpio: add `sd-encrypt` for LUKS (default preset uses `systemd`, not legacy `udev`/`encrypt`)
         if encrypted {
             cmds.push(chroot_cmd(
-                "sed -i '/^HOOKS=/s/\\bblock\\b/block encrypt/' /etc/mkinitcpio.conf",
+                "sed -i '/^HOOKS=/s/\\bblock\\b/block sd-encrypt/' /etc/mkinitcpio.conf",
             ));
             cmds.push(chroot_cmd("mkinitcpio -P"));
         }

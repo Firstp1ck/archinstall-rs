@@ -104,15 +104,15 @@ impl BootloaderService {
         ));
 
         // Kernel options differ depending on whether LUKS encryption is active.
-        // With LUKS we pass cryptdevice= so the `encrypt` mkinitcpio hook can
-        // unlock the container, then root= points at the opened mapper device.
+        // With LUKS we pass rd.luks.name= for the `sd-encrypt` hook (systemd initramfs);
+        // root= is the unlocked mapper node from findmnt (e.g. /dev/mapper/cryptroot).
         let boot_options_script = if encrypted {
             "rootdev=$(findmnt -n -o SOURCE /); \
              if cryptsetup status \"$(basename \"$rootdev\")\" >/dev/null 2>&1; then \
                underlying=$(cryptsetup status \"$(basename \"$rootdev\")\" | awk '/device:/{print $2}'); \
                luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
                mapper=$(basename \"$rootdev\"); \
-               echo \"cryptdevice=UUID=$luksuuid:$mapper root=/dev/mapper/$mapper rw\"; \
+               echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
              else \
                rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
                echo \"root=UUID=$rootuuid rw\"; \
@@ -163,7 +163,7 @@ impl BootloaderService {
                     )));
                 }
 
-                // For LUKS, inject cryptdevice into GRUB_CMDLINE_LINUX before generating config
+                // For LUKS, inject rd.luks.name / root= into GRUB_CMDLINE_LINUX before grub-mkconfig
                 if encrypted {
                     cmds.push(chroot_cmd(
                         &format!("OPTS=$({boot_options_script}); \
