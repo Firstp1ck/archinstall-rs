@@ -104,7 +104,7 @@ fn main() -> std::io::Result<()> {
                 );
                 true
             } else {
-                print!("Proceed anyway? [y/N]: ");
+                print!("Proceed anyway? [Y/n]: ");
                 let _ = std::io::stdout().flush();
                 debug_log(
                     debug_enabled,
@@ -126,7 +126,7 @@ fn main() -> std::io::Result<()> {
                 }
 
                 let answer_trimmed = answer.trim().to_lowercase();
-                answer_trimmed == "y" || answer_trimmed == "yes"
+                !matches!(answer_trimmed.as_str(), "n" | "no")
             };
             debug_log(
                 debug_enabled,
