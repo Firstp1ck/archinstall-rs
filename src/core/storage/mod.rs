@@ -537,34 +537,36 @@ impl StoragePlan {
                     cmds.push("modprobe -q nls_ascii || true".into());
                 }
 
-                let type_flag = if mount.fstype == "vfat" {
-                    "-t vfat "
-                } else {
-                    ""
+                let build_mount_cmd = |fstype: Option<&str>| -> String {
+                    let type_flag = fstype.map(|t| format!("-t {t} ")).unwrap_or_default();
+                    if opts.is_empty() {
+                        if mount.target == "/mnt" {
+                            format!("mount {type_flag}{} /mnt", mount.source)
+                        } else {
+                            format!("mount {type_flag}--mkdir {} {}", mount.source, mount.target)
+                        }
+                    } else {
+                        let opt_str = opts.join(",");
+                        if mount.target == "/mnt" {
+                            format!("mount {type_flag}-o {opt_str} {} /mnt", mount.source)
+                        } else {
+                            format!(
+                                "mount {type_flag}--mkdir -o {opt_str} {} {}",
+                                mount.source, mount.target
+                            )
+                        }
+                    }
                 };
 
-                if opts.is_empty() {
-                    if mount.target == "/mnt" {
-                        cmds.push(format!("mount {type_flag}{} /mnt", mount.source));
-                    } else {
-                        cmds.push(format!(
-                            "mount {type_flag}--mkdir {} {}",
-                            mount.source, mount.target
-                        ));
-                    }
+                if mount.fstype == "vfat" {
+                    // Some environments expose FAT only as "fat" (or require autodetect),
+                    // so avoid hard-failing when "vfat" is unavailable.
+                    let cmd_vfat = build_mount_cmd(Some("vfat"));
+                    let cmd_fat = build_mount_cmd(Some("fat"));
+                    let cmd_auto = build_mount_cmd(None);
+                    cmds.push(format!("{cmd_vfat} || {cmd_fat} || {cmd_auto}"));
                 } else {
-                    let opt_str = opts.join(",");
-                    if mount.target == "/mnt" {
-                        cmds.push(format!(
-                            "mount {type_flag}-o {opt_str} {} /mnt",
-                            mount.source
-                        ));
-                    } else {
-                        cmds.push(format!(
-                            "mount {type_flag}--mkdir -o {opt_str} {} {}",
-                            mount.source, mount.target
-                        ));
-                    }
+                    cmds.push(build_mount_cmd(None));
                 }
             }
         }

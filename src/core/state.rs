@@ -218,10 +218,9 @@ pub struct AppState {
     pub last_load_missing_sections: Vec<String>,
 
     // Additional Packages state
-    pub addpkgs_focus_index: usize, // 0: Add package input, 1: Continue
+    pub addpkgs_focus_index: usize, // 0: Add package, 1: Select groups, 2: Continue
     pub additional_packages: Vec<AdditionalPackage>,
-    pub addpkgs_selected_index: usize,
-    pub addpkgs_selected: std::collections::BTreeSet<usize>,
+    pub addpkgs_selected_index: usize, // highlighted row in the package list (↑/↓, j/k)
     pub addpkgs_reopen_after_info: bool,
     // Additional Packages: groups
     pub addpkgs_group_focus: bool, // focus within groups vs main
@@ -576,7 +575,6 @@ impl AppState {
             addpkgs_focus_index: 0,
             additional_packages: Vec::new(),
             addpkgs_selected_index: 0,
-            addpkgs_selected: std::collections::BTreeSet::new(),
             addpkgs_reopen_after_info: false,
             addpkgs_group_focus: false,
             addpkgs_group_names: vec![

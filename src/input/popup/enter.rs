@@ -408,6 +408,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                         version,
                         description,
                     });
+                    app.addpkgs_selected_index = app.additional_packages.len().saturating_sub(1);
                     app.info_message.clear();
                 } else {
                     app.addpkgs_reopen_after_info = true;
