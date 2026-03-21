@@ -90,11 +90,8 @@ impl InstallCmd {
                 cmd.spawn()
             }
             InstallCmd::Shell(c) => {
-                let escaped = c.replace('"', "\\\"");
-                let pipeline = format!("script -qfec \"{escaped}\" /dev/null 2>&1");
-                let mut cmd = Command::new("bash");
-                cmd.arg("-lc")
-                    .arg(&pipeline)
+                let mut cmd = Command::new("script");
+                cmd.args(["-qfe", "-c", c.as_str(), "/dev/null"])
                     .stdin(Stdio::null())
                     .stdout(stdout);
                 configure_install_command(&mut cmd);
