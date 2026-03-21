@@ -117,7 +117,7 @@ impl BootloaderService {
                  if cryptsetup status \"$mapper\" >/dev/null 2>&1; then \
                    underlying=$(cryptsetup status \"$mapper\" | awk '/device:/{{print $2}}'); \
                    luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
-                   if grep -qP '^HOOKS=.*\\\\bsystemd\\\\b' /etc/mkinitcpio.conf; then \
+                   if grep -qP '^HOOKS=.*\\bsystemd\\b' /etc/mkinitcpio.conf; then \
                      echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
                    else \
                      echo \"cryptdevice=UUID=$luksuuid:$mapper root=$rootdev rw\"; \
