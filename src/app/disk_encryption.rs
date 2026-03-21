@@ -160,8 +160,8 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
                 Block::default()
                     .borders(Borders::ALL)
                     .title(match app.focus {
-                        super::Focus::Content => " Desicion Menu (focused) ",
-                        _ => " Desicion Menu ",
+                        super::Focus::Content => " Decision Menu (focused) ",
+                        _ => " Decision Menu ",
                     }),
             )
             .wrap(Wrap { trim: false });
