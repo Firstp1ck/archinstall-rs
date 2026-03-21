@@ -12,6 +12,8 @@ cd "${WORKDIR}"
 
 curl -fsSL "${BASE}/SHA256SUMS" -o SHA256SUMS
 curl -fsSL "${BASE}/archinstall-rs" -o archinstall-rs
+curl -fsSL "${BASE}/config-examples.tar.gz" -o config-examples.tar.gz
 sha256sum -c SHA256SUMS
 chmod +x archinstall-rs
+tar xzf config-examples.tar.gz
 exec ./archinstall-rs "$@"

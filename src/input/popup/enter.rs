@@ -841,6 +841,15 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             }
             app.close_popup();
         }
+        Some(PopupKind::ConfigLoadSelect) => {
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible)
+                && let Some(path) = app.config_popup_paths.get(gi).cloned()
+            {
+                app.close_popup();
+                let msg = app.load_config_and_message(&path);
+                app.open_info_popup(msg);
+            }
+        }
         None => {
             // Special handling: pressing Enter on Install screen should ask wipe confirm
             if app.current_screen() == crate::core::types::Screen::Install {

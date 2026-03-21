@@ -93,6 +93,7 @@ pub enum PopupKind {
     // New: AUR helper selection
     AurHelperSelect,
     BtrfsSubvolumePreset,
+    ConfigLoadSelect,
 }
 
 #[derive(Clone)]

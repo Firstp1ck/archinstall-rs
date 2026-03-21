@@ -17,7 +17,7 @@
 
 ## Quick install from the live ISO (recommended)
 
-From the Arch live ISO with networking, the [release install script](https://github.com/Firstp1ck/archinstall-rs/releases/latest) downloads the binary, verifies it, and runs the installer:
+From the Arch live ISO with networking, the [release install script](https://github.com/Firstp1ck/archinstall-rs/releases/latest) downloads the binary and bundled example configs, verifies them, and runs the installer:
 
 ```bash
 curl -fsSL https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/install.sh | bash

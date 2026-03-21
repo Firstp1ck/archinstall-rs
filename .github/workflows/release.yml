@@ -105,7 +105,8 @@ jobs:
           strip "$BIN"
           mkdir -p dist
           cp "$BIN" dist/archinstall-rs
-          (cd dist && sha256sum archinstall-rs > SHA256SUMS)
+          tar czf dist/config-examples.tar.gz configs/examples
+          (cd dist && sha256sum archinstall-rs config-examples.tar.gz > SHA256SUMS)
           sed \
             -e "s|@REPO@|${REPO}|g" \
             -e "s|@VERSION@|${VERSION}|g" \
@@ -155,6 +156,7 @@ jobs:
           files: |
             release_artifacts/archinstall-rs
             release_artifacts/SHA256SUMS
+            release_artifacts/config-examples.tar.gz
             release_artifacts/install.sh
           draft: false
           prerelease: false

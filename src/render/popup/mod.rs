@@ -126,6 +126,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         Some(PopupKind::TimezoneSelect) => " Select Timezone ",
         Some(PopupKind::AurHelperSelect) => " Choose AUR helper ",
         Some(PopupKind::BtrfsSubvolumePreset) => " Btrfs Subvolume Layout ",
+        Some(PopupKind::ConfigLoadSelect) => " Load Configuration (Enter to select) ",
         None => " Select ",
     };
 

@@ -7,13 +7,16 @@ The installer can save and load configuration as TOML for reproducible installs,
 
 Repository examples:
 
-- [`archinstall-rs.config.toml`](../archinstall-rs.config.toml) — fuller example from development
-- Minimal illustrative schema (may omit fields your build defaults):
+- [`archinstall-rs.config.toml`](../archinstall-rs.config.toml) — fuller example from development (includes disk selection from a real machine).
+- [`configs/examples/`](../configs/examples/) — portable presets (no chosen disk):
+  - **Popular stacks** (roughly aligned with [Arch pkgstats](https://pkgstats.archlinux.de/) desktop rankings and recurring r/archlinux survey write-ups such as [Linuxiac’s summary](https://linuxiac.com/arch-linux-community-survey-results)): [KDE Plasma (US)](../configs/examples/popular-kde-plasma-us.toml), [GNOME (Germany)](../configs/examples/popular-gnome-de.toml), [Hyprland (US)](../configs/examples/popular-hyprland-us.toml), [Xfce4 (UK)](../configs/examples/popular-xfce4-gb.toml).
+  - **Locale / region**: [Japan + KDE](../configs/examples/locale-jp-kde.toml), [Brazil + GNOME](../configs/examples/locale-br-gnome.toml), [France + GNOME](../configs/examples/locale-fr-gnome.toml).
+
+`[mirrors].regions` entries must match a line from `reflector --list-countries` exactly (including spacing); mirror counts change when the upstream list changes, so re-copy that line from the ISO if a preset no longer loads a region.
+
+Minimal illustrative schema (may omit fields your build defaults). For a working desktop install, include `[experience.desktop_env_packages]` for each selected desktop (see the `configs/examples` files); otherwise the saved package list for that environment may be empty after load.
 
 ```toml
-[users]
-
-users = []
 additional_packages = []
 
 [locales]
@@ -22,7 +25,7 @@ locale_language = "en_US.UTF-8"
 locale_encoding = "UTF-8"
 
 [mirrors]
-regions = ["United States"]
+regions = ["United States          US   189"]
 optional_repos = ["multilib"]
 custom_servers = []
 custom_repos = []
@@ -80,3 +83,18 @@ is_sudo = true
 ```
 
 Field names and sections follow the types in `src/app/config/types.rs` and I/O in `src/app/config/io.rs`.
+
+## Loading example presets in the TUI
+
+When you select **Load Configuration** in the TUI, a popup lists the current `archinstall-rs.config.toml` plus all bundled example presets. Select one and press Enter to apply it.
+
+The installer discovers example `.toml` files using these directories (first match wins):
+
+| Source | Path |
+|--------|------|
+| `ARCHINSTALL_RS_EXAMPLES` env var | directory of `.toml` files |
+| `ARCHINSTALL_RS_REPO` env var | `{value}/configs/examples` |
+| Next to binary | `{parent(current_exe)}/configs/examples` |
+| Walk up from cwd | ancestor `configs/examples` directory |
+
+When installed via `install.sh`, the script extracts the bundled `config-examples.tar.gz` next to the binary so presets are discovered automatically. When running from a cloned repository (`cargo run` or the binary anywhere inside the repo tree), the cwd ancestor walk finds `configs/examples` at the repo root.

@@ -34,7 +34,8 @@ archinstall-rs/
 │   └── limine/                 # Limine assets (experimental)
 ├── boot.sh                     # Minimal GUI bootstrap helper
 ├── run-tui.sh                  # Wrapper to launch prebuilt binary in a terminal
-├── archinstall-rs.config.toml  # Example configuration
+├── archinstall-rs.config.toml  # Example configuration (dev machine snapshot)
+├── configs/examples/           # Portable TOML presets (locales + popular stacks)
 ├── Cargo.toml
 └── README.md
 ```

@@ -358,13 +358,16 @@ impl AppState {
     }
 
     pub fn load_config(&mut self) -> Result<(), ConfigLoadError> {
+        self.load_config_from_path(&Self::config_path())
+    }
+
+    pub fn load_config_from_path(&mut self, path: &std::path::Path) -> Result<(), ConfigLoadError> {
         // Ensure option lists are available before mapping names back to indices
         let _ = self.load_locales_options();
         let _ = self.load_mirrors_options();
 
-        let path = Self::config_path();
         self.debug_log(&format!("load_config: path={}", path.display()));
-        let text = std::fs::read_to_string(&path).map_err(|e| {
+        let text = std::fs::read_to_string(path).map_err(|e| {
             self.debug_log(&format!("load_config: read error: {e}"));
             ConfigLoadError::ReadFile
         })?;
