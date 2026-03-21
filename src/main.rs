@@ -158,6 +158,47 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
         had_warning = true;
     }
 
+    // Check for kernel/module version mismatch (common on older Arch ISOs)
+    if !dry_run {
+        let kver = std::fs::read_to_string("/proc/version")
+            .ok()
+            .and_then(|v| v.split_whitespace().nth(2).map(String::from));
+        if let Some(ref kver) = kver {
+            let mod_dir = format!("/lib/modules/{kver}");
+            debug_log(
+                debug_enabled,
+                &format!("preflight: checking module dir {mod_dir}"),
+            );
+            if !std::path::Path::new(&mod_dir).is_dir() {
+                // List what module dirs DO exist
+                let available: Vec<String> = std::fs::read_dir("/lib/modules")
+                    .ok()
+                    .map(|rd| {
+                        rd.filter_map(|e| e.ok())
+                            .filter_map(|e| e.file_name().into_string().ok())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                print_info(
+                    debug_enabled,
+                    &format!(
+                        "Warning: Kernel/module version mismatch -- running kernel {kver} but modules on disk: {}",
+                        if available.is_empty() { "none".into() } else { available.join(", ") }
+                    ),
+                );
+                print_info(
+                    debug_enabled,
+                    "FAT/vfat modules may not load. Consider downloading a current Arch ISO.",
+                );
+                debug_log(
+                    debug_enabled,
+                    &format!("preflight: kernel/module mismatch kver={kver} available={available:?}"),
+                );
+                had_warning = true;
+            }
+        }
+    }
+
     // Check terminal color capabilities and advise for best experience
     let term = std::env::var("TERM").unwrap_or_default();
     let colorterm = std::env::var("COLORTERM").unwrap_or_default();
