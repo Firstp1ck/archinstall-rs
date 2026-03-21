@@ -171,13 +171,15 @@ git add "$CARGO_TOML"
 [ -f "$DOC_RELEASE" ] && git add -f "$DOC_RELEASE"
 [ -f "$DOC_ALT" ] && git add -f "$DOC_ALT"
 
-if [ -z "$(git diff --cached --name-only 2>/dev/null)" ]; then
-  print_error "Nothing to commit"
-  exit 1
+if [ -n "$(git diff --cached --name-only 2>/dev/null)" ]; then
+  print_info "Committing version bump (and release notes if staged)..."
+  git commit -m "chore: release $VERSION_INPUT"
+  print_success "Committed version bump"
+else
+  print_info "Nothing new to commit — Cargo.toml, lockfile, and release doc already match HEAD."
 fi
 
-print_info "Committing version bump (and release notes if staged)..."
-git commit -m "chore: release $VERSION_INPUT"
+print_info "Pushing $CURRENT_BRANCH to origin..."
 git push origin "$CURRENT_BRANCH"
 print_success "Pushed to $CURRENT_BRANCH"
 

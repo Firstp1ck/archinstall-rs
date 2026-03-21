@@ -7,6 +7,36 @@ pub mod runner;
 
 use std::io::Write;
 
+/// Read a line for an interactive prompt. When stdin is not a TTY (e.g. `curl … | bash`),
+/// read from `/dev/tty` so the prompt still works on Linux/BSD installers.
+fn read_line_interactive(into: &mut String) -> std::io::Result<()> {
+    use std::io::{BufRead, IsTerminal};
+    let stdin = std::io::stdin();
+    into.clear();
+    if stdin.is_terminal() {
+        stdin.lock().read_line(into)?;
+        return Ok(());
+    }
+    #[cfg(unix)]
+    {
+        let tty = std::fs::OpenOptions::new().read(true).open("/dev/tty")?;
+        std::io::BufReader::new(tty).read_line(into)?;
+        return Ok(());
+    }
+    #[cfg(not(unix))]
+    {
+        stdin.lock().read_line(into)?;
+        Ok(())
+    }
+}
+
+fn preflight_assume_yes_from_env() -> bool {
+    matches!(
+        std::env::var("ARCHINSTALL_RS_ASSUME_YES").as_deref(),
+        Ok("1") | Ok("yes") | Ok("true") | Ok("TRUE")
+    )
+}
+
 fn debug_log(enabled: bool, msg: &str) {
     if !enabled {
         return;
@@ -67,22 +97,37 @@ fn main() -> std::io::Result<()> {
             ),
         );
         if will_prompt {
-            print!("Proceed anyway? [y/N]: ");
-            let _ = std::io::stdout().flush();
-            debug_log(
-                debug_enabled,
-                "preflight: prompting user for proceed anyway",
-            );
+            let proceed = if preflight_assume_yes_from_env() {
+                debug_log(
+                    debug_enabled,
+                    "preflight: proceeding despite warnings (ARCHINSTALL_RS_ASSUME_YES)",
+                );
+                true
+            } else {
+                print!("Proceed anyway? [y/N]: ");
+                let _ = std::io::stdout().flush();
+                debug_log(
+                    debug_enabled,
+                    "preflight: prompting user for proceed anyway",
+                );
 
-            let mut answer = String::new();
-            if let Err(err) = std::io::stdin().read_line(&mut answer) {
-                print_error(debug_enabled, &format!("Failed to read input: {err}"));
-                debug_log(debug_enabled, &format!("preflight: read_line error: {err}"));
-                return Ok(());
-            }
+                let mut answer = String::new();
+                if let Err(err) = read_line_interactive(&mut answer) {
+                    print_error(
+                        debug_enabled,
+                        &format!(
+                            "Failed to read confirmation: {err}. \
+                             If stdin is not a TTY (e.g. piped install), run from an interactive shell \
+                             or set ARCHINSTALL_RS_ASSUME_YES=1 to skip this prompt."
+                        ),
+                    );
+                    debug_log(debug_enabled, &format!("preflight: read_line error: {err}"));
+                    return Ok(());
+                }
 
-            let answer_trimmed = answer.trim().to_lowercase();
-            let proceed = answer_trimmed == "y" || answer_trimmed == "yes";
+                let answer_trimmed = answer.trim().to_lowercase();
+                answer_trimmed == "y" || answer_trimmed == "yes"
+            };
             debug_log(
                 debug_enabled,
                 &format!("preflight: user decision proceed={proceed}"),
