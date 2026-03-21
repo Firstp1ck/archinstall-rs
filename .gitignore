@@ -1,7 +1,8 @@
 /target
 # archinstall-rs.config.toml
 # *.log
-RELEASE*.md
+# Root-only: do not ignore Documents/RELEASE_v*.md (release.sh + CI)
+/RELEASE*.md
 possible_debug.md
 limine_implementation_plan.md
 # Ignore everything in target

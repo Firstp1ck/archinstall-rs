@@ -167,8 +167,9 @@ fi
 git add "$CARGO_TOML"
 [ -f "$PROJECT_ROOT/Cargo.lock" ] && git add "$PROJECT_ROOT/Cargo.lock"
 
-[ -f "$DOC_RELEASE" ] && git add "$DOC_RELEASE"
-[ -f "$DOC_ALT" ] && git add "$DOC_ALT"
+# Force-add: release note paths may still match a broad ignore in forks
+[ -f "$DOC_RELEASE" ] && git add -f "$DOC_RELEASE"
+[ -f "$DOC_ALT" ] && git add -f "$DOC_ALT"
 
 if [ -z "$(git diff --cached --name-only 2>/dev/null)" ]; then
   print_error "Nothing to commit"
