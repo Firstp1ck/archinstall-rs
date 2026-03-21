@@ -5,38 +5,6 @@ pub mod input;
 pub mod render;
 pub mod runner;
 
-use std::io::Write;
-
-/// Read a line for an interactive prompt. When stdin is not a TTY (e.g. `curl … | bash`),
-/// read from `/dev/tty` so the prompt still works on Linux/BSD installers.
-fn read_line_interactive(into: &mut String) -> std::io::Result<()> {
-    use std::io::{BufRead, IsTerminal};
-    let stdin = std::io::stdin();
-    into.clear();
-    if stdin.is_terminal() {
-        stdin.lock().read_line(into)?;
-        return Ok(());
-    }
-    #[cfg(unix)]
-    {
-        let tty = std::fs::OpenOptions::new().read(true).open("/dev/tty")?;
-        std::io::BufReader::new(tty).read_line(into)?;
-        return Ok(());
-    }
-    #[cfg(not(unix))]
-    {
-        stdin.lock().read_line(into)?;
-        Ok(())
-    }
-}
-
-fn preflight_assume_yes_from_env() -> bool {
-    matches!(
-        std::env::var("ARCHINSTALL_RS_ASSUME_YES").as_deref(),
-        Ok("1") | Ok("yes") | Ok("true") | Ok("TRUE")
-    )
-}
-
 fn debug_log(enabled: bool, msg: &str) {
     if !enabled {
         return;
@@ -56,11 +24,6 @@ fn debug_log(enabled: bool, msg: &str) {
 fn print_info(debug_enabled: bool, msg: &str) {
     println!("{msg}");
     debug_log(debug_enabled, &format!("info: {msg}"));
-}
-
-fn print_error(debug_enabled: bool, msg: &str) {
-    eprintln!("{msg}");
-    debug_log(debug_enabled, &format!("error: {msg}"));
 }
 
 fn main() -> std::io::Result<()> {
@@ -83,61 +46,9 @@ fn main() -> std::io::Result<()> {
     if had_warnings {
         print_info(
             debug_enabled,
-            "\nOne or more preflight warnings were detected.",
+            "\nOne or more preflight warnings were detected. Continuing.",
         );
-        debug_log(debug_enabled, "preflight: warnings detected");
-        // In dry-run, don't block with a prompt; just continue for TUI testing
-        let will_prompt = !(dry_run && cfg!(windows));
-        debug_log(
-            debug_enabled,
-            &format!(
-                "preflight: prompt gating will_prompt={} (dry_run && windows = {})",
-                will_prompt,
-                dry_run && cfg!(windows)
-            ),
-        );
-        if will_prompt {
-            let proceed = if preflight_assume_yes_from_env() {
-                debug_log(
-                    debug_enabled,
-                    "preflight: proceeding despite warnings (ARCHINSTALL_RS_ASSUME_YES)",
-                );
-                true
-            } else {
-                print!("Proceed anyway? [Y/n]: ");
-                let _ = std::io::stdout().flush();
-                debug_log(
-                    debug_enabled,
-                    "preflight: prompting user for proceed anyway",
-                );
-
-                let mut answer = String::new();
-                if let Err(err) = read_line_interactive(&mut answer) {
-                    print_error(
-                        debug_enabled,
-                        &format!(
-                            "Failed to read confirmation: {err}. \
-                             If stdin is not a TTY (e.g. piped install), run from an interactive shell \
-                             or set ARCHINSTALL_RS_ASSUME_YES=1 to skip this prompt."
-                        ),
-                    );
-                    debug_log(debug_enabled, &format!("preflight: read_line error: {err}"));
-                    return Ok(());
-                }
-
-                let answer_trimmed = answer.trim().to_lowercase();
-                !matches!(answer_trimmed.as_str(), "n" | "no")
-            };
-            debug_log(
-                debug_enabled,
-                &format!("preflight: user decision proceed={proceed}"),
-            );
-            if !proceed {
-                print_info(debug_enabled, "Aborted by user due to preflight warnings.");
-                debug_log(debug_enabled, "preflight: aborted by user");
-                return Ok(());
-            }
-        }
+        debug_log(debug_enabled, "preflight: warnings detected; continuing without prompt");
     }
     // TODO(v0.5.0): Parse config path and unattended flags to run non-interactively.
     runner::run_with_debug(dry_run, debug_enabled)
