@@ -16,7 +16,5 @@ limine_implementation_plan.md
 # Keep only the binary
 !/target/release/archinstall-rs
 
-*release*
-
 dev/COMMIT/*
 dev/PR/*
