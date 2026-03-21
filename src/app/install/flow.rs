@@ -505,7 +505,10 @@ impl AppState {
         let selects_gnome = self.selected_desktop_envs.contains("GNOME");
         let needs_nm = desktop_selected && (selects_kde || selects_gnome);
         if needs_nm && self.network_mode_index != 2 {
-            issues.push("Desktop selection (KDE/GNOME) requires NetworkManager (Network Configuration).".into());
+            issues.push(
+                "Desktop selection (KDE/GNOME) requires NetworkManager (Network Configuration)."
+                    .into(),
+            );
         }
 
         // Pre-flight storage plan validation
@@ -537,9 +540,18 @@ impl AppState {
         let storage_plan = match StoragePlanner::compile(self) {
             Ok(plan) => plan,
             Err(errors) => {
-                let msg = errors.iter().map(|e| e.message.as_str()).collect::<Vec<_>>().join(", ");
-                self.debug_log(&format!("build_install_sections: storage plan failed: {msg}"));
-                return vec![("Error".into(), vec![format!("echo 'Storage plan error: {msg}'")])];
+                let msg = errors
+                    .iter()
+                    .map(|e| e.message.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                self.debug_log(&format!(
+                    "build_install_sections: storage plan failed: {msg}"
+                ));
+                return vec![(
+                    "Error".into(),
+                    vec![format!("echo 'Storage plan error: {msg}'")],
+                )];
             }
         };
 
@@ -605,7 +617,12 @@ impl AppState {
         ));
         sections.push((
             "Bootloader setup".into(),
-            crate::core::services::bootloader::BootloaderService::build_plan(self, target, &storage_plan).commands,
+            crate::core::services::bootloader::BootloaderService::build_plan(
+                self,
+                target,
+                &storage_plan,
+            )
+            .commands,
         ));
         sections.push((
             "User setup".into(),

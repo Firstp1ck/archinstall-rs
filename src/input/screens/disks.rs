@@ -61,15 +61,16 @@ pub(crate) fn handle_enter_disks(app: &mut AppState) {
                         .map(|e| e.message.as_str())
                         .collect::<Vec<_>>()
                         .join("\n- ");
-                    app.open_info_popup(format!(
-                        "Pre-mounted mode validation failed:\n- {msg}"
-                    ));
+                    app.open_info_popup(format!("Pre-mounted mode validation failed:\n- {msg}"));
                 }
             }
         }
     } else if app.disks_focus_index == 3 {
         let has_btrfs_root = app.disks_partitions.iter().any(|p| {
-            p.role.as_deref().map(|r| r.eq_ignore_ascii_case("ROOT")).unwrap_or(false)
+            p.role
+                .as_deref()
+                .map(|r| r.eq_ignore_ascii_case("ROOT"))
+                .unwrap_or(false)
                 && p.fs.as_deref() == Some("btrfs")
         });
         if app.disks_mode_index == 0 || (app.disks_mode_index == 1 && has_btrfs_root) {

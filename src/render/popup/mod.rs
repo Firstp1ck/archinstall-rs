@@ -190,9 +190,7 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
         let search = Paragraph::new(Line::from(vec![
             ratatui::text::Span::styled(
                 search_label,
-                Style::default()
-                    .fg(t.accent)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
             ),
             ratatui::text::Span::raw(app.popup_search_query.clone()),
         ]))

@@ -90,8 +90,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                 super::screens::handle_enter(app);
             }
             KeyCode::Tab => {
-                if app.focus == Focus::Content
-                    && app.current_screen() == Screen::AdditionalPackages
+                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
                 {
                     super::screens::change_value(app, true);
                 } else {
@@ -99,8 +98,7 @@ pub fn handle_event(app: &mut AppState, ev: Event) -> bool {
                 }
             }
             KeyCode::BackTab => {
-                if app.focus == Focus::Content
-                    && app.current_screen() == Screen::AdditionalPackages
+                if app.focus == Focus::Content && app.current_screen() == Screen::AdditionalPackages
                 {
                     super::screens::change_value(app, false);
                 } else {

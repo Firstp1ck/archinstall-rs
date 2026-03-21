@@ -48,11 +48,15 @@ impl MountingService {
             // Ensure kernel filesystem drivers are available (some ISOs need explicit load)
             cmds.push("modprobe -q fat || true".into());
             cmds.push("modprobe -q vfat || true".into());
+            cmds.push("modprobe -q msdos || true".into());
             cmds.push("modprobe -q nls_cp437 || true".into());
             cmds.push("modprobe -q nls_iso8859_1 || true".into());
             cmds.push("modprobe -q nls_ascii || true".into());
             let esp_part = Self::partition_path(device, 1);
-            cmds.push(format!("mount --mkdir {esp_part} /mnt/boot"));
+            // Try multiple filesystem types for ESP mount compatibility
+            cmds.push(format!(
+                "{{ mount -t vfat --mkdir {esp_part} /mnt/boot || mount -t fat --mkdir {esp_part} /mnt/boot || mount -t msdos --mkdir {esp_part} /mnt/boot || mount --mkdir {esp_part} /mnt/boot; }} || {{ echo 'ERROR: Failed to mount ESP {esp_part} - ensure FAT/vfat filesystem support is available' >&2; exit 1; }}"
+            ));
         }
         if state.swap_enabled {
             let swap_part = Self::partition_path(device, 2);

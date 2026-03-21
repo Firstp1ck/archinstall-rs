@@ -61,7 +61,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             left_info.push(Line::from(format!("Align: {align}")));
         }
         let has_btrfs_root = app.disks_partitions.iter().any(|p| {
-            p.role.as_deref().map(|r| r.eq_ignore_ascii_case("ROOT")).unwrap_or(false)
+            p.role
+                .as_deref()
+                .map(|r| r.eq_ignore_ascii_case("ROOT"))
+                .unwrap_or(false)
                 && p.fs.as_deref() == Some("btrfs")
         });
         if has_btrfs_root {
@@ -70,7 +73,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 2 => "Extended (@, @home, @var_log, @snapshots)",
                 _ => "Flat (no subvolumes)",
             };
-            left_info.push(Line::from(format!("Btrfs subvolumes: {btrfs_preset_label}")));
+            left_info.push(Line::from(format!(
+                "Btrfs subvolumes: {btrfs_preset_label}"
+            )));
         }
         let left_block = Paragraph::new(left_info)
             .block(Block::default().borders(Borders::ALL).title(" Info "))
@@ -242,7 +247,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             2 => "Extended (@, @home, @var_log, @snapshots)",
             _ => "Flat (no subvolumes)",
         };
-        info_lines.push(Line::from(format!("Btrfs subvolumes: {btrfs_preset_label}")));
+        info_lines.push(Line::from(format!(
+            "Btrfs subvolumes: {btrfs_preset_label}"
+        )));
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -318,9 +325,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                         .unwrap_or("")
                         .to_string();
                     if !target.is_empty() && !source.is_empty() {
-                        lines.push(Line::from(format!(
-                            "  {source} -> {target} ({fstype})"
-                        )));
+                        lines.push(Line::from(format!("  {source} -> {target} ({fstype})")));
                     }
                     if let Some(children) = fs.get("children").and_then(|v| v.as_array()) {
                         collect_display_lines(children, lines);

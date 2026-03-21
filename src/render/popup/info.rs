@@ -48,9 +48,7 @@ pub fn draw(frame: &mut Frame, app: &mut AppState, popup_rect: Rect, title_text:
         let style = if raw_line.starts_with("Note:") {
             Style::default().fg(t.warning)
         } else if raw_line.starts_with("Missing") {
-            Style::default()
-                .fg(t.warning)
-                .add_modifier(Modifier::BOLD)
+            Style::default().fg(t.warning).add_modifier(Modifier::BOLD)
         } else if raw_line.starts_with("  - ") {
             Style::default().fg(t.subtext)
         } else {

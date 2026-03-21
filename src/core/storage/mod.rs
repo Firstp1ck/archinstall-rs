@@ -245,7 +245,9 @@ impl DeviceStack {
         match passphrase {
             Some(pw) => {
                 let escaped = pw.replace('\'', "'\\''");
-                format!("printf '%s' '{escaped}' | cryptsetup luksFormat --type luks2 -q --key-file=- {device}")
+                format!(
+                    "printf '%s' '{escaped}' | cryptsetup luksFormat --type luks2 -q --key-file=- {device}"
+                )
             }
             None => format!("cryptsetup luksFormat --type luks2 -q {device}"),
         }
@@ -258,7 +260,9 @@ impl DeviceStack {
         match passphrase {
             Some(pw) => {
                 let escaped = pw.replace('\'', "'\\''");
-                format!("printf '%s' '{escaped}' | cryptsetup open --type luks --key-file=- {device} {mapper}")
+                format!(
+                    "printf '%s' '{escaped}' | cryptsetup open --type luks --key-file=- {device} {mapper}"
+                )
             }
             None => format!("cryptsetup open --type luks {device} {mapper}"),
         }
@@ -396,11 +400,7 @@ impl StoragePlan {
     /// Generate partition path for a device + partition number.
     /// Handles nvme-style devices (ending in digit) with a `p` separator.
     pub fn partition_path(device: &str, number: u32) -> String {
-        if device
-            .chars()
-            .last()
-            .is_some_and(|c| c.is_ascii_digit())
-        {
+        if device.chars().last().is_some_and(|c| c.is_ascii_digit()) {
             format!("{device}p{number}")
         } else {
             format!("{device}{number}")
@@ -535,7 +535,8 @@ impl StoragePlan {
                     opts.insert(0, format!("subvol={sv}"));
                 }
 
-                if mount.target == "/mnt/boot" && mount.fstype == "vfat" {
+                // Load FAT filesystem modules for any vfat mount (not just /mnt/boot)
+                if mount.fstype == "vfat" {
                     cmds.push("modprobe -q fat || true".into());
                     cmds.push("modprobe -q vfat || true".into());
                     cmds.push("modprobe -q msdos || true".into());
@@ -572,7 +573,11 @@ impl StoragePlan {
                     let cmd_fat = build_mount_cmd(Some("fat"));
                     let cmd_msdos = build_mount_cmd(Some("msdos"));
                     let cmd_auto = build_mount_cmd(None);
-                    cmds.push(format!("{cmd_vfat} || {cmd_fat} || {cmd_msdos} || {cmd_auto}"));
+                    // Try each filesystem type in order, with a clear error if all fail
+                    cmds.push(format!(
+                        "{{ {cmd_vfat} || {cmd_fat} || {cmd_msdos} || {cmd_auto}; }} || {{ echo 'ERROR: Failed to mount {} - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }}",
+                        mount.source
+                    ));
                 } else {
                     cmds.push(build_mount_cmd(None));
                 }
@@ -680,31 +685,31 @@ impl StoragePlan {
             return errors;
         }
 
-        let has_root = self.devices.iter().any(|d| {
-            d.partitions
-                .iter()
-                .any(|p| p.role == PartitionRole::Root)
-        });
+        let has_root = self
+            .devices
+            .iter()
+            .any(|d| d.partitions.iter().any(|p| p.role == PartitionRole::Root));
         if !has_root {
             errors.push(ValidationError {
                 message: "No root partition defined".into(),
             });
         }
 
-        let has_esp = self.devices.iter().any(|d| {
-            d.partitions
-                .iter()
-                .any(|p| p.role == PartitionRole::Esp)
-        });
+        let has_esp = self
+            .devices
+            .iter()
+            .any(|d| d.partitions.iter().any(|p| p.role == PartitionRole::Esp));
         let has_biosboot = self.devices.iter().any(|d| {
             d.partitions
                 .iter()
                 .any(|p| p.role == PartitionRole::BiosBoot)
         });
 
-        let is_uefi = self.mounts.iter().any(|m| {
-            m.target == "/mnt/boot" && (m.fstype == "vfat" || m.fstype == "fat32")
-        }) || has_esp;
+        let is_uefi = self
+            .mounts
+            .iter()
+            .any(|m| m.target == "/mnt/boot" && (m.fstype == "vfat" || m.fstype == "fat32"))
+            || has_esp;
 
         if is_uefi && !has_esp {
             errors.push(ValidationError {
@@ -738,8 +743,7 @@ impl StoragePlan {
                         parse_parted_to_mib(&a.end),
                         parse_parted_to_mib(&b.start),
                         parse_parted_to_mib(&b.end),
-                    )
-                        && a_start < b_end
+                    ) && a_start < b_end
                         && b_start < a_end
                     {
                         errors.push(ValidationError {

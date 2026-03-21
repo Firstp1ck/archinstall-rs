@@ -15,7 +15,11 @@ impl BootloaderPlan {
 pub struct BootloaderService;
 
 impl BootloaderService {
-    pub fn build_plan(state: &AppState, device: &str, storage_plan: &StoragePlan) -> BootloaderPlan {
+    pub fn build_plan(
+        state: &AppState,
+        device: &str,
+        storage_plan: &StoragePlan,
+    ) -> BootloaderPlan {
         let mut cmds: Vec<String> = Vec::new();
         let encrypted = storage_plan.has_encryption();
 

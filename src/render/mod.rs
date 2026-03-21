@@ -4,9 +4,9 @@ use ratatui::widgets::Clear;
 use crate::app::AppState;
 
 mod cmdline;
-pub mod theme;
 mod popup;
 mod sections;
+pub mod theme;
 
 pub fn draw(frame: &mut Frame, app: &mut AppState) {
     let theme = theme::catppuccin_mocha();
@@ -42,7 +42,12 @@ pub fn draw(frame: &mut Frame, app: &mut AppState) {
                 let height: u16 = 3;
                 let x = area.x + area.width.saturating_sub(width + 1);
                 let y = area.y + area.height.saturating_sub(height + 1);
-                let rect = Rect { x, y, width, height };
+                let rect = Rect {
+                    x,
+                    y,
+                    width,
+                    height,
+                };
                 let t = theme::catppuccin_mocha();
                 let para = Paragraph::new(Line::from(msg))
                     .block(Block::default().borders(Borders::ALL))

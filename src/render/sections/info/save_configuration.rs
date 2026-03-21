@@ -10,9 +10,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let t = crate::render::theme::catppuccin_mocha();
     let mut info_lines = vec![Line::from(Span::styled(
         "Info",
-        Style::default()
-            .fg(t.accent)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
     ))];
 
     if !app.last_load_missing_sections.is_empty() {
@@ -29,9 +27,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
 
     let mut desc_lines = vec![Line::from(Span::styled(
         "Description",
-        Style::default()
-            .fg(t.accent)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
     ))];
     desc_lines.push(Line::from("Configuration lets you save or load your installation setup for Arch Linux, making it easy to reuse or share selections across multiple installs. When you load a configuration, sensitive data like passwords and certain custom settings need to be re-entered, ensuring security while streamlining system setup and consistency."));
 

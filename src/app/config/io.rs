@@ -384,7 +384,8 @@ impl AppState {
                 .position(|s| s == &cfg.locales.keyboard_layout)
             {
                 self.keyboard_layout_index = idx;
-                self.last_load_missing_sections.retain(|s| s != "Locales: keyboard_layout");
+                self.last_load_missing_sections
+                    .retain(|s| s != "Locales: keyboard_layout");
                 // Apply to live environment immediately
                 if let Some(layout) = self
                     .keyboard_layout_options
@@ -405,7 +406,8 @@ impl AppState {
                 .position(|s| s == &cfg.locales.locale_language)
             {
                 self.locale_language_index = idx;
-                self.last_load_missing_sections.retain(|s| s != "Locales: locale_language");
+                self.last_load_missing_sections
+                    .retain(|s| s != "Locales: locale_language");
             }
         } else {
             self.last_load_missing_sections
@@ -418,7 +420,8 @@ impl AppState {
                 .position(|s| s == &cfg.locales.locale_encoding)
             {
                 self.locale_encoding_index = idx;
-                self.last_load_missing_sections.retain(|s| s != "Locales: locale_encoding");
+                self.last_load_missing_sections
+                    .retain(|s| s != "Locales: locale_encoding");
             }
         } else {
             self.last_load_missing_sections
@@ -437,7 +440,8 @@ impl AppState {
             }
         }
         if !self.mirrors_regions_selected.is_empty() {
-            self.last_load_missing_sections.retain(|s| s != "Mirrors: regions");
+            self.last_load_missing_sections
+                .retain(|s| s != "Mirrors: regions");
         }
         self.optional_repos_selected.clear();
         if cfg.mirrors.optional_repos.is_empty() {
@@ -450,7 +454,8 @@ impl AppState {
             }
         }
         if !self.optional_repos_selected.is_empty() {
-            self.last_load_missing_sections.retain(|s| s != "Mirrors: optional_repos");
+            self.last_load_missing_sections
+                .retain(|s| s != "Mirrors: optional_repos");
         }
         // Load aur_helper
         if let Some(helper) = cfg.mirrors.aur_helper.clone() {
@@ -492,7 +497,8 @@ impl AppState {
                 .push("Mirrors: custom_repos".into());
         }
         if !self.custom_repos.is_empty() {
-            self.last_load_missing_sections.retain(|s| s != "Mirrors: custom_repos");
+            self.last_load_missing_sections
+                .retain(|s| s != "Mirrors: custom_repos");
         }
 
         // Disks

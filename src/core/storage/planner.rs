@@ -33,10 +33,7 @@ impl StoragePlanner {
             "msdos" => DiskLabel::Msdos,
             _ => DiskLabel::Gpt,
         };
-        let align = state
-            .disks_align
-            .clone()
-            .unwrap_or_else(|| "1MiB".into());
+        let align = state.disks_align.clone().unwrap_or_else(|| "1MiB".into());
         let is_uefi = state.is_uefi();
         let luks = state.disk_encryption_type_index == 1;
 
@@ -115,11 +112,7 @@ impl StoragePlanner {
         }
 
         let root_start = if state.swap_enabled {
-            if is_uefi {
-                "5121MiB"
-            } else {
-                "4098MiB"
-            }
+            if is_uefi { "5121MiB" } else { "4098MiB" }
         } else {
             swap_start
         };
@@ -442,16 +435,13 @@ impl StoragePlanner {
                     mounts.extend(subvol_mounts);
                 }
                 _ => {
-                    let mountpoint = spec
-                        .mountpoint
-                        .as_deref()
-                        .unwrap_or(match role {
-                            PartitionRole::Esp => "/boot",
-                            PartitionRole::Root => "/",
-                            PartitionRole::Home => "/home",
-                            PartitionRole::Var => "/var",
-                            _ => "/mnt/unknown",
-                        });
+                    let mountpoint = spec.mountpoint.as_deref().unwrap_or(match role {
+                        PartitionRole::Esp => "/boot",
+                        PartitionRole::Root => "/",
+                        PartitionRole::Home => "/home",
+                        PartitionRole::Var => "/var",
+                        _ => "/mnt/unknown",
+                    });
 
                     let target = if mountpoint == "/" {
                         "/mnt".into()
@@ -527,8 +517,7 @@ impl StoragePlanner {
         match findmnt_result {
             Ok(out) if out.status.success() => {
                 if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout)
-                    && let Some(filesystems) =
-                        json.get("filesystems").and_then(|v| v.as_array())
+                    && let Some(filesystems) = json.get("filesystems").and_then(|v| v.as_array())
                 {
                     collect_findmnt_mounts(filesystems, &mut mounts);
                 }
@@ -580,8 +569,8 @@ impl StoragePlanner {
                 .any(|m| m.target == "/mnt/boot" || m.target == "/mnt/efi");
             if !has_boot {
                 errors.push(ValidationError {
-                    message:
-                        "UEFI system detected but no ESP mounted at /mnt/boot or /mnt/efi".into(),
+                    message: "UEFI system detected but no ESP mounted at /mnt/boot or /mnt/efi"
+                        .into(),
                 });
             }
         }
@@ -774,14 +763,17 @@ mod tests {
             format!("{device_path}{part_num}")
         };
 
-        mounts.insert(0, PlannedMount {
-            source: root_source,
-            target: "/mnt".into(),
-            fstype: "btrfs".into(),
-            options: vec![],
-            is_swap: false,
-            subvolume: None,
-        });
+        mounts.insert(
+            0,
+            PlannedMount {
+                source: root_source,
+                target: "/mnt".into(),
+                fstype: "btrfs".into(),
+                options: vec![],
+                is_swap: false,
+                subvolume: None,
+            },
+        );
 
         let device = PlannedDevice {
             path: device_path.into(),
@@ -876,14 +868,17 @@ mod tests {
             format!("{device_path}{part_num}")
         };
 
-        mounts.insert(0, PlannedMount {
-            source: root_source,
-            target: "/mnt".into(),
-            fstype: "btrfs".into(),
-            options: vec![],
-            is_swap: false,
-            subvolume: None,
-        });
+        mounts.insert(
+            0,
+            PlannedMount {
+                source: root_source,
+                target: "/mnt".into(),
+                fstype: "btrfs".into(),
+                options: vec![],
+                is_swap: false,
+                subvolume: None,
+            },
+        );
 
         let device = PlannedDevice {
             path: device_path.into(),
@@ -944,7 +939,10 @@ mod tests {
             cmds[10],
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
-        assert_eq!(cmds[11], format!("cryptsetup luksFormat --type luks2 -q {device}3"));
+        assert_eq!(
+            cmds[11],
+            format!("cryptsetup luksFormat --type luks2 -q {device}3")
+        );
         assert_eq!(cmds[12], "udevadm settle");
         assert_eq!(
             cmds[13],
@@ -1014,7 +1012,10 @@ mod tests {
             cmds[9],
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
-        assert_eq!(cmds[10], format!("cryptsetup luksFormat --type luks2 -q {device}3"));
+        assert_eq!(
+            cmds[10],
+            format!("cryptsetup luksFormat --type luks2 -q {device}3")
+        );
         assert_eq!(cmds[11], "udevadm settle");
         assert_eq!(
             cmds[12],
@@ -1040,7 +1041,7 @@ mod tests {
         assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
             cmds[8],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
         );
         assert_eq!(cmds[9], "swapon /dev/sda2");
     }
@@ -1060,7 +1061,7 @@ mod tests {
         assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
             cmds[8],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
         );
         assert_eq!(cmds[9], "swapon /dev/sda2");
     }
@@ -1091,7 +1092,7 @@ mod tests {
         assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
             cmds[8],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            "{ mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot; } || { echo 'ERROR: Failed to mount /dev/sda1 - ensure FAT/vfat filesystem support is available (check: grep -E \"vfat|fat|msdos\" /proc/filesystems)' >&2; exit 1; }"
         );
         assert_eq!(cmds.len(), 9);
     }
@@ -1117,9 +1118,10 @@ mod tests {
         let plan = compile_auto_uefi(true, true);
         let cmds = plan.fstab_check_commands();
 
-        assert!(cmds
-            .iter()
-            .any(|c| c.contains("/dev/mapper/cryptroot") && c.contains("btrfs")));
+        assert!(
+            cmds.iter()
+                .any(|c| c.contains("/dev/mapper/cryptroot") && c.contains("btrfs"))
+        );
         assert!(cmds.last().unwrap().contains("genfstab"));
     }
 
@@ -1216,24 +1218,28 @@ mod tests {
     #[test]
     fn test_manual_esp_root() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BOOT".into()),
-            fs: Some("fat32".into()),
-            start: Some("1048576".into()),   // 1 MiB
-            size: Some("1073741824".into()), // 1 GiB
-            mountpoint: Some("/boot".into()),
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("btrfs".into()),
-            start: Some("1074790400".into()), // ~1025 MiB
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),   // 1 MiB
+                size: Some("1073741824".into()), // 1 GiB
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("btrfs".into()),
+                start: Some("1074790400".into()), // ~1025 MiB
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("should compile");
         assert_eq!(plan.mode, StorageMode::Manual);
@@ -1256,32 +1262,38 @@ mod tests {
     #[test]
     fn test_manual_esp_swap_root() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BOOT".into()),
-            fs: Some("fat32".into()),
-            start: Some("1048576".into()),
-            size: Some("1073741824".into()),
-            mountpoint: Some("/boot".into()),
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("SWAP".into()),
-            fs: Some("linux-swap".into()),
-            start: Some("1074790400".into()),
-            size: Some("4294967296".into()), // 4 GiB
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("ext4".into()),
-            start: Some("5369757696".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("SWAP".into()),
+                fs: Some("linux-swap".into()),
+                start: Some("1074790400".into()),
+                size: Some("4294967296".into()), // 4 GiB
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: Some("5369757696".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("should compile");
         assert_eq!(plan.devices[0].partitions.len(), 3);
@@ -1298,23 +1310,27 @@ mod tests {
     #[test]
     fn test_manual_bios_root() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BIOS_BOOT".into()),
-            fs: Some("biosboot".into()),
-            start: Some("1048576".into()),
-            size: Some("1048576".into()), // 1 MiB
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("ext4".into()),
-            start: Some("2097152".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BIOS_BOOT".into()),
+                fs: Some("biosboot".into()),
+                start: Some("1048576".into()),
+                size: Some("1048576".into()), // 1 MiB
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: Some("2097152".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("should compile");
         assert_eq!(plan.devices[0].partitions[0].role, PartitionRole::BiosBoot);
@@ -1326,56 +1342,71 @@ mod tests {
     #[test]
     fn test_manual_root_with_encryption() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BOOT".into()),
-            fs: Some("fat32".into()),
-            start: Some("1048576".into()),
-            size: Some("1073741824".into()),
-            mountpoint: Some("/boot".into()),
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("btrfs".into()),
-            start: Some("1074790400".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            encrypt: Some(true),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("btrfs".into()),
+                start: Some("1074790400".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                encrypt: Some(true),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("should compile");
         assert!(plan.has_encryption());
-        assert_eq!(plan.root_device_path(), Some("/dev/mapper/cryptroot".into()));
+        assert_eq!(
+            plan.root_device_path(),
+            Some("/dev/mapper/cryptroot".into())
+        );
 
         let cmds = plan.partition_commands();
         let joined = cmds.join("\n");
         assert!(joined.contains("cryptsetup luksFormat"), "{joined}");
         assert!(joined.contains("cryptsetup open"), "{joined}");
-        assert!(joined.contains("mkfs.btrfs -f /dev/mapper/cryptroot"), "{joined}");
+        assert!(
+            joined.contains("mkfs.btrfs -f /dev/mapper/cryptroot"),
+            "{joined}"
+        );
     }
 
     #[test]
     fn test_manual_rejects_empty_partitions() {
         let state = make_manual_state();
         let err = StoragePlanner::compile(&state).unwrap_err();
-        assert!(err.iter().any(|e| e.message.contains("No partitions defined")));
+        assert!(
+            err.iter()
+                .any(|e| e.message.contains("No partitions defined"))
+        );
     }
 
     #[test]
     fn test_manual_rejects_missing_role() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: None,
-            fs: Some("ext4".into()),
-            start: Some("1048576".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: None,
+                fs: Some("ext4".into()),
+                start: Some("1048576".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let err = StoragePlanner::compile(&state).unwrap_err();
         assert!(err.iter().any(|e| e.message.contains("missing role")));
@@ -1384,15 +1415,17 @@ mod tests {
     #[test]
     fn test_manual_rejects_missing_start() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("ext4".into()),
-            start: None,
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: None,
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let err = StoragePlanner::compile(&state).unwrap_err();
         assert!(err.iter().any(|e| e.message.contains("missing start")));
@@ -1401,15 +1434,17 @@ mod tests {
     #[test]
     fn test_manual_rejects_missing_mountpoint() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("ext4".into()),
-            start: Some("1048576".into()),
-            size: Some("100%".into()),
-            mountpoint: None,
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: Some("1048576".into()),
+                size: Some("100%".into()),
+                mountpoint: None,
+                ..Default::default()
+            });
 
         let err = StoragePlanner::compile(&state).unwrap_err();
         assert!(err.iter().any(|e| e.message.contains("missing mountpoint")));
@@ -1418,33 +1453,39 @@ mod tests {
     #[test]
     fn test_manual_swap_no_mountpoint_ok() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BOOT".into()),
-            fs: Some("fat32".into()),
-            start: Some("1048576".into()),
-            size: Some("1073741824".into()),
-            mountpoint: Some("/boot".into()),
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("SWAP".into()),
-            fs: Some("linux-swap".into()),
-            start: Some("1074790400".into()),
-            size: Some("4294967296".into()),
-            mountpoint: None,
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("btrfs".into()),
-            start: Some("5369757696".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("SWAP".into()),
+                fs: Some("linux-swap".into()),
+                start: Some("1074790400".into()),
+                size: Some("4294967296".into()),
+                mountpoint: None,
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("btrfs".into()),
+                start: Some("5369757696".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("swap without mountpoint should be fine");
         assert!(plan.mounts.iter().any(|m| m.is_swap));
@@ -1490,7 +1531,11 @@ mod tests {
             .find(|p| p.role == PartitionRole::Root)
             .unwrap();
         assert_eq!(root_part.subvolumes.len(), 3);
-        let names: Vec<&str> = root_part.subvolumes.iter().map(|s| s.name.as_str()).collect();
+        let names: Vec<&str> = root_part
+            .subvolumes
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
         assert!(names.contains(&"@"));
         assert!(names.contains(&"@home"));
         assert!(names.contains(&"@snapshots"));
@@ -1498,9 +1543,18 @@ mod tests {
         // Partition commands should contain subvolume creation
         let part_cmds = plan.partition_commands();
         let joined = part_cmds.join("\n");
-        assert!(joined.contains("btrfs subvolume create /mnt/@\n"), "{joined}");
-        assert!(joined.contains("btrfs subvolume create /mnt/@home"), "{joined}");
-        assert!(joined.contains("btrfs subvolume create /mnt/@snapshots"), "{joined}");
+        assert!(
+            joined.contains("btrfs subvolume create /mnt/@\n"),
+            "{joined}"
+        );
+        assert!(
+            joined.contains("btrfs subvolume create /mnt/@home"),
+            "{joined}"
+        );
+        assert!(
+            joined.contains("btrfs subvolume create /mnt/@snapshots"),
+            "{joined}"
+        );
         assert!(joined.contains("umount /mnt"), "{joined}");
 
         // Mount commands should contain subvol= options
@@ -1533,7 +1587,11 @@ mod tests {
             .find(|p| p.role == PartitionRole::Root)
             .unwrap();
         assert_eq!(root_part.subvolumes.len(), 4);
-        let names: Vec<&str> = root_part.subvolumes.iter().map(|s| s.name.as_str()).collect();
+        let names: Vec<&str> = root_part
+            .subvolumes
+            .iter()
+            .map(|s| s.name.as_str())
+            .collect();
         assert!(names.contains(&"@var_log"));
 
         let mount_cmds = plan.mount_commands();
@@ -1556,7 +1614,10 @@ mod tests {
         let part_cmds = plan.partition_commands();
         let joined = part_cmds.join("\n");
         // Should mount the mapper device for subvolume creation
-        assert!(joined.contains("mount /dev/mapper/cryptroot /mnt"), "{joined}");
+        assert!(
+            joined.contains("mount /dev/mapper/cryptroot /mnt"),
+            "{joined}"
+        );
         assert!(joined.contains("btrfs subvolume create /mnt/@"), "{joined}");
 
         let mount_cmds = plan.mount_commands();
@@ -1588,25 +1649,29 @@ mod tests {
     #[test]
     fn test_manual_mount_options_propagate() {
         let mut state = make_manual_state();
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("BOOT".into()),
-            fs: Some("fat32".into()),
-            start: Some("1048576".into()),
-            size: Some("1073741824".into()),
-            mountpoint: Some("/boot".into()),
-            ..Default::default()
-        });
-        state.disks_partitions.push(crate::core::types::DiskPartitionSpec {
-            name: Some("/dev/sda".into()),
-            role: Some("ROOT".into()),
-            fs: Some("btrfs".into()),
-            start: Some("1074790400".into()),
-            size: Some("100%".into()),
-            mountpoint: Some("/".into()),
-            mount_options: Some("compress=zstd,noatime".into()),
-            ..Default::default()
-        });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("btrfs".into()),
+                start: Some("1074790400".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                mount_options: Some("compress=zstd,noatime".into()),
+                ..Default::default()
+            });
 
         let plan = StoragePlanner::compile(&state).expect("should compile");
         let root_mount = plan.mounts.iter().find(|m| m.target == "/mnt").unwrap();
@@ -1639,7 +1704,10 @@ mod tests {
             subvolume: None,
         }]);
         let cmds = plan.partition_commands();
-        assert!(cmds.is_empty(), "pre-mounted should produce no partition commands");
+        assert!(
+            cmds.is_empty(),
+            "pre-mounted should produce no partition commands"
+        );
     }
 
     #[test]
@@ -1653,7 +1721,10 @@ mod tests {
             subvolume: None,
         }]);
         let cmds = plan.mount_commands();
-        assert!(cmds.is_empty(), "pre-mounted should produce no mount commands");
+        assert!(
+            cmds.is_empty(),
+            "pre-mounted should produce no mount commands"
+        );
     }
 
     #[test]
@@ -1742,7 +1813,11 @@ mod tests {
             subvolume: None,
         }]);
         let errors = plan.validate();
-        assert!(errors.is_empty(), "plan with /mnt root should validate: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "plan with /mnt root should validate: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -1774,7 +1849,11 @@ mod tests {
             },
         ]);
         let errors = plan.validate();
-        assert!(errors.is_empty(), "subvolume plan should validate: {:?}", errors);
+        assert!(
+            errors.is_empty(),
+            "subvolume plan should validate: {:?}",
+            errors
+        );
 
         let fstab_cmds = plan.fstab_check_commands();
         let joined = fstab_cmds.join("\n");
@@ -2068,7 +2147,11 @@ mod tests {
 
         // Stacks now generate real setup commands
         let root_cmds = plan.stacks[0].setup_commands();
-        assert!(root_cmds.iter().any(|c| c.contains("cryptsetup luksFormat")));
+        assert!(
+            root_cmds
+                .iter()
+                .any(|c| c.contains("cryptsetup luksFormat"))
+        );
         assert!(root_cmds.iter().any(|c| c.contains("pvcreate")));
         assert!(root_cmds.iter().any(|c| c.contains("vgcreate")));
         assert!(root_cmds.iter().any(|c| c.contains("lvcreate")));
@@ -2315,9 +2398,15 @@ mod tests {
             cmds[0],
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
-        assert_eq!(cmds[1], "cryptsetup luksFormat --type luks2 -q /dev/nvme0n1p3");
+        assert_eq!(
+            cmds[1],
+            "cryptsetup luksFormat --type luks2 -q /dev/nvme0n1p3"
+        );
         assert_eq!(cmds[2], "udevadm settle");
-        assert_eq!(cmds[3], "cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm");
+        assert_eq!(
+            cmds[3],
+            "cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm"
+        );
         assert_eq!(cmds[4], "pvcreate /dev/mapper/cryptlvm");
         assert_eq!(cmds[5], "vgcreate vg_system /dev/mapper/cryptlvm");
         assert_eq!(cmds[6], "lvcreate -L 50GiB vg_system -n lv_root");

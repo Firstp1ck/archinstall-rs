@@ -191,8 +191,11 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
     let device = "/dev/sda";
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("auto plan should compile");
-    let plan =
-        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
     assert!(joined.contains("loader.conf"), "{joined}");
@@ -210,8 +213,11 @@ fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
     let device = "/dev/sda";
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("luks plan should compile");
-    let plan =
-        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
     assert!(joined.contains("rd.luks.name"), "{joined}");
@@ -227,8 +233,11 @@ fn bootloader_grub_luks_injects_cmdline() {
     let device = "/dev/sda";
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("luks plan should compile");
-    let plan =
-        ai::core::services::bootloader::BootloaderService::build_plan(&state, device, &storage_plan);
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("grub-install"), "{joined}");
     assert!(joined.contains("GRUB_CMDLINE_LINUX"), "{joined}");
