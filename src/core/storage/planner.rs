@@ -940,12 +940,13 @@ mod tests {
             cmds[9],
             format!("parted -s {device} mkpart root btrfs 5121MiB 100%")
         );
-        assert_eq!(cmds[10], format!("cryptsetup luksFormat -q {device}3"));
+        assert_eq!(cmds[10], "modprobe -q dm-crypt || true");
+        assert_eq!(cmds[11], format!("cryptsetup luksFormat -q {device}3"));
         assert_eq!(
-            cmds[11],
+            cmds[12],
             format!("cryptsetup open {device}3 cryptroot")
         );
-        assert_eq!(cmds[12], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(cmds[13], "mkfs.btrfs -f /dev/mapper/cryptroot");
     }
 
     #[test]
@@ -1005,12 +1006,13 @@ mod tests {
             cmds[8],
             format!("parted -s {device} mkpart root btrfs 4098MiB 100%")
         );
-        assert_eq!(cmds[9], format!("cryptsetup luksFormat -q {device}3"));
+        assert_eq!(cmds[9], "modprobe -q dm-crypt || true");
+        assert_eq!(cmds[10], format!("cryptsetup luksFormat -q {device}3"));
         assert_eq!(
-            cmds[10],
+            cmds[11],
             format!("cryptsetup open {device}3 cryptroot")
         );
-        assert_eq!(cmds[11], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(cmds[12], "mkfs.btrfs -f /dev/mapper/cryptroot");
     }
 
     // ── Mount command tests ──
@@ -2196,10 +2198,11 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "cryptsetup luksFormat -q /dev/sda3");
-        assert_eq!(cmds[1], "cryptsetup open /dev/sda3 cryptroot");
-        assert_eq!(cmds[2], "mkfs.btrfs -f /dev/mapper/cryptroot");
-        assert_eq!(cmds.len(), 3);
+        assert_eq!(cmds[0], "modprobe -q dm-crypt || true");
+        assert_eq!(cmds[1], "cryptsetup luksFormat -q /dev/sda3");
+        assert_eq!(cmds[2], "cryptsetup open /dev/sda3 cryptroot");
+        assert_eq!(cmds[3], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(cmds.len(), 4);
     }
 
     #[test]
@@ -2284,13 +2287,14 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "cryptsetup luksFormat -q /dev/nvme0n1p3");
-        assert_eq!(cmds[1], "cryptsetup open /dev/nvme0n1p3 cryptlvm");
-        assert_eq!(cmds[2], "pvcreate /dev/mapper/cryptlvm");
-        assert_eq!(cmds[3], "vgcreate vg_system /dev/mapper/cryptlvm");
-        assert_eq!(cmds[4], "lvcreate -L 50GiB vg_system -n lv_root");
-        assert_eq!(cmds[5], "mkfs.ext4 -F /dev/vg_system/lv_root");
-        assert_eq!(cmds.len(), 6);
+        assert_eq!(cmds[0], "modprobe -q dm-crypt || true");
+        assert_eq!(cmds[1], "cryptsetup luksFormat -q /dev/nvme0n1p3");
+        assert_eq!(cmds[2], "cryptsetup open /dev/nvme0n1p3 cryptlvm");
+        assert_eq!(cmds[3], "pvcreate /dev/mapper/cryptlvm");
+        assert_eq!(cmds[4], "vgcreate vg_system /dev/mapper/cryptlvm");
+        assert_eq!(cmds[5], "lvcreate -L 50GiB vg_system -n lv_root");
+        assert_eq!(cmds[6], "mkfs.ext4 -F /dev/vg_system/lv_root");
+        assert_eq!(cmds.len(), 7);
     }
 
     #[test]
@@ -2305,7 +2309,7 @@ mod tests {
             filesystem: None,
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds.len(), 2);
+        assert_eq!(cmds.len(), 3);
         assert!(!cmds.iter().any(|c| c.contains("mkfs")));
     }
 

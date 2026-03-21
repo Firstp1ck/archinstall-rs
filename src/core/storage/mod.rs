@@ -189,6 +189,7 @@ impl DeviceStack {
         for layer in &self.layers {
             match layer {
                 VolumeLayer::Luks(enc) => {
+                    cmds.push("modprobe -q dm-crypt || true".into());
                     cmds.push(Self::luks_format_cmd(&current, enc.passphrase.as_deref()));
                     cmds.push(Self::luks_open_cmd(
                         &current,
@@ -435,6 +436,7 @@ impl StoragePlan {
                 if let Some(enc) = &part.encryption {
                     match enc.method {
                         EncryptionMethod::Luks2 => {
+                            cmds.push("modprobe -q dm-crypt || true".into());
                             cmds.push(DeviceStack::luks_format_cmd(
                                 &part_path,
                                 enc.passphrase.as_deref(),
