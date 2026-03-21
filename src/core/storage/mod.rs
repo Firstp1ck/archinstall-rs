@@ -535,23 +535,34 @@ impl StoragePlan {
                     opts.insert(0, format!("subvol={sv}"));
                 }
 
-                // Load FAT filesystem modules and verify support before mounting
+                // Load FAT filesystem modules and verify support before mounting.
+                //
+                // On Arch ISOs the running kernel version can differ from the
+                // module directory on disk (e.g. kernel 6.18.x booted but
+                // /lib/modules/6.19.x on the squashfs).  The strategy is:
+                //   1. Plain modprobe (works when versions match).
+                //   2. Symlink an available module dir and depmod + retry.
+                //   3. modprobe --force to bypass vermagic mismatch.
+                //   4. Verify /proc/filesystems or fail with diagnostics.
                 if mount.fstype == "vfat" {
-                    // Try modprobe first (handles compressed .ko.zst modules).
                     cmds.push(
                         "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
                             .into(),
                     );
-                    // If modprobe failed, the running kernel's module dir may not
-                    // exist (kernel version mismatch on the ISO). Symlink an
-                    // available module directory so modprobe/depmod can find modules.
+                    // Symlink mismatched module dir + depmod, then retry with --force
+                    // to handle vermagic mismatch between kernel and module versions.
                     cmds.push(
-                        "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems && [ ! -d /lib/modules/$(uname -r) ]; then AVAIL=$(ls -1 /lib/modules/ 2>/dev/null | head -1); if [ -n \"$AVAIL\" ]; then ln -sf /lib/modules/\"$AVAIL\" /lib/modules/$(uname -r); depmod -a 2>/dev/null; fi; fi; if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
+                        "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then if [ ! -d /lib/modules/$(uname -r) ]; then AVAIL=$(ls -1d /lib/modules/*/kernel 2>/dev/null | head -1 | sed 's|/kernel$||;s|.*/||'); if [ -n \"$AVAIL\" ]; then ln -sfn /lib/modules/\"$AVAIL\" /lib/modules/$(uname -r); fi; fi; depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
+                            .into(),
+                    );
+                    // Last resort: force-load to bypass vermagic version check.
+                    cmds.push(
+                        "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then modprobe --force fat 2>/dev/null; modprobe --force vfat 2>/dev/null; modprobe --force nls_cp437 2>/dev/null; modprobe --force nls_iso8859_1 2>/dev/null; modprobe --force nls_ascii 2>/dev/null; true; fi"
                             .into(),
                     );
                     // Verify FAT support is actually available before attempting mount
                     cmds.push(format!(
-                        "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Tried: modprobe, kernel module dir symlink, depmod -a + retry.' >&2; echo 'Running kernel: '$(uname -r) >&2; echo 'Available module dirs:' >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}",
+                        "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Running kernel: '$(uname -r) >&2; echo 'Available module dirs:' >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}",
                         mount.source
                     ));
                 }

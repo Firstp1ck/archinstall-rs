@@ -1035,16 +1035,18 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/sda3 /mnt");
         // cmds[2]: modprobe chain
         assert!(cmds[2].contains("modprobe -q fat"));
-        // cmds[3]: depmod + modprobe retry fallback
+        // cmds[3]: symlink + depmod + modprobe retry
         assert!(cmds[3].contains("depmod -a"));
-        // cmds[4]: /proc/filesystems verification
-        assert!(cmds[4].contains("grep -qE"));
-        assert!(cmds[4].contains("/proc/filesystems"));
+        // cmds[4]: modprobe --force (vermagic bypass)
+        assert!(cmds[4].contains("modprobe --force fat"));
+        // cmds[5]: /proc/filesystems verification
+        assert!(cmds[5].contains("grep -qE"));
+        assert!(cmds[5].contains("/proc/filesystems"));
         assert_eq!(
-            cmds[5],
+            cmds[6],
             "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds[6], "swapon /dev/sda2");
+        assert_eq!(cmds[7], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1056,13 +1058,14 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/mapper/cryptroot /mnt");
         assert!(cmds[2].contains("modprobe -q fat"));
         assert!(cmds[3].contains("depmod -a"));
-        assert!(cmds[4].contains("grep -qE"));
-        assert!(cmds[4].contains("/proc/filesystems"));
+        assert!(cmds[4].contains("modprobe --force fat"));
+        assert!(cmds[5].contains("grep -qE"));
+        assert!(cmds[5].contains("/proc/filesystems"));
         assert_eq!(
-            cmds[5],
+            cmds[6],
             "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds[6], "swapon /dev/sda2");
+        assert_eq!(cmds[7], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1085,13 +1088,14 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/sda2 /mnt");
         assert!(cmds[2].contains("modprobe -q fat"));
         assert!(cmds[3].contains("depmod -a"));
-        assert!(cmds[4].contains("grep -qE"));
-        assert!(cmds[4].contains("/proc/filesystems"));
+        assert!(cmds[4].contains("modprobe --force fat"));
+        assert!(cmds[5].contains("grep -qE"));
+        assert!(cmds[5].contains("/proc/filesystems"));
         assert_eq!(
-            cmds[5],
+            cmds[6],
             "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds.len(), 6);
+        assert_eq!(cmds.len(), 7);
     }
 
     // ── Fstab command tests ──
