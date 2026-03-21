@@ -743,6 +743,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         Some(PopupKind::DiskEncryptionType) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
                 app.disk_encryption_type_index = if global_idx == 0 { 0 } else { 1 };
+                if app.disk_encryption_type_index == 1 && app.disks_mode_index == 0 {
+                    app.disk_encryption_selected_partition =
+                        Some("Root partition (automatic)".into());
+                } else if app.disk_encryption_type_index == 0 {
+                    app.disk_encryption_selected_partition = None;
+                }
             }
             app.close_popup();
         }
@@ -761,7 +767,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             } else {
                 app.info_message.clear();
                 app.close_popup();
-                app.open_disk_encryption_partition_list();
+                if app.disks_mode_index == 0 {
+                    app.disk_encryption_selected_partition =
+                        Some("Root partition (automatic)".into());
+                } else {
+                    app.open_disk_encryption_partition_list();
+                }
             }
         }
         Some(PopupKind::DiskEncryptionPartitionList) => {

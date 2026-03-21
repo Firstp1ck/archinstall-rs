@@ -296,6 +296,7 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
         // Partition selector
         let idx = 3;
         let is_act = app.diskenc_focus_index == idx && matches!(app.focus, super::Focus::Content);
+        let is_auto = app.disks_mode_index == 0;
         let bullet_style = if is_act {
             Style::default()
                 .fg(Color::Yellow)
@@ -310,17 +311,22 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
         } else {
             Style::default().fg(Color::White)
         };
-        let value_style = if is_act {
+        let value_style = if is_auto {
+            Style::default().fg(Color::DarkGray)
+        } else if is_act {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
-        let part = app
-            .disk_encryption_selected_partition
-            .clone()
-            .unwrap_or_else(|| "(none)".into());
+        let part = if is_auto {
+            "Root partition (automatic)".to_string()
+        } else {
+            app.disk_encryption_selected_partition
+                .clone()
+                .unwrap_or_else(|| "(none)".into())
+        };
         lines.push(Line::from(vec![
             Span::styled(
                 format!(
