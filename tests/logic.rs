@@ -115,6 +115,23 @@ fn sysconfig_enables_networkmanager_when_selected() {
 }
 
 #[test]
+fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("block sd-encrypt"), "{joined}");
+    assert!(joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"), "{joined}");
+    assert!(
+        joined.contains("WARNING: errors were encountered during the build"),
+        "{joined}"
+    );
+}
+
+#[test]
 fn partitioning_auto_includes_root_and_format() {
     let state = make_state();
     let device = "/dev/sda";

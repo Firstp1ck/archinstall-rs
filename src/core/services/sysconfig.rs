@@ -150,12 +150,16 @@ impl SysConfigService {
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
-        // mkinitcpio: add `sd-encrypt` for LUKS (default preset uses `systemd`, not legacy `udev`/`encrypt`)
+        // mkinitcpio: add `sd-encrypt` for LUKS (default preset uses `systemd`, not legacy
+        // `udev`/`encrypt`). Newer mkinitcpio can return non-zero on warnings-only builds, so
+        // keep hard failures while tolerating warning-only exits.
         if encrypted {
             cmds.push(chroot_cmd(
                 "sed -i '/^HOOKS=/s/\\bblock\\b/block sd-encrypt/' /etc/mkinitcpio.conf",
             ));
-            cmds.push(chroot_cmd("mkinitcpio -P"));
+            cmds.push(chroot_cmd(
+                "out=$(mkinitcpio -P 2>&1); rc=$?; printf '%s\\n' \"$out\"; if [ \"$rc\" -ne 0 ]; then if printf '%s\\n' \"$out\" | grep -q '^==> ERROR:'; then exit \"$rc\"; fi; if printf '%s\\n' \"$out\" | grep -q 'WARNING: errors were encountered during the build'; then echo 'mkinitcpio returned warnings-only non-zero exit; continuing install' >&2; else exit \"$rc\"; fi; fi",
+            ));
         }
 
         // Debug summary (log only, do not add to command list)
