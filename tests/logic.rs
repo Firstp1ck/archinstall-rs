@@ -123,7 +123,14 @@ fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
         .expect("luks auto plan should compile");
     let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
     let joined = plan.commands.join("\n");
-    assert!(joined.contains("block sd-encrypt"), "{joined}");
+    assert!(
+        joined.contains("block sd-encrypt") || joined.contains("block encrypt"),
+        "should inject sd-encrypt or encrypt hook: {joined}"
+    );
+    assert!(
+        joined.contains("grep -qP") && joined.contains("systemd"),
+        "should detect systemd vs udev hooks: {joined}"
+    );
     assert!(joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"), "{joined}");
     assert!(
         joined.contains("WARNING: errors were encountered during the build"),
@@ -231,6 +238,10 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
     assert!(joined.contains("arch-fallback.conf"), "{joined}");
     // Non-encrypted: should use simple root=UUID= options
     assert!(!joined.contains("rd.luks.name"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "should strip btrfs subvolume suffix from findmnt: {joined}"
+    );
 }
 
 #[test]
@@ -248,8 +259,15 @@ fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
     );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
-    assert!(joined.contains("rd.luks.name="), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "should have LUKS kernel params (systemd or udev style): {joined}"
+    );
     assert!(joined.contains("arch.conf"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "should strip btrfs subvolume suffix from findmnt: {joined}"
+    );
 }
 
 #[test]

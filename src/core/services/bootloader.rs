@@ -103,24 +103,36 @@ impl BootloaderService {
             encrypted
         ));
 
-        // Kernel options differ depending on whether LUKS encryption is active.
-        // With LUKS we pass rd.luks.name= for the `sd-encrypt` hook (systemd initramfs);
-        // root= is the unlocked mapper node from findmnt (e.g. /dev/mapper/cryptroot).
+        // findmnt appends a btrfs subvolume suffix like [/@] to the SOURCE field;
+        // strip it so blkid / cryptsetup receive a clean device path.
+        let strip_subvol = "rootdev=$(findmnt -n -o SOURCE /); rootdev=\"${rootdev%%\\[*}\"";
+
+        // Kernel parameters differ by encryption and initramfs hook style:
+        //   systemd hooks (sd-encrypt) → rd.luks.name=<uuid>=<mapper>
+        //   udev hooks    (encrypt)    → cryptdevice=UUID=<uuid>:<mapper>
         let boot_options_script = if encrypted {
-            "rootdev=$(findmnt -n -o SOURCE /); \
-             if cryptsetup status \"$(basename \"$rootdev\")\" >/dev/null 2>&1; then \
-               underlying=$(cryptsetup status \"$(basename \"$rootdev\")\" | awk '/device:/{print $2}'); \
-               luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
-               mapper=$(basename \"$rootdev\"); \
-               echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
-             else \
-               rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-               echo \"root=UUID=$rootuuid rw\"; \
-             fi"
+            format!(
+                "{strip_subvol}; \
+                 mapper=$(basename \"$rootdev\"); \
+                 if cryptsetup status \"$mapper\" >/dev/null 2>&1; then \
+                   underlying=$(cryptsetup status \"$mapper\" | awk '/device:/{{print $2}}'); \
+                   luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
+                   if grep -qP '^HOOKS=.*\\\\bsystemd\\\\b' /etc/mkinitcpio.conf; then \
+                     echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
+                   else \
+                     echo \"cryptdevice=UUID=$luksuuid:$mapper root=$rootdev rw\"; \
+                   fi; \
+                 else \
+                   rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+                   echo \"root=UUID=$rootuuid rw\"; \
+                 fi"
+            )
         } else {
-            "rootdev=$(findmnt -n -o SOURCE /); \
-             rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-             echo \"root=UUID=$rootuuid rw\""
+            format!(
+                "{strip_subvol}; \
+                 rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+                 echo \"root=UUID=$rootuuid rw\""
+            )
         };
 
         match state.bootloader_index {
