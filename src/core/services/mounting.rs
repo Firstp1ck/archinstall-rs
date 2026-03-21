@@ -45,19 +45,19 @@ impl MountingService {
         }
         // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
         if state.is_uefi() {
-            // Load FAT-related kernel modules; modprobe first, depmod+retry fallback
+            // Load FAT-related kernel modules; modprobe first, symlink+depmod fallback
             cmds.push(
                 "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
                     .into(),
             );
             cmds.push(
-                "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
+                "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems && [ ! -d /lib/modules/$(uname -r) ]; then AVAIL=$(ls -1 /lib/modules/ 2>/dev/null | head -1); if [ -n \"$AVAIL\" ]; then ln -sf /lib/modules/\"$AVAIL\" /lib/modules/$(uname -r); depmod -a 2>/dev/null; fi; fi; if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
                     .into(),
             );
             let esp_part = Self::partition_path(device, 1);
             // Verify FAT support is available before attempting mount
             cmds.push(format!(
-                "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {esp_part} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Tried: modprobe, depmod -a + modprobe retry.' >&2; echo 'Module directory: /lib/modules/'$(uname -r) >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}"
+                "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {esp_part} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Tried: modprobe, kernel module dir symlink, depmod -a + retry.' >&2; echo 'Running kernel: '$(uname -r) >&2; echo 'Available module dirs:' >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}"
             ));
             // Mount ESP with fallback across FAT type names
             cmds.push(format!(
