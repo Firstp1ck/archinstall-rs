@@ -47,33 +47,60 @@ impl InstallCmd {
         }
     }
 
-    /// `bash -lc 'script -qfec "inner" /dev/null 2>&1'` with install-time environment.
+    /// Shell steps run as `bash -lc 'script -qfec "inner" /dev/null 2>&1'` so output is
+    /// captured without `/dev/tty`. LUKS steps spawn `cryptsetup` directly with a piped stdin:
+    /// wrapping them in `script` would give `cryptsetup` a PTY as stdin, so `--key-file=-`
+    /// would not receive the passphrase and would error (e.g. "Error reading passphrase from terminal").
+    ///
     /// For LUKS variants, [`Self::write_passphrase_to_stdin`] must be called after spawn.
     pub fn spawn_script_pipeline(&self, stdout: Stdio) -> io::Result<std::process::Child> {
-        let inner = match self {
-            InstallCmd::Shell(c) => c.clone(),
-            InstallCmd::CryptsetupLuksFormat { device, .. } => format!(
-                "cryptsetup luksFormat --type luks2 -q --key-file=- {}",
-                shell_single_quote(device)
-            ),
-            InstallCmd::CryptsetupOpen { device, mapper, .. } => format!(
-                "cryptsetup open --type luks --key-file=- {} {}",
-                shell_single_quote(device),
-                shell_single_quote(mapper)
-            ),
-        };
-        let escaped = inner.replace('"', "\\\"");
-        let pipeline = format!("script -qfec \"{escaped}\" /dev/null 2>&1");
-        let stdin = match self {
-            InstallCmd::Shell(_) => Stdio::null(),
-            InstallCmd::CryptsetupLuksFormat { .. } | InstallCmd::CryptsetupOpen { .. } => {
-                Stdio::piped()
+        match self {
+            InstallCmd::CryptsetupLuksFormat { device, .. } => {
+                let mut cmd = Command::new("cryptsetup");
+                cmd.args([
+                    "luksFormat",
+                    "--type",
+                    "luks2",
+                    "-q",
+                    "--key-file=-",
+                    device.as_str(),
+                ])
+                .stdin(Stdio::piped())
+                .stdout(stdout);
+                configure_install_command(&mut cmd);
+                cmd.spawn()
             }
-        };
-        let mut cmd = Command::new("bash");
-        cmd.arg("-lc").arg(&pipeline).stdin(stdin).stdout(stdout);
-        configure_install_command(&mut cmd);
-        cmd.spawn()
+            InstallCmd::CryptsetupOpen {
+                device,
+                mapper,
+                ..
+            } => {
+                let mut cmd = Command::new("cryptsetup");
+                cmd.args([
+                    "open",
+                    "--type",
+                    "luks",
+                    "--key-file=-",
+                    device.as_str(),
+                    mapper.as_str(),
+                ])
+                .stdin(Stdio::piped())
+                .stdout(stdout);
+                configure_install_command(&mut cmd);
+                cmd.spawn()
+            }
+            InstallCmd::Shell(c) => {
+                let escaped = c.replace('"', "\\\"");
+                let pipeline = format!("script -qfec \"{escaped}\" /dev/null 2>&1");
+                let mut cmd = Command::new("bash");
+                cmd.arg("-lc")
+                    .arg(&pipeline)
+                    .stdin(Stdio::null())
+                    .stdout(stdout);
+                configure_install_command(&mut cmd);
+                cmd.spawn()
+            }
+        }
     }
 
     pub fn write_passphrase_to_stdin(&self, child: &mut std::process::Child) -> io::Result<()> {
