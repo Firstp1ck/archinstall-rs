@@ -50,11 +50,11 @@ Use Conventional Commits where possible:
 - test: add config load/save roundtrip tests
 
 ### Code Style and Quality
-From README guidelines, expanded:
+From project documentation conventions, expanded:
 1. Follow Rust best practices and idioms
 2. Maintain the existing code style
 3. Add tests for new functionality where practical
-4. Update documentation as needed (README and inline docs)
+4. Update documentation as needed (`README.md`, `Documents/`, and inline docs)
 5. Keep commits atomic and well-described
 6. Ensure all tests pass before submitting PR
 
@@ -78,38 +78,32 @@ cargo clippy -- -D warnings
 # Build and run in debug
 cargo run
 ```
-The app is a TUI; see navigation help in `README.md` under “Usage”.
+The app is a TUI; see [Documents/USAGE.md](Documents/USAGE.md) for navigation and flow.
 
 ## Architecture Primer (Where to Make Changes)
-High-level structure (see `README.md` for the full tree):
+High-level structure (full tree and feature checklist: [Documents/DEVELOPMENT.md](Documents/DEVELOPMENT.md)):
 - `src/main.rs`: entry point
-- `src/ui/`: UI modules
-  - `app/`: installation sections (e.g., `disks.rs`, `locales.rs`, etc.)
-  - `input/`: input handlers
-  - `render/`: rendering logic
-  - `common/`: shared UI utilities and popups
-  - `core/`: app state and shared types
+- `src/app/`: installation sections and install flow (`install/`, `config/`, screen modules)
+- `src/input/`: input handling (screens, popups, command line)
+- `src/render/`: section and popup rendering, theme
+- `src/common/`: shared UI utilities and popups
+- `src/core/`: state, types, storage planner, services
 
 ### Adding a New Screen or Feature (UI)
-Adapted and expanded from README “Adding New Features”:
-1. Create a new module in `src/ui/app/` (e.g., `src/ui/app/my_feature.rs`).
-   - Expose a draw function, e.g. `pub fn draw_my_feature(...)`.
-2. Register the screen in `src/ui/app.rs`.
-   - Add a `Screen::MyFeature` variant and include it in the menu entries.
-   - Extend `AppState` with any per-screen state.
-3. Wire rendering in `src/ui/render/sections/` (or relevant renderer).
-   - Route `Screen::MyFeature` to your draw function.
-4. Wire input in `src/ui/input/screens.rs`.
-   - Implement handlers (move/change/enter) for your screen.
-   - If using popups, add a `PopupKind` and handle selections in `apply_popup_selection`.
-5. Persist configuration (optional) in `src/ui/app/config/`.
-   - Update `types.rs`, `io.rs`, and `view.rs` as needed for save/load and summary.
-6. Add tests as applicable and update docs.
+Adapted from [Documents/DEVELOPMENT.md](Documents/DEVELOPMENT.md) “Adding a new feature”:
+1. Add `Screen::MyFeature` (and `PopupKind` if needed) in `src/core/types.rs`.
+2. Register menu entries and state in `src/core/state.rs`.
+3. Add `src/app/my_feature.rs` (draw) and route it in `src/render/sections/content.rs`.
+4. Add input under `src/input/screens/`, export in `mod.rs`, wire `dispatcher.rs`.
+5. Optional: popups in `src/common/popups.rs` and `src/render/popup/`.
+6. Optional: config in `src/app/config/{types,io,view}.rs`.
+7. Optional: install steps in `src/core/services/` and `src/app/install/flow.rs`.
+8. Add tests and update `Documents/` when user-facing behavior changes.
 
 ### Non-UI/Logic Changes
-- Configuration I/O lives under `src/ui/app/config/`.
-- Global state is in `src/ui/core/state.rs` and shared types in `src/ui/core/types.rs`.
-- Reusable UI helpers are in `src/ui/common/`.
+- Configuration I/O: `src/app/config/`.
+- Global state: `src/core/state.rs`; shared types: `src/core/types.rs`.
+- Reusable UI helpers: `src/common/`.
 
 ## Tests
 Tests are encouraged for:
@@ -123,7 +117,7 @@ cargo test
 ```
 
 ## Documentation
-- Update `README.md` if user-facing behavior changes
+- Update `README.md` and the relevant file under `Documents/` when user-facing behavior changes
 - Prefer concise inline documentation where code is non-obvious
 - Add screenshots under `Images/` if you change TUI flows significantly
 
@@ -140,7 +134,7 @@ PR review expectations:
 - Small, focused PRs are reviewed faster
 
 ## Issues and Bug Reports
-From README, expanded:
+From [Documents/TROUBLESHOOTING.md](Documents/TROUBLESHOOTING.md), expanded:
 When reporting a bug, include:
 - Clear problem description and expected vs. actual behavior
 - Steps to reproduce

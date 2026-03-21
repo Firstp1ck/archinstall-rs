@@ -1,0 +1,21 @@
+# Features
+
+- **Modern TUI**: Built with [ratatui](https://github.com/ratatui-org/ratatui)
+- **Performance and safety**: Rust implementation
+- **Flexible scenarios**: Multiple installation paths and options
+- **Storage planning**: Partitioning, mounts, and fstab from one validated plan; preflight can flag live ISO kernel vs module mismatches that often break ESP (`vfat`) mounts
+- **Save/load configuration**: TOML format for reproducible installs
+- **Disk encryption (experimental)**: LUKS on automatic layouts with non-interactive `cryptsetup` (passphrase via stdin so logs stay readable), early `dm-crypt`, mkinitcpio hooks (`sd-encrypt` or classic `encrypt` as needed), and bootloader kernel options aligned with the hook style (`rd.luks.name=` vs `cryptdevice=` / `root=`) for systemd-boot and GRUB when encryption is enabled
+- **Localization**: Locale, timezone, and keyboard layout
+- **Packages and mirrors**: Mirror selection, optional repositories, extra packages
+- **Users**: User creation, sudo, password handling
+- **Bootloaders**: systemd-boot and GRUB (and room for more over time)
+- **Audio**: Subsystem selection (e.g. PipeWire, PulseAudio, ALSA-only, none)
+- **Networking**: Target network configuration modes
+- **Kernels**: Multiple kernel packages selectable in the UI
+- **Swap**: Optional swap setup
+- **Theme**: Catppuccin Mocha palette across the TUI
+- **Truecolor**: Best results with `TERM=xterm-256color` and `COLORTERM=truecolor`
+- **Copy ISO network**: Replicates the live ISO network stack on the installed system where selected
+- **Desktop NM guard**: For KDE Plasma and GNOME, prompts to use NetworkManager when appropriate
+- **`boot.sh`**: Optional minimal GUI bootstrap (cage + foot) with logging
