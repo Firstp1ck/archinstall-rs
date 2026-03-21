@@ -639,7 +639,7 @@ impl AppState {
 
         sections.push((
             "System configuration".into(),
-            SysConfigService::build_plan(self)
+            SysConfigService::build_plan(self, &storage_plan)
                 .commands
                 .into_iter()
                 .map(InstallCmd::shell)

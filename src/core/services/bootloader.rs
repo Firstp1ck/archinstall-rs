@@ -104,16 +104,15 @@ impl BootloaderService {
         ));
 
         // Kernel options differ depending on whether LUKS encryption is active.
-        // With LUKS we use rd.luks.name to auto-open the container at boot;
-        // without it we simply pass root=UUID=<uuid>.
+        // With LUKS we pass cryptdevice= so the `encrypt` mkinitcpio hook can
+        // unlock the container, then root= points at the opened mapper device.
         let boot_options_script = if encrypted {
-            // Discover the underlying LUKS partition UUID at install time
             "rootdev=$(findmnt -n -o SOURCE /); \
              if cryptsetup status \"$(basename \"$rootdev\")\" >/dev/null 2>&1; then \
                underlying=$(cryptsetup status \"$(basename \"$rootdev\")\" | awk '/device:/{print $2}'); \
                luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
                mapper=$(basename \"$rootdev\"); \
-               echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
+               echo \"cryptdevice=UUID=$luksuuid:$mapper root=/dev/mapper/$mapper rw\"; \
              else \
                rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
                echo \"root=UUID=$rootuuid rw\"; \

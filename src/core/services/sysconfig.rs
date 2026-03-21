@@ -1,4 +1,5 @@
 use crate::core::state::AppState;
+use crate::core::storage::StoragePlan;
 
 #[derive(Clone, Debug)]
 pub struct SysConfigPlan {
@@ -14,10 +15,9 @@ impl SysConfigPlan {
 pub struct SysConfigService;
 
 impl SysConfigService {
-    pub fn build_plan(state: &AppState) -> SysConfigPlan {
+    pub fn build_plan(state: &AppState, storage_plan: &StoragePlan) -> SysConfigPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Add keyboard layout for Xorg/Wayland DEs beyond Hyprland (v0.3.0 UX).
-        // TODO: Add additional system configuration (hosts, mkinitcpio hooks for LUKS/UKI) (v0.3.0+).
+        let encrypted = storage_plan.has_encryption();
 
         // Helper: wrap a command to run inside the target system via arch-chroot
         fn chroot_cmd(inner: &str) -> String {
@@ -148,6 +148,14 @@ impl SysConfigService {
             cmds.push(chroot_cmd("rm -rf /tmp/yay /tmp/paru || true"));
             cmds.push(chroot_cmd("rm -f /etc/sudoers.d/aurbuild || true"));
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
+        }
+
+        // mkinitcpio: add `encrypt` hook for LUKS and rebuild initramfs
+        if encrypted {
+            cmds.push(chroot_cmd(
+                "sed -i '/^HOOKS=/s/\\bblock\\b/block encrypt/' /etc/mkinitcpio.conf",
+            ));
+            cmds.push(chroot_cmd("mkinitcpio -P"));
         }
 
         // Debug summary (log only, do not add to command list)

@@ -102,8 +102,11 @@ fn usersetup_redacts_passwords_in_dry_run() {
 #[test]
 fn sysconfig_enables_networkmanager_when_selected() {
     let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
     state.network_mode_index = 2; // NetworkManager
-    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state);
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
     let joined = plan.commands.join("\n");
     assert!(
         joined.contains("systemctl --root=/mnt enable NetworkManager"),
@@ -210,11 +213,11 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
     assert!(joined.contains("arch.conf"), "{joined}");
     assert!(joined.contains("arch-fallback.conf"), "{joined}");
     // Non-encrypted: should use simple root=UUID= options
-    assert!(!joined.contains("rd.luks.name"), "{joined}");
+    assert!(!joined.contains("cryptdevice="), "{joined}");
 }
 
 #[test]
-fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
+fn bootloader_systemd_boot_luks_adds_cryptdevice() {
     let mut state = make_state();
     state.disks_selected_device = Some("/dev/sda".into());
     state.disk_encryption_type_index = 1; // LUKS
@@ -228,7 +231,7 @@ fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
     );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
-    assert!(joined.contains("rd.luks.name"), "{joined}");
+    assert!(joined.contains("cryptdevice=UUID="), "{joined}");
     assert!(joined.contains("arch.conf"), "{joined}");
 }
 
