@@ -19,9 +19,12 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
     let t = crate::render::theme::catppuccin_mocha();
     let area = frame.area();
     let (width, height) = if matches!(app.popup_kind, Some(PopupKind::Info)) {
-        // Make Info popups (e.g., "Reboot now?") a bit larger
-        let w = area.width.clamp(36, 72);
-        let h = area.height.clamp(11, 16);
+        let body = app.popup_items.first().map(|s| s.as_str()).unwrap_or("");
+        let line_count = body.lines().count().max(1);
+        let longest_line = body.lines().map(|l| l.len()).max().unwrap_or(20);
+        // +4 for border + padding on each side; +5 for border, blank line, hint, border, padding
+        let w = (longest_line as u16 + 6).clamp(40, area.width.saturating_sub(4).max(40));
+        let h = (line_count as u16 + 6).clamp(10, area.height.saturating_sub(2).max(10));
         (w, h)
     } else if matches!(
         app.popup_kind,

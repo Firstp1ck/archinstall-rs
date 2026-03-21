@@ -104,6 +104,8 @@ pub struct FilesystemSpec {
 pub struct EncryptionSpec {
     pub method: EncryptionMethod,
     pub mapper_name: String,
+    /// Passphrase for LUKS encryption (piped to cryptsetup via stdin at install time).
+    pub passphrase: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -187,10 +189,11 @@ impl DeviceStack {
         for layer in &self.layers {
             match layer {
                 VolumeLayer::Luks(enc) => {
-                    cmds.push(format!("cryptsetup luksFormat {current}"));
-                    cmds.push(format!(
-                        "cryptsetup open {current} {}",
-                        enc.mapper_name
+                    cmds.push(Self::luks_format_cmd(&current, enc.passphrase.as_deref()));
+                    cmds.push(Self::luks_open_cmd(
+                        &current,
+                        &enc.mapper_name,
+                        enc.passphrase.as_deref(),
                     ));
                     current = format!("/dev/mapper/{}", enc.mapper_name);
                 }
@@ -227,6 +230,29 @@ impl DeviceStack {
         }
 
         cmds
+    }
+
+    /// Build a `cryptsetup luksFormat` command, piping the passphrase via stdin
+    /// and using `-q` to skip the interactive "Are you sure?" confirmation.
+    pub(crate) fn luks_format_cmd(device: &str, passphrase: Option<&str>) -> String {
+        match passphrase {
+            Some(pw) => {
+                let escaped = pw.replace('\'', "'\\''");
+                format!("echo -n '{escaped}' | cryptsetup luksFormat -q {device}")
+            }
+            None => format!("cryptsetup luksFormat -q {device}"),
+        }
+    }
+
+    /// Build a `cryptsetup open` command, piping the passphrase via stdin.
+    pub(crate) fn luks_open_cmd(device: &str, mapper: &str, passphrase: Option<&str>) -> String {
+        match passphrase {
+            Some(pw) => {
+                let escaped = pw.replace('\'', "'\\''");
+                format!("echo -n '{escaped}' | cryptsetup open {device} {mapper}")
+            }
+            None => format!("cryptsetup open {device} {mapper}"),
+        }
     }
 
     fn mkfs_command(fstype: &str, device: &str) -> String {
@@ -409,10 +435,14 @@ impl StoragePlan {
                 if let Some(enc) = &part.encryption {
                     match enc.method {
                         EncryptionMethod::Luks2 => {
-                            cmds.push(format!("cryptsetup luksFormat {part_path}"));
-                            cmds.push(format!(
-                                "cryptsetup open {part_path} {}",
-                                enc.mapper_name
+                            cmds.push(DeviceStack::luks_format_cmd(
+                                &part_path,
+                                enc.passphrase.as_deref(),
+                            ));
+                            cmds.push(DeviceStack::luks_open_cmd(
+                                &part_path,
+                                &enc.mapper_name,
+                                enc.passphrase.as_deref(),
                             ));
                         }
                     }

@@ -120,8 +120,18 @@ impl PartitioningService {
         ));
         let luks = state.disk_encryption_type_index == 1;
         if luks {
-            part_cmds.push(format!("cryptsetup luksFormat {device}3"));
-            part_cmds.push(format!("cryptsetup open {device}3 cryptroot"));
+            use crate::core::storage::DeviceStack;
+            let pw = if state.disk_encryption_password.is_empty() {
+                None
+            } else {
+                Some(state.disk_encryption_password.as_str())
+            };
+            part_cmds.push(DeviceStack::luks_format_cmd(&format!("{device}3"), pw));
+            part_cmds.push(DeviceStack::luks_open_cmd(
+                &format!("{device}3"),
+                "cryptroot",
+                pw,
+            ));
             part_cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
         } else {
             part_cmds.push(format!("mkfs.btrfs -f {device}3"));

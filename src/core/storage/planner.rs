@@ -125,9 +125,15 @@ impl StoragePlanner {
         };
 
         let encryption = if luks {
+            let pw = if state.disk_encryption_password.is_empty() {
+                None
+            } else {
+                Some(state.disk_encryption_password.clone())
+            };
             Some(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "cryptroot".into(),
+                passphrase: pw,
             })
         } else {
             None
@@ -346,9 +352,15 @@ impl StoragePlanner {
                     PartitionRole::Home => "crypthome",
                     _ => "cryptdev",
                 };
+                let pw = if state.disk_encryption_password.is_empty() {
+                    None
+                } else {
+                    Some(state.disk_encryption_password.clone())
+                };
                 Some(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: mapper.into(),
+                    passphrase: pw,
                 })
             } else {
                 None
@@ -736,6 +748,7 @@ mod tests {
             Some(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "cryptroot".into(),
+                passphrase: None,
             })
         } else {
             None
@@ -837,6 +850,7 @@ mod tests {
             Some(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "cryptroot".into(),
+                passphrase: None,
             })
         } else {
             None
@@ -926,7 +940,7 @@ mod tests {
             cmds[9],
             format!("parted -s {device} mkpart root btrfs 5121MiB 100%")
         );
-        assert_eq!(cmds[10], format!("cryptsetup luksFormat {device}3"));
+        assert_eq!(cmds[10], format!("cryptsetup luksFormat -q {device}3"));
         assert_eq!(
             cmds[11],
             format!("cryptsetup open {device}3 cryptroot")
@@ -991,7 +1005,7 @@ mod tests {
             cmds[8],
             format!("parted -s {device} mkpart root btrfs 4098MiB 100%")
         );
-        assert_eq!(cmds[9], format!("cryptsetup luksFormat {device}3"));
+        assert_eq!(cmds[9], format!("cryptsetup luksFormat -q {device}3"));
         assert_eq!(
             cmds[10],
             format!("cryptsetup open {device}3 cryptroot")
@@ -1784,6 +1798,7 @@ mod tests {
             layers: vec![VolumeLayer::Luks(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "cryptroot".into(),
+                passphrase: None,
             })],
             filesystem: Some(FilesystemSpec {
                 fstype: "btrfs".into(),
@@ -1841,6 +1856,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptroot".into(),
+                    passphrase: None,
                 }),
             ],
             filesystem: Some(FilesystemSpec {
@@ -1860,6 +1876,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptlvm".into(),
+                    passphrase: None,
                 }),
                 VolumeLayer::Lvm(LvmSpec {
                     vg_name: "vg_system".into(),
@@ -1888,6 +1905,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptlvm".into(),
+                    passphrase: None,
                 }),
                 VolumeLayer::Lvm(LvmSpec {
                     vg_name: "vg0".into(),
@@ -1906,6 +1924,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptlvm".into(),
+                    passphrase: None,
                 }),
                 VolumeLayer::Lvm(LvmSpec {
                     vg_name: "vg0".into(),
@@ -1924,6 +1943,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptlvm".into(),
+                    passphrase: None,
                 }),
                 VolumeLayer::Lvm(LvmSpec {
                     vg_name: "vg0".into(),
@@ -1974,6 +1994,7 @@ mod tests {
                         encryption: Some(EncryptionSpec {
                             method: EncryptionMethod::Luks2,
                             mapper_name: "cryptlvm".into(),
+                            passphrase: None,
                         }),
                         subvolumes: vec![],
                     },
@@ -2167,6 +2188,7 @@ mod tests {
             layers: vec![VolumeLayer::Luks(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "cryptroot".into(),
+                passphrase: None,
             })],
             filesystem: Some(FilesystemSpec {
                 fstype: "btrfs".into(),
@@ -2174,7 +2196,7 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "cryptsetup luksFormat /dev/sda3");
+        assert_eq!(cmds[0], "cryptsetup luksFormat -q /dev/sda3");
         assert_eq!(cmds[1], "cryptsetup open /dev/sda3 cryptroot");
         assert_eq!(cmds[2], "mkfs.btrfs -f /dev/mapper/cryptroot");
         assert_eq!(cmds.len(), 3);
@@ -2248,6 +2270,7 @@ mod tests {
                 VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "cryptlvm".into(),
+                    passphrase: None,
                 }),
                 VolumeLayer::Lvm(LvmSpec {
                     vg_name: "vg_system".into(),
@@ -2261,7 +2284,7 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "cryptsetup luksFormat /dev/nvme0n1p3");
+        assert_eq!(cmds[0], "cryptsetup luksFormat -q /dev/nvme0n1p3");
         assert_eq!(cmds[1], "cryptsetup open /dev/nvme0n1p3 cryptlvm");
         assert_eq!(cmds[2], "pvcreate /dev/mapper/cryptlvm");
         assert_eq!(cmds[3], "vgcreate vg_system /dev/mapper/cryptlvm");
@@ -2277,6 +2300,7 @@ mod tests {
             layers: vec![VolumeLayer::Luks(EncryptionSpec {
                 method: EncryptionMethod::Luks2,
                 mapper_name: "crypt".into(),
+                passphrase: None,
             })],
             filesystem: None,
         };
@@ -2319,6 +2343,7 @@ mod tests {
                     layers: vec![VolumeLayer::Luks(EncryptionSpec {
                         method: EncryptionMethod::Luks2,
                         mapper_name: "crypt".into(),
+                        passphrase: None,
                     })],
                     filesystem: None,
                 },
@@ -2361,6 +2386,7 @@ mod tests {
                 layers: vec![VolumeLayer::Luks(EncryptionSpec {
                     method: EncryptionMethod::Luks2,
                     mapper_name: "crypt".into(),
+                    passphrase: None,
                 })],
                 filesystem: Some(FilesystemSpec {
                     fstype: "ext4".into(),
