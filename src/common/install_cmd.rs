@@ -70,11 +70,7 @@ impl InstallCmd {
                 configure_install_command(&mut cmd);
                 cmd.spawn()
             }
-            InstallCmd::CryptsetupOpen {
-                device,
-                mapper,
-                ..
-            } => {
+            InstallCmd::CryptsetupOpen { device, mapper, .. } => {
                 let mut cmd = Command::new("cryptsetup");
                 cmd.args([
                     "open",

@@ -131,7 +131,10 @@ fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
         joined.contains("grep -qP") && joined.contains("systemd"),
         "should detect systemd vs udev hooks: {joined}"
     );
-    assert!(joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"), "{joined}");
+    assert!(
+        joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"),
+        "{joined}"
+    );
     assert!(
         joined.contains("WARNING: errors were encountered during the build"),
         "{joined}"

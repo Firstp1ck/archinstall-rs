@@ -480,8 +480,7 @@ impl AppState {
         }
         if self.bootloader_index == 0 && !self.is_uefi() {
             issues.push(
-                "systemd-boot requires UEFI firmware. In BIOS/legacy mode, choose GRUB."
-                    .into(),
+                "systemd-boot requires UEFI firmware. In BIOS/legacy mode, choose GRUB.".into(),
             );
         }
 
