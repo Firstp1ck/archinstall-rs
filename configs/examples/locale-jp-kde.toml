@@ -1,0 +1,91 @@
+# Japan: Japanese locale + KDE Plasma + local mirrors. Add fonts (e.g. noto-fonts-cjk) in the
+# TUI or additional_packages if you need full CJK coverage. Replace password hashes before use.
+
+[[users]]
+username = "archie"
+password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+is_sudo = true
+
+additional_packages = []
+
+[locales]
+keyboard_layout = "jp106"
+locale_language = "ja_JP.UTF-8"
+locale_encoding = "UTF-8"
+
+[mirrors]
+regions = ["Japan                  JP    18"]
+optional_repos = ["multilib"]
+custom_servers = []
+custom_repos = []
+
+[disks]
+mode = "Best-effort partition layout"
+
+[disk_encryption]
+encryption_type = "None"
+
+[swap]
+enabled = true
+
+[bootloader]
+kind = "systemd-boot"
+
+[system]
+hostname = "archlinux"
+root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+automatic_time_sync = true
+timezone = "Asia/Tokyo"
+
+[unified_kernel_images]
+enabled = false
+
+[kernels]
+selected = ["linux", "linux-lts"]
+
+[audio]
+kind = "pipewire"
+
+[experience]
+mode = "Desktop"
+desktop_envs = ["KDE Plasma"]
+server_types = []
+xorg_types = []
+login_manager = "sddm"
+login_manager_user_set = false
+graphic_drivers = [
+    "intel-media-driver",
+    "libva-intel-driver",
+    "mesa",
+    "vulkan-intel",
+    "vulkan-nouveau",
+    "vulkan-radeon",
+    "xf86-video-amdgpu",
+    "xf86-video-ati",
+    "xf86-video-nouveau",
+    "xorg-server",
+    "xorg-xinit",
+]
+
+[experience.desktop_env_packages]
+"KDE Plasma" = [
+    "ark",
+    "dolphin",
+    "kate",
+    "konsole",
+    "plasma-meta",
+    "plasma-workspace",
+    "htop",
+    "iwd",
+    "nano",
+    "openssh",
+    "smartmontools",
+    "vim",
+    "wget",
+    "wireless_tools",
+    "wpa_supplicant",
+    "xdg-utils",
+]
+
+[network]
+mode = "NetworkManager"
