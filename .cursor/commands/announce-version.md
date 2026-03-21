@@ -1,13 +1,11 @@
-# announce
+# announce-version
 
-create a announcement for the given version.
+Create a **version** announcement for **archinstall-rs** for the given version (align with `Cargo.toml` when possible).
 
-Keep it user friendly and max. 800 characters.
-Keep it short and to the point.
+- User-friendly, **max ~800 characters**, short and to the point.
+- Save to **`dev/ANNOUNCEMENTS/version_announcement_content.md`** (create `dev/ANNOUNCEMENTS/` if missing).
 
-Save the Content in the file `dev/ANNOUNCEMENTS/version_announcement_content.md`
-
-Follow the following structure/format:
+Structure:
 
 ```markdown
 ## What's New

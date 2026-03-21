@@ -1,15 +1,15 @@
-<!-- Thank you for contributing to Pacsea! 
+<!-- Thank you for contributing to **archinstall-rs**!
 
-**Important references:**
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — Full contribution guidelines and PR process
-- [PR_DESCRIPTION.md](../Documents/PR_DESCRIPTION.md) — Detailed PR description template
-- [Development Wiki](https://github.com/Firstp1ck/Pacsea/wiki/Development) — Development tools and debugging
+**References:**
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — contribution guidelines
+- [README.md](../README.md) — features, roadmap, usage
+- [Documents/arch_manual.md](../Documents/arch_manual.md) — installer-oriented notes (when applicable)
 
-Please ensure you've reviewed these before submitting your PR.
+Please skim these before submitting your PR.
 -->
 
 ## Summary
-Briefly describe the problem and how your change solves it. (show as list if possible)
+Briefly describe the problem and how your change solves it. (bullets welcome)
 
 ## Type of change
 - [ ] feat (new feature)
@@ -19,65 +19,57 @@ Briefly describe the problem and how your change solves it. (show as list if pos
 - [ ] perf (performance)
 - [ ] test (add/update tests)
 - [ ] chore (build/infra/CI)
-- [ ] ui (visual/interaction changes)
-- [ ] breaking change (incompatible behavior)
+- [ ] ui (visual/interaction changes in the TUI)
+- [ ] breaking change (incompatible behavior or config)
 
 ## Related issues
 Closes #
 
 ## How to test
-List exact steps and commands to verify the change. Include flags like `--dry-run` when appropriate.
+Exact steps and commands. Prefer **`--dry-run`** when exercising install flows.
 
 ```bash
-# examples
 cargo fmt --all
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test -- --test-threads=1
-RUST_LOG=pacsea=debug cargo run -- --dry-run
+cargo run -- --dry-run
 ```
 
+On a live Arch ISO (when your change touches partitioning, mounts, or install): describe the disk layout and menu path you used.
+
 ## Screenshots / recordings (if UI changes)
-Include before/after images or a short GIF. Update files in `Images/` if relevant.
+Before/after terminal screenshots or a short recording. Update `Images/` if you add promotional shots.
 
 ## Checklist
 
-**Code Quality:**
-- [ ] Code compiles locally (`cargo check`)
-- [ ] `cargo fmt --all` ran without changes
+**Code quality**
+- [ ] `cargo check` succeeds
+- [ ] `cargo fmt --all` produces no diff
 - [ ] `cargo clippy --all-targets --all-features -- -D warnings` is clean
 - [ ] `cargo test -- --test-threads=1` passes
-- [ ] Complexity checks pass for new code (`cargo test complexity -- --nocapture`)
-- [ ] All new functions/methods have rustdoc comments (What, Inputs, Output, Details)
-- [ ] No `unwrap()` or `expect()` in non-test code
+- [ ] New public API or non-obvious behavior has rustdoc where it helps reviewers
 
-**Testing:**
-- [ ] Added or updated tests where it makes sense
-- [ ] For bug fixes: created failing tests first, then fixed the issue
-- [ ] Tests are meaningful and cover the functionality
+**Testing**
+- [ ] Added or updated tests when behavior is non-trivial (storage planner, command redaction, parsing, etc.)
+- [ ] For bug fixes: reproduced first, then verified the fix (ideally with a test)
 
-**Documentation:**
-- [ ] Updated README if behavior, options, or keybinds changed (keep high-level, reference wiki)
-- [ ] Updated relevant wiki pages if needed:
-  - [How to use Pacsea](https://github.com/Firstp1ck/Pacsea/wiki/How-to-use-Pacsea)
-  - [Configuration](https://github.com/Firstp1ck/Pacsea/wiki/Configuration)
-  - [Keyboard Shortcuts](https://github.com/Firstp1ck/Pacsea/wiki/Keyboard-Shortcuts)
-- [ ] Updated config examples in `config/` directory if config keys changed
-- [ ] For UI changes: included screenshots and updated `Images/` if applicable
+**Documentation**
+- [ ] Updated [README.md](../README.md) if user-visible behavior, options, or roadmap claims changed
+- [ ] Updated [Documents/](../Documents/) (e.g. `arch_manual.md`, plans) if installer steps or constraints changed
 
-**Compatibility:**
-- [ ] Changes respect `--dry-run` flag
-- [ ] Code degrades gracefully if `pacman`/`paru`/`yay` are unavailable
-- [ ] No breaking changes (or clearly documented if intentional)
+**Installer safety**
+- [ ] Respects **`--dry-run`** where applicable (no destructive commands without user confirmation)
+- [ ] Partitioning / LUKS / mount / `pacstrap` paths reviewed for wrong-device or ordering mistakes
+- [ ] No intentional breaking changes — or they are called out under **Breaking changes** below
 
-**Other:**
-- [ ] Not a packaging change for AUR (otherwise propose in `pacsea-bin` or `pacsea-git` repos)
+**Scope**
+- [ ] Not a third-party packaging-only change (AUR/distros); those belong in their respective packaging repos
 
 ## Notes for reviewers
-Call out tricky areas, assumptions, edge cases, or follow-ups.
+Tricky areas, assumptions, edge cases, or follow-ups.
 
 ## Breaking changes
-Describe any breaking changes and migration steps (e.g., config key renames).
+Migration steps (e.g. config TOML keys, CLI flags, default behavior).
 
 ## Additional context
-Logs, links to discussions, design notes, or prior art.
-
+Logs (redact secrets), discussion links, design notes.

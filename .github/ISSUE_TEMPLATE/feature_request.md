@@ -1,20 +1,20 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: ''
+about: Suggest an improvement or new capability for archinstall-rs
+title: '[Feature] '
 labels: ''
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**Problem / motivation**
+What limitation or pain point does this address?
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**Proposed solution**
+What should archinstall-rs do differently (TUI flow, automation, supported disk layout, etc.)?
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**Alternatives considered**
+Other approaches you thought about.
 
 **Additional context**
-Add any other context or screenshots about the feature request here.
+Mockups, prior art (e.g. `archinstall` Python), or docs links.

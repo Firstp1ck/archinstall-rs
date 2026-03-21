@@ -1,23 +1,19 @@
 # issue-new
 
-create an "issue" description for github for the given issue by the user.
-keep it: simple, maintainer friendly (keep it as simple as possible without using technical jargon), clear, concise and avoid duplicate information. Write it as if a User found the issue.
+Create a **GitHub issue** description for **archinstall-rs** from the user's report.
 
-Title Format: [Type]: [Title]
+- Simple, **maintainer-friendly**, minimal jargon, clear, no duplicate info. Voice: **user** who hit the problem in the TUI installer (live ISO or installed system context as given).
 
-Types:
-- Feature
-- Bug
-- Improvement
-- Doc
-- Question
+**Title:** `[Type]: [Title]`
 
-Title Example: [Feature] Support for btrfs subvolume presets in automatic mode
+**Types:** Feature, Bug, Improvement, Doc, Question  
 
-## Body Format
+**Example:** `[Bug] LUKS unlock fails after selecting disk on ISO`
+
+## Body
 
 ### Short Summary
-Describe the issue in a few sentences. (Max 2 sentences)
+1–2 sentences max.
 
-### Body
-Only add this section if additional details are necessary beyond the short summary. Describe the issue in detail. List style if possible.
+### Body (optional)
+Extra detail only if needed; bullets preferred (steps to reproduce, expected vs actual, ISO/version if known).

@@ -1,39 +1,16 @@
 # git-staged-msg
 
-create/update commit message (short and long version) for the staged files. create/update file in dev/COMMIT/ 
-Keep the commits in the following format:
-- Check what kind of commit it is (feature, change or fix etc.).
-each type has the following pretext:
-- fix:
-- feat:
-- change:
-- perf:
-- test:
-- chore:
-- refactor:
-- docs:
-- style:
-- build:
-- ci:
-- revert:
+For **archinstall-rs**, create/update commit messages for **currently staged** changes.
 
-For each point in the commit also apply this structure:
-- fix:
-- feat:
-- change:
-- perf:
-- test:
-- chore:
-- refactor:
-- docs:
-- style:
-- build:
-- ci:
-- revert:
+- Write **`dev/COMMIT/SHORT.md`** (one-line subject) and **`dev/COMMIT/LONG.md`** (body with bullets), or update them in place.
+- Use Conventional Commits prefix: `fix:`, `feat:`, `change:`, `perf:`, `test:`, `chore:`, `refactor:`, `docs:`, `style:`, `build:`, `ci:`, `revert:`.
 
-Complete Commit structure:
+**Long form** — one bullet per meaningful change, same type prefixes where helpful:
+
+```
 <type>: <short summary>
-- <type>: point description, keep short, concise and clear.
-- <type>: point description, keep short, concise and clear.
-...
-(No additional text or explanation)
+- <type>: point description, short and clear.
+- <type>: point description, short and clear.
+```
+
+No extra prose outside that structure in the long file unless the user asks.

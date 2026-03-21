@@ -1,38 +1,32 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
+about: Report a problem with the archinstall-rs TUI installer
+title: '[Bug] '
 labels: ''
 assignees: ''
 
 ---
 
 **Describe the bug**
-A clear and concise description of what the bug is.
+What went wrong?
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**To reproduce**
+Steps on the TUI (menus, keys) or CLI:
+1. …
+2. …
+3. …
 
 **Expected behavior**
-A clear and concise description of what you expected to happen.
+What you expected instead.
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**Screenshots / terminal output**
+If applicable (redact passwords, LUKS passphrases, mirror URLs with tokens).
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
-
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+**Environment**
+- Install medium: [e.g. official Arch ISO `archinstall` / custom ISO / installed system]
+- archinstall-rs version or commit: [e.g. `0.2.0` / git SHA]
+- Boot mode: [UEFI / BIOS] (if relevant)
+- Did you use `--dry-run`? [yes / no]
 
 **Additional context**
-Add any other context about the problem here.
+Anything else (disk layout, encryption, mirror setup, crash logs).

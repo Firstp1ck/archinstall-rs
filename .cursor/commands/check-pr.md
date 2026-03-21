@@ -1,4 +1,7 @@
 # check-pr
 
-check the last commits made by the following author for the PR I am reviewing and explain them extensively to me.
-If there are any critical logic errors in the commits, explain them to me and suggest fixes.
+Review the **last commits** from the specified author (or the PR branch vs **`main`**) for **archinstall-rs**.
+
+1. Use `git log` / `git show` scoped to the PR (e.g. vs `origin/main` or `main`).
+2. Explain **what changed** and **why** in plain terms; call out installer-risk areas: partitioning, LUKS, mounts, `pacstrap`, fstab, bootloader, config I/O.
+3. If you spot **critical logic errors** (data loss risk, wrong device targets, unsafe commands), explain and suggest **concrete fixes** with file/module references under `src/`.

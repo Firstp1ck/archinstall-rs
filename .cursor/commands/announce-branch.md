@@ -1,13 +1,11 @@
-# announce
+# announce-branch
 
-create a announcement for the current branch.
+Create a **branch** announcement for **archinstall-rs** (what landed on this branch vs expectations for users/testers).
 
-Keep it user friendly and max. 800 characters.
-Keep it short and to the point.
+- User-friendly, **max ~800 characters**, short and scannable.
+- Save to **`dev/ANNOUNCEMENTS/branch_announcement_content.md`** (create `dev/ANNOUNCEMENTS/` if missing).
 
-Save the Content in the file `dev/ANNOUNCEMENTS/branch_announcement_content.md`
-
-Follow the following structure/format:
+Structure:
 
 ```markdown
 ## What's New

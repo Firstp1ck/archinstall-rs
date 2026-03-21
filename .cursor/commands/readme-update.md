@@ -1,14 +1,7 @@
 # readme-update
 
-Update README.md with the changes of the branch.
+Update **`README.md`** for **archinstall-rs** to reflect the **current branch** changes.
 
-This command will be available in chat with /readme-update
-
-Keep it user friendly.
-Keep it short and to the point.
-Do not add dedicated sections for minor changes.
-
-Save the Content in the file `README.md`
-
-Follow the following structure/format:
-Add the content naturally to the file.
+- User-friendly; **short**; fold into existing sections (Features, Roadmap, “What works”) instead of new sections for tiny edits.
+- Keep claims accurate (e.g. encryption, partitioning modes) — cross-check `src/` and docs under `Documents/` if unsure.
+- Write directly to **`README.md`** (this command is available in chat as `/readme-update`).
