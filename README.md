@@ -16,7 +16,7 @@ To pass options through to the installer (for example `--help`), use `bash -s --
 curl -fsSL https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/install.sh | bash -s -- --help
 ```
 
-To pin a version, replace `latest` with a tag path, for example `releases/download/v0.2.0/install.sh`.
+To pin a version, replace `latest` with a tag path, for example `releases/download/vX.X.X/install.sh`.
 
 ## 📷 TUI Installer
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
