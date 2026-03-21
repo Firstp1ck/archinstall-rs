@@ -99,7 +99,7 @@ To pin a version, replace `latest` with a tag path, for example `releases/downlo
 - **🔧 Flexible Configuration**: Support for various installation scenarios and customization options
 - **💾 Storage planning**: Partitioning, mounts, and fstab come from one validated plan; preflight also flags live ISO kernel vs module mismatches that often break ESP (`vfat`) mounts
 - **💾 Configuration Saving**: Save and load installation configurations in TOML format
-- **🔐 Disk Encryption (experimental)**: LUKS on automatic layouts with non-interactive `cryptsetup`, early `dm-crypt` setup, mkinitcpio `sd-encrypt` hook injection, and bootloader kernel options (`rd.luks.name=`) for systemd-boot / GRUB when encryption is on
+- **🔐 Disk Encryption (experimental)**: LUKS on automatic layouts with non-interactive `cryptsetup` (passphrase via stdin so logs stay clean), early `dm-crypt` setup, mkinitcpio hooks (`sd-encrypt` or classic `encrypt` as needed), and bootloader kernel options that match the hook style (`rd.luks.name=` vs `cryptdevice=` / `root=`) for systemd-boot / GRUB when encryption is on
 - **🌍 Localization**: Comprehensive locale, timezone, and keyboard layout configuration
 - **📦 Package Management**: Configure mirrors, optional repositories, and additional packages
 - **👤 User Management**: Create users with sudo privileges and secure password handling
@@ -313,7 +313,7 @@ It logs to the path printed on start and exits with an error if a GUI cannot be 
 - Custom swap configuration
 
 #### 6. **Bootloader**
-- systemd-boot (recommended for UEFI)
+- systemd-boot (UEFI only; the installer blocks this choice on BIOS/legacy firmware—use GRUB there)
 - GRUB (UEFI/BIOS support)
 - Other bootloader options
 
