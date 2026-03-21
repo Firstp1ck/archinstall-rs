@@ -2,6 +2,22 @@
 
 A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux written in Rust. This project aims to simplify the Arch Linux installation process while maintaining the flexibility and control that Arch users expect.
 
+## 🚀 Quickstart
+
+From the **Arch live ISO** (with networking), run the **install script** from [GitHub Releases](https://github.com/Firstp1ck/archinstall-rs/releases/latest) (it downloads the binary, verifies it, then runs the installer):
+
+```bash
+curl -fsSL https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/install.sh | bash
+```
+
+To pass options through to the installer (for example `--help`), use `bash -s --`:
+
+```bash
+curl -fsSL https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/install.sh | bash -s -- --help
+```
+
+To pin a version, replace `latest` with a tag path, for example `releases/download/v0.2.0/install.sh`.
+
 ## 📷 TUI Installer
 ![archinstall-rs screenshot](Images/example_v0.0.1.png)
 
@@ -17,7 +33,7 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - Only Grub and Systemd Bootloader
 - NetworkManager and Copy ISO Network mode available
 - Only Experience Mode "Desktop Environment" yet (due to NetworkManager)
-- No Encryption yet
+- LUKS encryption on automatic / best-effort btrfs layouts (still treat as experimental)
 - No Custom Server/Repos yet
 - No Unified Kernel Images (no Secure Boot)
 
@@ -29,7 +45,8 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] TUI scaffolding and navigation
   - [x] Configuration save/load (TOML)
   - [x] Disk selection and partitioning plan preview (Info popup)
-  - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS)
+  - [x] Best-effort automatic partitioning (GPT, ESP/BIOS boot, 4GiB swap, btrfs root, optional LUKS, btrfs subvolume presets)
+  - [x] Pre-mounted mode when `/mnt` is already prepared; install skips repartitioning
   - [x] Partitioning execution via parted/mkfs/cryptsetup with safety checks
   - [x] Abort if target has mounted partitions
   - [x] Wipe confirmation if device appears already partitioned
@@ -40,11 +57,11 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
   - [x] Basic system configuration (locale, timezone, hostname, keymap)
   - [x] Enable networking/time sync (NetworkManager/systemd-timesyncd as selected)
   - [x] Root/user setup (passwords, sudoers, optional login manager)
-  - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS)
+  - [x] Bootloader setup: systemd-boot (UEFI) and GRUB (UEFI/BIOS), including LUKS-related kernel options when encryption is enabled
   - [x] Installation progress view and log viewer
   - [x] Manual partitioning partially implemented. Simple partitioning possible.
 
-- [ ] **v0.2.0** - Manual Partitioning & Boot Enhancements
+- [x] **v0.2.0** - Manual Partitioning & Boot Enhancements
   - [x] Custom mount points
   - [x] Help system with contextual information
   - [x] Installation progress visualization
@@ -80,8 +97,9 @@ A modern, intuitive TUI (Terminal User Interface) installer for Arch Linux writt
 - **🖥️ Modern TUI Interface**: Built with [ratatui](https://github.com/ratatui-org/ratatui), providing an intuitive and responsive terminal interface
 - **⚡ Fast & Efficient**: Written in Rust for optimal performance and memory safety
 - **🔧 Flexible Configuration**: Support for various installation scenarios and customization options
+- **💾 Storage planning**: Partitioning, mounts, and fstab come from one validated plan; preflight also flags live ISO kernel vs module mismatches that often break ESP (`vfat`) mounts
 - **💾 Configuration Saving**: Save and load installation configurations in TOML format
-- **🔐 Disk Encryption (experimental)**: LUKS groundwork present; passphrase handling WIP
+- **🔐 Disk Encryption (experimental)**: LUKS on automatic layouts with non-interactive `cryptsetup`, early `dm-crypt` setup, mkinitcpio `sd-encrypt` hook injection, and bootloader kernel options (`rd.luks.name=`) for systemd-boot / GRUB when encryption is on
 - **🌍 Localization**: Comprehensive locale, timezone, and keyboard layout configuration
 - **📦 Package Management**: Configure mirrors, optional repositories, and additional packages
 - **👤 User Management**: Create users with sudo privileges and secure password handling
@@ -171,9 +189,8 @@ cargo run
 ### Pre-built Binary
 
 ```bash
-# Download the latest release (if not already present)
-wget https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/archinstall-rs
-chmod +x archinstall-rs
+# From the Arch live ISO (install script handles download and verification)
+curl -fsSL https://github.com/Firstp1ck/archinstall-rs/releases/latest/download/install.sh | bash
 
 # Recommended from ISO TTY: use the helper to bootstrap a minimal GUI and run the installer
 ./boot.sh
@@ -280,12 +297,13 @@ It logs to the path printed on start and exits with an error if a GUI cannot be 
 - Custom mirror server configuration
 
 #### 3. **Disks**
-- Automatic partitioning with best-effort layout
+- Automatic partitioning with best-effort layout and btrfs **subvolume presets** (flat / standard / extended) when btrfs is the root filesystem
+- **Pre-mounted** mode if you already mounted targets under `/mnt` (installer detects layouts via `findmnt`)
 - Manual partition selection
 - File system configuration
 
 #### 4. **Disk Encryption**
-- Experimental LUKS support (non-interactive passphrase pipeline is WIP)
+- Experimental LUKS support with a non-interactive `cryptsetup` flow on supported automatic layouts
 - Password-based encryption
 - Partition-specific encryption
 
@@ -367,6 +385,8 @@ custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
+# Optional: "flat" | "standard" | "extended" — btrfs subvolumes for automatic btrfs root (defaults to flat if omitted)
+# btrfs_subvolume_preset = "flat"
 
 [disk_encryption]
 encryption_type = "None"
@@ -434,6 +454,7 @@ archinstall-rs/
 │   ├── common/                     # Shared UI utilities and popups
 │   ├── core/                       # Core plumbing and services
 │   │   ├── services/               # partitioning, mounting, bootloader, ...
+│   │   ├── storage/                # StoragePlan / planner (partition + mount + fstab)
 │   │   └── state.rs                # Global app state
 │   ├── input/                      # Input handling (screens, popups, cmdline)
 │   └── render/                     # Rendering (sections, popups, theme)

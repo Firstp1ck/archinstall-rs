@@ -41,16 +41,22 @@ fn finalize_manual_partition(app: &mut AppState) {
             .cloned()
     };
 
-    // Mountpoint
+    // Mountpoint — required for all non-swap partitions
     let mountpoint = if app.manual_create_kind_index == 1 {
+        // SWAP has no mountpoint
         None
     } else {
-        let mp = if app.manual_create_kind_index == 0 {
-            "/boot"
-        } else if app.manual_create_kind_index == 2 {
-            "/"
-        } else {
-            app.manual_create_mountpoint.as_str()
+        let mp = match app.manual_create_kind_index {
+            0 => "/boot",
+            2 => "/",
+            _ => {
+                let raw = app.manual_create_mountpoint.trim();
+                if raw.is_empty() {
+                    app.open_info_popup("Mountpoint is required for this partition.".into());
+                    return;
+                }
+                raw
+            }
         };
         Some(mp.to_string())
     };
@@ -402,6 +408,7 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
                         version,
                         description,
                     });
+                    app.addpkgs_selected_index = app.additional_packages.len().saturating_sub(1);
                     app.info_message.clear();
                 } else {
                     app.addpkgs_reopen_after_info = true;
@@ -736,6 +743,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         Some(PopupKind::DiskEncryptionType) => {
             if let Some(&global_idx) = app.popup_visible_indices.get(app.popup_selected_visible) {
                 app.disk_encryption_type_index = if global_idx == 0 { 0 } else { 1 };
+                if app.disk_encryption_type_index == 1 && app.disks_mode_index == 0 {
+                    app.disk_encryption_selected_partition =
+                        Some("Root partition (automatic)".into());
+                } else if app.disk_encryption_type_index == 0 {
+                    app.disk_encryption_selected_partition = None;
+                }
             }
             app.close_popup();
         }
@@ -754,7 +767,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
             } else {
                 app.info_message.clear();
                 app.close_popup();
-                app.open_disk_encryption_partition_list();
+                if app.disks_mode_index == 0 {
+                    app.disk_encryption_selected_partition =
+                        Some("Root partition (automatic)".into());
+                } else {
+                    app.open_disk_encryption_partition_list();
+                }
             }
         }
         Some(PopupKind::DiskEncryptionPartitionList) => {
@@ -815,6 +833,12 @@ pub(crate) fn handle_enter(app: &mut AppState) -> bool {
         Some(PopupKind::DesktopEnvSelect)
         | Some(PopupKind::ServerTypeSelect)
         | Some(PopupKind::XorgTypeSelect) => {
+            app.close_popup();
+        }
+        Some(PopupKind::BtrfsSubvolumePreset) => {
+            if let Some(&gi) = app.popup_visible_indices.get(app.popup_selected_visible) {
+                app.btrfs_subvolume_preset = gi;
+            }
             app.close_popup();
         }
         None => {

@@ -150,6 +150,9 @@ impl AppState {
             }
             self.open_info_popup(msg);
         }
+        if added > 0 {
+            self.addpkgs_selected_index = self.additional_packages.len().saturating_sub(1);
+        }
     }
     /// Validate a package by querying pacman. On success, returns parsed (repo, name, version, description)
     pub fn validate_package(&self, name: &str) -> Option<(String, String, String, String)> {
@@ -290,6 +293,10 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
     );
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
+    lines.push(Line::from(
+        "  Actions: ←/→ or Tab — Add package · Groups · Continue   (Enter activates)",
+    ));
+    lines.push(Line::from(""));
 
     // Field 0: Add package (opens input popup)
     let is_focus_0 = app.addpkgs_focus_index == 0 && matches!(app.focus, super::Focus::Content);
@@ -320,7 +327,6 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
             bullet_style_0,
         ),
         Span::styled("Add package".to_string(), label_style_0),
-        Span::raw("  (press Enter)"),
     ]));
 
     // Field 1: Select package groups
@@ -352,7 +358,6 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
             bullet_style_1,
         ),
         Span::styled("Select package groups".to_string(), label_style_1),
-        Span::raw("  (press Enter)"),
     ]));
 
     // Show current list (selectable)
@@ -360,7 +365,7 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
         lines.push(Line::from("  Current: none"));
     } else {
         lines.push(Line::from(
-            "  Current packages (j/k to select, Del/Backspace to delete):",
+            "  Packages: ↑/↓ or j/k — highlight row   Del/Backspace — remove",
         ));
         // clamp selected index
         if app.addpkgs_selected_index >= app.additional_packages.len() {
@@ -368,7 +373,6 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
         }
         for (i, pkg) in app.additional_packages.iter().enumerate() {
             let selected = i == app.addpkgs_selected_index;
-            let checked = app.addpkgs_selected.contains(&i);
             let style = if selected {
                 Style::default()
                     .fg(Color::Yellow)
@@ -377,14 +381,10 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
                 Style::default().fg(Color::White)
             };
             let bullet = if selected { "▶" } else { " " };
-            let mark = if checked { "[x]" } else { "[ ]" };
             lines.push(Line::from(vec![
                 Span::styled(format!("{bullet} "), style),
                 Span::styled(
-                    format!(
-                        "{} {} {} — {}",
-                        mark, pkg.name, pkg.version, pkg.description
-                    ),
+                    format!("{} {} — {}", pkg.name, pkg.version, pkg.description),
                     style,
                 ),
             ]));
@@ -408,8 +408,8 @@ pub fn draw_additional_packages(frame: &mut ratatui::Frame, app: &mut AppState, 
             Block::default()
                 .borders(Borders::ALL)
                 .title(match app.focus {
-                    super::Focus::Content => " Desicion Menu (focused) ",
-                    _ => " Desicion Menu ",
+                    super::Focus::Content => " Decision Menu (focused) ",
+                    _ => " Decision Menu ",
                 }),
         )
         .wrap(Wrap { trim: false });

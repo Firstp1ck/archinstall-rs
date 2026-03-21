@@ -1,7 +1,9 @@
 use serde_json;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 use super::AppState;
+use crate::core::types::Screen;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
@@ -34,7 +36,8 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
     ];
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
-    // TODO(v0.3.0): Implement Manual Partitioning editor and Pre-mounted flow.
+    // NOTE: Manual partitioning validation handled by StoragePlanner (Phase 3).
+    // Pre-mounted flow is Phase 5.
     for (label, idx) in options {
         let is_focused_line = app.disks_focus_index == idx;
         let is_active_line = is_focused_line && matches!(app.focus, super::Focus::Content);
@@ -60,7 +63,41 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
         lines.push(line);
     }
 
-    let continue_style = if app.disks_focus_index == 3 && matches!(app.focus, super::Focus::Content)
+    // Btrfs subvolume preset row: interactive in automatic mode (0), or in manual mode (1) when
+    // root is btrfs (subvolume layout only applies to btrfs root).
+    let preset_label = match app.btrfs_subvolume_preset {
+        1 => "Standard (@, @home, @snapshots)",
+        2 => "Extended (@, @home, @var_log, @snapshots)",
+        _ => "Flat (no subvolumes)",
+    };
+    let is_preset_focused = app.disks_focus_index == 3;
+    let is_preset_active = is_preset_focused && matches!(app.focus, super::Focus::Content);
+    let has_btrfs_root = app.disks_partitions.iter().any(|p| {
+        p.role
+            .as_deref()
+            .map(|r| r.eq_ignore_ascii_case("ROOT"))
+            .unwrap_or(false)
+            && p.fs.as_deref() == Some("btrfs")
+    });
+    let preset_available =
+        app.disks_mode_index == 0 || (app.disks_mode_index == 1 && has_btrfs_root);
+    let preset_bullet = if is_preset_focused { "▶" } else { " " };
+    let preset_style = if is_preset_active && preset_available {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else if !preset_available {
+        Style::default().fg(Color::DarkGray)
+    } else {
+        Style::default().fg(Color::White)
+    };
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled(format!("{preset_bullet} "), preset_style),
+        Span::styled(format!("Btrfs Subvolumes: {preset_label}"), preset_style),
+    ]));
+
+    let continue_style = if app.disks_focus_index == 4 && matches!(app.focus, super::Focus::Content)
     {
         Style::default()
             .fg(Color::Yellow)
@@ -580,5 +617,80 @@ impl AppState {
         self.popup_selected_visible = 0;
         self.popup_in_search = false;
         self.popup_search_query.clear();
+    }
+
+    pub fn open_btrfs_subvolume_preset_popup(&mut self) {
+        self.popup_kind = Some(super::PopupKind::BtrfsSubvolumePreset);
+        self.popup_items = vec![
+            "Flat (no subvolumes)".to_string(),
+            "Standard (@, @home, @snapshots)".to_string(),
+            "Extended (@, @home, @var_log, @snapshots)".to_string(),
+        ];
+        self.popup_visible_indices = (0..self.popup_items.len()).collect();
+        self.popup_selected_visible = self.btrfs_subvolume_preset;
+        self.popup_in_search = false;
+        self.popup_search_query.clear();
+        self.popup_open = true;
+    }
+
+    /// Runs findmnt + swapon and stores results for the pre-mounted info panel.
+    pub fn refresh_pre_mounted_probe_cache(&mut self) {
+        self.pre_mounted_cache_findmnt_failed = true;
+        self.pre_mounted_cache_mount_lines.clear();
+        self.pre_mounted_cache_swap_devices.clear();
+
+        if let Ok(output) = Command::new("findmnt")
+            .args(["-J", "-R", "--target", "/mnt"])
+            .output()
+            && output.status.success()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+            && let Some(filesystems) = json.get("filesystems").and_then(|v| v.as_array())
+        {
+            self.pre_mounted_cache_findmnt_failed = false;
+            fn collect(lines: &mut Vec<String>, fs_array: &[serde_json::Value]) {
+                for fs in fs_array {
+                    let target = fs.get("target").and_then(|v| v.as_str()).unwrap_or("");
+                    let source = fs.get("source").and_then(|v| v.as_str()).unwrap_or("");
+                    let fstype = fs.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
+                    if !target.is_empty() && !source.is_empty() {
+                        lines.push(format!("  {source} -> {target} ({fstype})"));
+                    }
+                    if let Some(children) = fs.get("children").and_then(|v| v.as_array()) {
+                        collect(lines, children);
+                    }
+                }
+            }
+            collect(&mut self.pre_mounted_cache_mount_lines, filesystems);
+        }
+
+        if let Ok(out) = Command::new("swapon")
+            .args(["--raw", "--noheadings"])
+            .output()
+            && out.status.success()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            self.pre_mounted_cache_swap_devices = text
+                .lines()
+                .filter_map(|l| l.split_whitespace().next())
+                .map(str::to_string)
+                .collect();
+        }
+
+        self.pre_mounted_cache_instant = Some(Instant::now());
+    }
+
+    /// Refreshes pre-mounted probe data when the user is on that screen, throttled by TTL.
+    pub fn maybe_refresh_pre_mounted_probe_cache(&mut self) {
+        if self.current_screen() != Screen::Disks || self.disks_mode_index != 2 {
+            return;
+        }
+        const TTL: Duration = Duration::from_secs(3);
+        let stale = match self.pre_mounted_cache_instant {
+            None => true,
+            Some(t) => t.elapsed() >= TTL,
+        };
+        if stale {
+            self.refresh_pre_mounted_probe_cache();
+        }
     }
 }

@@ -23,6 +23,13 @@ fn utils_redact_chpasswd_and_cryptsetup() {
     let red3 = ai::common::utils::redact_command_for_logging(cmd3);
     assert!(red3.contains("echo \"<REDACTED>\" | cryptsetup"), "{red3}");
     assert!(!red3.contains("topsecret"), "{red3}");
+
+    // printf '%s' pipeline (legacy shell strings)
+    let cmd4 =
+        "printf '%s' 'hunter2' | cryptsetup open --type luks --key-file=- /dev/sda3 cryptroot";
+    let red4 = ai::common::utils::redact_command_for_logging(cmd4);
+    assert!(red4.contains("printf '%s' '<REDACTED>'"), "{red4}");
+    assert!(!red4.contains("hunter2"), "{red4}");
 }
 
 #[test]
@@ -95,11 +102,38 @@ fn usersetup_redacts_passwords_in_dry_run() {
 #[test]
 fn sysconfig_enables_networkmanager_when_selected() {
     let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
     state.network_mode_index = 2; // NetworkManager
-    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state);
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
     let joined = plan.commands.join("\n");
     assert!(
         joined.contains("systemctl --root=/mnt enable NetworkManager"),
+        "{joined}"
+    );
+}
+
+#[test]
+fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("block sd-encrypt") || joined.contains("block encrypt"),
+        "should inject sd-encrypt or encrypt hook: {joined}"
+    );
+    assert!(
+        joined.contains("grep -qP") && joined.contains("systemd"),
+        "should detect systemd vs udev hooks: {joined}"
+    );
+    assert!(joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"), "{joined}");
+    assert!(
+        joined.contains("WARNING: errors were encountered during the build"),
         "{joined}"
     );
 }
@@ -146,7 +180,8 @@ fn partitioning_manual_converts_bytes_to_mib() {
     let plan = ai::core::services::partitioning::PartitioningService::build_plan(&state, device);
     let joined = plan.commands.join("\n");
     assert!(joined.contains("1MiB"), "{joined}");
-    assert!(joined.contains("2MiB"), "{joined}");
+    // Size is a byte length: 1 MiB start + 2 MiB size → end at 3 MiB (not 2 MiB as absolute end).
+    assert!(joined.contains("3MiB"), "{joined}");
 }
 
 #[test]
@@ -186,12 +221,71 @@ fn system_pacstrap_plan_includes_pacstrap_when_not_dry_run() {
 
 #[test]
 fn bootloader_systemd_boot_writes_loader_and_entries() {
-    let state = make_state(); // default bootloader_index = 0 (systemd-boot)
+    let mut state = make_state(); // default bootloader_index = 0 (systemd-boot)
+    state.disks_selected_device = Some("/dev/sda".into());
     let device = "/dev/sda";
-    let plan = ai::core::services::bootloader::BootloaderService::build_plan(&state, device);
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
     let joined = plan.commands.join("\n");
     assert!(joined.contains("bootctl"), "{joined}");
     assert!(joined.contains("loader.conf"), "{joined}");
     assert!(joined.contains("arch.conf"), "{joined}");
     assert!(joined.contains("arch-fallback.conf"), "{joined}");
+    // Non-encrypted: should use simple root=UUID= options
+    assert!(!joined.contains("rd.luks.name"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "should strip btrfs subvolume suffix from findmnt: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_systemd_boot_luks_adds_rd_luks_name() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("bootctl"), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "should have LUKS kernel params (systemd or udev style): {joined}"
+    );
+    assert!(joined.contains("arch.conf"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "should strip btrfs subvolume suffix from findmnt: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_grub_luks_injects_cmdline() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 1; // GRUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("grub-install"), "{joined}");
+    assert!(joined.contains("GRUB_CMDLINE_LINUX"), "{joined}");
+    assert!(joined.contains("grub-mkconfig"), "{joined}");
 }

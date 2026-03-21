@@ -60,6 +60,23 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         if let Some(align) = &app.disks_align {
             left_info.push(Line::from(format!("Align: {align}")));
         }
+        let has_btrfs_root = app.disks_partitions.iter().any(|p| {
+            p.role
+                .as_deref()
+                .map(|r| r.eq_ignore_ascii_case("ROOT"))
+                .unwrap_or(false)
+                && p.fs.as_deref() == Some("btrfs")
+        });
+        if has_btrfs_root {
+            let btrfs_preset_label = match app.btrfs_subvolume_preset {
+                1 => "Standard (@, @home, @snapshots)",
+                2 => "Extended (@, @home, @var_log, @snapshots)",
+                _ => "Flat (no subvolumes)",
+            };
+            left_info.push(Line::from(format!(
+                "Btrfs subvolumes: {btrfs_preset_label}"
+            )));
+        }
         let left_block = Paragraph::new(left_info)
             .block(Block::default().borders(Borders::ALL).title(" Info "))
             .wrap(Wrap { trim: true });
@@ -225,6 +242,15 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             }
         }
 
+        let btrfs_preset_label = match app.btrfs_subvolume_preset {
+            1 => "Standard (@, @home, @snapshots)",
+            2 => "Extended (@, @home, @var_log, @snapshots)",
+            _ => "Flat (no subvolumes)",
+        };
+        info_lines.push(Line::from(format!(
+            "Btrfs subvolumes: {btrfs_preset_label}"
+        )));
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
@@ -244,9 +270,10 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .wrap(Wrap { trim: true });
         frame.render_widget(info, chunks[1]);
     } else {
+        // Pre-mounted mode info panel
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
+            .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
             .split(area);
 
         let description = Paragraph::new(desc_lines)
@@ -258,14 +285,50 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .wrap(Wrap { trim: true });
         frame.render_widget(description, chunks[0]);
 
-        let info = Paragraph::new(vec![Line::from(Span::styled(
-            "Info",
+        let mut info_lines = vec![Line::from(Span::styled(
+            "Pre-mounted Configuration",
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
-        ))])
-        .block(Block::default().borders(Borders::ALL).title(" Info "))
-        .wrap(Wrap { trim: true });
+        ))];
+        info_lines.push(Line::from(
+            "Filesystems should be mounted at /mnt before proceeding.",
+        ));
+        info_lines.push(Line::from(""));
+
+        // Pre-mounted mount/swap data (refreshed in AppState, not here — see refresh_pre_mounted_probe_cache)
+        if app.pre_mounted_cache_findmnt_failed {
+            info_lines.push(Line::from(Span::styled(
+                "No mounts detected under /mnt",
+                Style::default().fg(Color::Red),
+            )));
+            info_lines.push(Line::from(
+                "Mount your filesystems at /mnt first, then select this mode.",
+            ));
+        } else {
+            info_lines.push(Line::from(Span::styled(
+                "Detected mounts:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            for line in &app.pre_mounted_cache_mount_lines {
+                info_lines.push(Line::from(line.clone()));
+            }
+        }
+
+        if !app.pre_mounted_cache_swap_devices.is_empty() {
+            info_lines.push(Line::from(""));
+            info_lines.push(Line::from(Span::styled(
+                "Active swap:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            for dev in &app.pre_mounted_cache_swap_devices {
+                info_lines.push(Line::from(format!("  {dev}")));
+            }
+        }
+
+        let info = Paragraph::new(info_lines)
+            .block(Block::default().borders(Borders::ALL).title(" Info "))
+            .wrap(Wrap { trim: true });
         frame.render_widget(info, chunks[1]);
     }
 }

@@ -1,3 +1,6 @@
+// DEPRECATED: Superseded by `crate::core::storage::StoragePlan::fstab_check_commands()`.
+// Kept temporarily so existing integration tests in tests/logic.rs still compile.
+
 use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
@@ -16,7 +19,7 @@ pub struct FstabService;
 impl FstabService {
     pub fn build_checks_and_fstab(state: &AppState, device: &str) -> FstabPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Add fstab tuning for btrfs subvolumes and mount options (v0.3.0+).
+        // NOTE: Btrfs subvolume fstab tuning is handled by StoragePlanner (Phase 4).
 
         // Basic device partition paths
         let p1 = format!("{device}1");

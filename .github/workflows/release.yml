@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v0.1.0 or 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  get-version:
+    name: Get version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_notes: ${{ steps.version.outputs.release_notes }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version and release notes
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_TAG_PUSH="false"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+            IS_TAG_PUSH="true"
+          fi
+          if [[ "$VERSION" != v* ]]; then
+            VERSION="v${VERSION#v}"
+          fi
+          echo "Release version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          VER_NUM="${VERSION#v}"
+          NOTES=""
+
+          if [ -f "Documents/RELEASE_${VERSION}.md" ]; then
+            echo "Using Documents/RELEASE_${VERSION}.md"
+            NOTES=$(tail -n +3 "Documents/RELEASE_${VERSION}.md")
+          elif [ -f "Documents/release_v${VER_NUM}.md" ]; then
+            echo "Using Documents/release_v${VER_NUM}.md"
+            NOTES=$(tail -n +3 "Documents/release_v${VER_NUM}.md")
+          elif [ -f "Release-docs/RELEASE_${VERSION}.md" ]; then
+            echo "Using Release-docs/RELEASE_${VERSION}.md"
+            NOTES=$(tail -n +3 "Release-docs/RELEASE_${VERSION}.md")
+          elif [ "$IS_TAG_PUSH" = "true" ]; then
+            TAG_TYPE=$(git cat-file -t "$VERSION" 2>/dev/null || echo "")
+            if [ "$TAG_TYPE" = "tag" ]; then
+              TAG_NOTES=$(git show "$VERSION" --format='%B' --no-patch 2>/dev/null || echo "")
+              TAG_NOTES=$(echo "$TAG_NOTES" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+              if [ -n "$TAG_NOTES" ]; then
+                NOTES="$TAG_NOTES"
+              fi
+            fi
+          fi
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Release $VERSION"
+          fi
+
+          DELIMITER="RN_$(date +%s)_$$"
+          echo "release_notes<<$DELIMITER" >> "$GITHUB_OUTPUT"
+          printf '%s' "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "$DELIMITER" >> "$GITHUB_OUTPUT"
+
+  build-linux:
+    name: Build Linux x86_64
+    needs: get-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Strip and package
+        env:
+          VERSION: ${{ needs.get-version.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          BIN="target/release/archinstall-rs"
+          test -f "$BIN"
+          strip "$BIN"
+          mkdir -p dist
+          cp "$BIN" dist/archinstall-rs
+          (cd dist && sha256sum archinstall-rs > SHA256SUMS)
+          sed \
+            -e "s|@REPO@|${REPO}|g" \
+            -e "s|@VERSION@|${VERSION}|g" \
+            scripts/install-from-release.sh.in > dist/install.sh
+          chmod +x dist/install.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: archinstall-rs-release
+          path: dist/
+
+  publish-release:
+    name: Publish release
+    needs: [get-version, build-linux]
+    runs-on: ubuntu-latest
+    if: needs.build-linux.result == 'success'
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: archinstall-rs-release
+          path: release_artifacts
+
+      - name: Write release body
+        id: body
+        env:
+          RELEASE_NOTES: ${{ needs.get-version.outputs.release_notes }}
+        run: |
+          DELIMITER="BODY_$(date +%s)_$$"
+          echo "text<<$DELIMITER" >> "$GITHUB_OUTPUT"
+          printf '%s\n\n' "$RELEASE_NOTES" >> "$GITHUB_OUTPUT"
+          echo '**Arch ISO (one command)**' >> "$GITHUB_OUTPUT"
+          echo '```bash' >> "$GITHUB_OUTPUT"
+          echo "curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ needs.get-version.outputs.version }}/install.sh | bash" >> "$GITHUB_OUTPUT"
+          echo '```' >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "Or download \`archinstall-rs\` and \`SHA256SUMS\` from this release and run \`sha256sum -c SHA256SUMS && chmod +x archinstall-rs && ./archinstall-rs\`." >> "$GITHUB_OUTPUT"
+          echo "$DELIMITER" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.get-version.outputs.version }}
+          name: Release ${{ needs.get-version.outputs.version }}
+          body: ${{ steps.body.outputs.text }}
+          files: |
+            release_artifacts/archinstall-rs
+            release_artifacts/SHA256SUMS
+            release_artifacts/install.sh
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

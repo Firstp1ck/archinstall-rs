@@ -1,3 +1,7 @@
+// DEPRECATED: Superseded by `crate::core::storage::StoragePlan` + `StoragePlanner`.
+// Kept temporarily so existing integration tests in tests/logic.rs still compile.
+// Remove once those tests migrate to the storage planner API.
+
 use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
@@ -70,7 +74,7 @@ impl PartitioningService {
     }
 
     fn build_automatic_partition_plan(state: &AppState, device: &str, part_cmds: &mut Vec<String>) {
-        // TODO(v0.4.0): Add LVM/RAID support and advanced btrfs subvolume layouts.
+        // NOTE: LVM/RAID and btrfs subvolume layouts are handled by StoragePlanner (Phase 4-6).
         let label = state.disks_label.clone().unwrap_or_else(|| "gpt".into());
         if state.disks_wipe {
             part_cmds.push(format!("wipefs -a {device}"));
@@ -116,8 +120,14 @@ impl PartitioningService {
         ));
         let luks = state.disk_encryption_type_index == 1;
         if luks {
-            part_cmds.push(format!("cryptsetup luksFormat {device}3"));
-            part_cmds.push(format!("cryptsetup open {device}3 cryptroot"));
+            // Legacy string plan (bash -lc each line). Real installs use StoragePlanner + InstallCmd.
+            part_cmds.push(
+                "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
+                    .into(),
+            );
+            part_cmds.push(format!("cryptsetup luksFormat --type luks2 -q {device}3"));
+            part_cmds.push("udevadm settle".into());
+            part_cmds.push(format!("cryptsetup open --type luks {device}3 cryptroot"));
             part_cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
         } else {
             part_cmds.push(format!("mkfs.btrfs -f {device}3"));
@@ -164,9 +174,9 @@ impl PartitioningService {
             let start = spec.start.as_deref().unwrap_or("0");
             let size = spec.size.as_deref().unwrap_or("100%");
 
-            // Convert start and size to appropriate units for parted
-            let start_str = Self::bytes_to_parted_unit(start);
-            let size_str = Self::bytes_to_parted_unit(size);
+            let start_str = crate::core::storage::bytes_to_parted_unit(start);
+            let end_str = crate::core::storage::manual_disk_spec_end_for_parted(start, size)
+                .unwrap_or_else(|_| crate::core::storage::bytes_to_parted_unit(size));
 
             // Create partition
             let part_type = match role {
@@ -176,7 +186,7 @@ impl PartitioningService {
             };
 
             part_cmds.push(format!(
-                "parted -s {device} mkpart {part_type} {fs} {start_str} {size_str}"
+                "parted -s {device} mkpart {part_type} {fs} {start_str} {end_str}"
             ));
 
             // Set partition flags based on role
@@ -235,32 +245,6 @@ impl PartitioningService {
 
         part_cmds.push(format!("partprobe {device} || true"));
         part_cmds.push("udevadm settle".into());
-    }
-
-    fn bytes_to_parted_unit(bytes_str: &str) -> String {
-        // If it's already in a parted-compatible format, return as-is
-        if bytes_str.contains("MiB")
-            || bytes_str.contains("GiB")
-            || bytes_str.contains("KiB")
-            || bytes_str.contains("MB")
-            || bytes_str.contains("GB")
-            || bytes_str.contains("KB")
-            || bytes_str == "100%"
-        {
-            return bytes_str.to_string();
-        }
-
-        // Convert bytes to MiB for parted
-        if let Ok(bytes) = bytes_str.parse::<u64>() {
-            let mib = bytes / (1024 * 1024);
-            if mib == 0 {
-                "1MiB".to_string()
-            } else {
-                format!("{mib}MiB")
-            }
-        } else {
-            bytes_str.to_string()
-        }
     }
 
     fn get_partition_path(device: &str, partition_number: u32) -> String {

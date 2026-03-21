@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Generated for each GitHub release. Downloads and verifies this release's binary, then runs it.
+set -euo pipefail
+
+REPO="@REPO@"
+VERSION="@VERSION@"
+BASE="https://github.com/${REPO}/releases/download/${VERSION}"
+
+WORKDIR=$(mktemp -d)
+trap 'rm -rf "${WORKDIR}"' EXIT
+cd "${WORKDIR}"
+
+curl -fsSL "${BASE}/SHA256SUMS" -o SHA256SUMS
+curl -fsSL "${BASE}/archinstall-rs" -o archinstall-rs
+sha256sum -c SHA256SUMS
+chmod +x archinstall-rs
+exec ./archinstall-rs "$@"

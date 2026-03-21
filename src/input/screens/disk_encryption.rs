@@ -4,6 +4,10 @@ pub(crate) fn move_diskenc_up(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
+    if !app.disk_encryption_available() {
+        app.diskenc_focus_index = 0;
+        return;
+    }
     let max = if app.disk_encryption_type_index == 1 {
         5
     } else {
@@ -19,6 +23,10 @@ pub(crate) fn move_diskenc_down(app: &mut AppState) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
+    if !app.disk_encryption_available() {
+        app.diskenc_focus_index = 0;
+        return;
+    }
     let max = if app.disk_encryption_type_index == 1 {
         5
     } else {
@@ -30,6 +38,9 @@ pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
     if app.current_screen() != Screen::DiskEncryption || app.focus != Focus::Content {
         return;
     }
+    if !app.disk_encryption_available() {
+        return;
+    }
     if app.diskenc_focus_index == 0 {
         let mut idx = app.disk_encryption_type_index;
         if next {
@@ -38,10 +49,19 @@ pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
             idx = (idx + 2 - 1) % 2;
         }
         app.disk_encryption_type_index = idx;
+        if idx == 1 && app.disks_mode_index == 0 {
+            app.disk_encryption_selected_partition = Some("Root partition (automatic)".into());
+        } else if idx == 0 {
+            app.disk_encryption_selected_partition = None;
+        }
     }
 }
 
 pub(crate) fn handle_enter_diskenc(app: &mut AppState) {
+    if !app.disk_encryption_available() {
+        super::common::advance(app);
+        return;
+    }
     let continue_index = if app.disk_encryption_type_index == 1 {
         4
     } else {
@@ -53,7 +73,15 @@ pub(crate) fn handle_enter_diskenc(app: &mut AppState) {
         match app.diskenc_focus_index {
             1 => app.open_disk_encryption_password_input(),
             2 => app.open_disk_encryption_password_confirm_input(),
-            3 => app.open_disk_encryption_partition_list(),
+            3 => {
+                if app.disks_mode_index == 0 {
+                    app.open_info_popup(
+                        "Best-effort mode encrypts the root partition automatically.".into(),
+                    );
+                } else {
+                    app.open_disk_encryption_partition_list();
+                }
+            }
             idx if idx == continue_index => super::common::advance(app),
             _ => {}
         }

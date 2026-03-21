@@ -75,6 +75,12 @@ pub struct AppState {
     pub disks_wipe: bool,
     pub disks_align: Option<String>,
     pub disks_partitions: Vec<DiskPartitionSpec>,
+    pub btrfs_subvolume_preset: usize, // 0=Flat, 1=Standard, 2=Extended
+    /// Cached output of findmnt/swapon for pre-mounted mode (avoid subprocesses every render).
+    pub pre_mounted_cache_mount_lines: Vec<String>,
+    pub pre_mounted_cache_findmnt_failed: bool,
+    pub pre_mounted_cache_swap_devices: Vec<String>,
+    pub pre_mounted_cache_instant: Option<std::time::Instant>,
 
     // Manual Partitioning: create partition popup state
     pub manual_create_units_index: usize, // 0: B, 1: KiB/KB, 2: MiB/MB, 3: GiB/GB
@@ -217,10 +223,9 @@ pub struct AppState {
     pub last_load_missing_sections: Vec<String>,
 
     // Additional Packages state
-    pub addpkgs_focus_index: usize, // 0: Add package input, 1: Continue
+    pub addpkgs_focus_index: usize, // 0: Add package, 1: Select groups, 2: Continue
     pub additional_packages: Vec<AdditionalPackage>,
-    pub addpkgs_selected_index: usize,
-    pub addpkgs_selected: std::collections::BTreeSet<usize>,
+    pub addpkgs_selected_index: usize, // highlighted row in the package list (↑/↓, j/k)
     pub addpkgs_reopen_after_info: bool,
     // Additional Packages: groups
     pub addpkgs_group_focus: bool, // focus within groups vs main
@@ -251,7 +256,8 @@ pub struct AppState {
 
     // Request to exit TUI and run install in stdout mode
     pub exit_tui_after_install: bool,
-    pub pending_install_sections: Option<Vec<(String, Vec<String>)>>,
+    pub pending_install_sections:
+        Option<Vec<(String, Vec<crate::common::install_cmd::InstallCmd>)>>,
 
     // Clickable targets in Install decision menu (computed each render)
     pub install_click_targets: Vec<(ratatui::layout::Rect, InstallClickTarget)>,
@@ -432,6 +438,11 @@ impl AppState {
             disks_wipe: true,
             disks_align: Some("1MiB".into()),
             disks_partitions: Vec::new(),
+            btrfs_subvolume_preset: 0, // Flat (no subvolumes) by default
+            pre_mounted_cache_mount_lines: Vec::new(),
+            pre_mounted_cache_findmnt_failed: false,
+            pre_mounted_cache_swap_devices: Vec::new(),
+            pre_mounted_cache_instant: None,
 
             manual_create_units_index: 0,
             manual_create_free_start_bytes: 0,
@@ -574,7 +585,6 @@ impl AppState {
             addpkgs_focus_index: 0,
             additional_packages: Vec::new(),
             addpkgs_selected_index: 0,
-            addpkgs_selected: std::collections::BTreeSet::new(),
             addpkgs_reopen_after_info: false,
             addpkgs_group_focus: false,
             addpkgs_group_names: vec![

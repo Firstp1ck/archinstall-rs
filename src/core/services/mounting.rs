@@ -1,3 +1,6 @@
+// DEPRECATED: Superseded by `crate::core::storage::StoragePlan::mount_commands()`.
+// Kept temporarily so existing integration tests in tests/logic.rs still compile.
+
 use crate::core::state::AppState;
 
 #[derive(Clone, Debug)]
@@ -30,7 +33,7 @@ impl MountingService {
 
     pub fn build_plan(state: &AppState, device: &str) -> MountPlan {
         let mut cmds: Vec<String> = Vec::new();
-        // TODO: Handle btrfs subvolumes and custom mount layout (v0.3.0+ / README Roadmap).
+        // NOTE: Btrfs subvolumes and custom mount layout are handled by StoragePlanner (Phase 4).
         let luks = state.disk_encryption_type_index == 1;
         cmds.push("mkdir -p /mnt".into());
         if luks {
@@ -42,11 +45,28 @@ impl MountingService {
         }
         // On UEFI, always mount the ESP at /mnt/boot so both systemd-boot and GRUB can find it
         if state.is_uefi() {
-            // Ensure kernel filesystem drivers are available (some ISOs need explicit load)
-            cmds.push("modprobe -q vfat || true".into());
-            cmds.push("modprobe -q fat || true".into());
+            // Load FAT-related kernel modules; modprobe -> symlink+depmod -> --force
+            cmds.push(
+                "modprobe -q fat 2>/dev/null; modprobe -q vfat 2>/dev/null; modprobe -q msdos 2>/dev/null; modprobe -q nls_cp437 2>/dev/null; modprobe -q nls_iso8859_1 2>/dev/null; modprobe -q nls_ascii 2>/dev/null; true"
+                    .into(),
+            );
+            cmds.push(
+                "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then if [ ! -d /lib/modules/$(uname -r) ]; then AVAIL=$(ls -1d /lib/modules/*/kernel 2>/dev/null | head -1 | sed 's|/kernel$||;s|.*/||'); if [ -n \"$AVAIL\" ]; then ln -sfn /lib/modules/\"$AVAIL\" /lib/modules/$(uname -r); fi; fi; depmod -a 2>/dev/null; modprobe fat 2>/dev/null; modprobe vfat 2>/dev/null; modprobe nls_cp437 2>/dev/null; modprobe nls_iso8859_1 2>/dev/null; modprobe nls_ascii 2>/dev/null; true; fi"
+                    .into(),
+            );
+            cmds.push(
+                "if ! grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems; then modprobe --force fat 2>/dev/null; modprobe --force vfat 2>/dev/null; modprobe --force nls_cp437 2>/dev/null; modprobe --force nls_iso8859_1 2>/dev/null; modprobe --force nls_ascii 2>/dev/null; true; fi"
+                    .into(),
+            );
             let esp_part = Self::partition_path(device, 1);
-            cmds.push(format!("mount --mkdir {esp_part} /mnt/boot"));
+            // Verify FAT support is available before attempting mount
+            cmds.push(format!(
+                "grep -qE '\\bvfat\\b|\\bfat\\b|\\bmsdos\\b' /proc/filesystems || {{ echo 'ERROR: FAT filesystem support is not available in the running kernel after loading modules.' >&2; echo 'Cannot mount {esp_part} -- ensure CONFIG_VFAT_FS is enabled or the vfat module is loadable.' >&2; echo 'Running kernel: '$(uname -r) >&2; echo 'Available module dirs:' >&2; ls /lib/modules/ >&2 2>/dev/null; echo 'Available filesystems:' >&2; cat /proc/filesystems >&2; exit 1; }}"
+            ));
+            // Mount ESP with fallback across FAT type names
+            cmds.push(format!(
+                "mount -t vfat --mkdir {esp_part} /mnt/boot || mount -t fat --mkdir {esp_part} /mnt/boot || mount -t msdos --mkdir {esp_part} /mnt/boot"
+            ));
         }
         if state.swap_enabled {
             let swap_part = Self::partition_path(device, 2);

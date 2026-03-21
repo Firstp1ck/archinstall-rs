@@ -200,11 +200,16 @@ fn handle_enter_config(app: &mut AppState) {
         1 => match app.load_config() {
             Ok(()) => {
                 let mut msg = String::from(
-                    "Configuration loaded. Note: re-enter Disk encryption, Root, and User passwords.",
+                    "Configuration loaded successfully.\n\nNote: Please re-enter the following sensitive fields:\n  - Disk encryption password\n  - Root password\n  - User passwords",
                 );
                 if !app.last_load_missing_sections.is_empty() {
-                    msg.push_str(" Missing: ");
-                    msg.push_str(&app.last_load_missing_sections.join(", "));
+                    msg.push_str("\n\nMissing sections (not found in file):\n");
+                    for (i, section) in app.last_load_missing_sections.iter().enumerate() {
+                        if i > 0 {
+                            msg.push('\n');
+                        }
+                        msg.push_str(&format!("  - {section}"));
+                    }
                 }
                 app.open_info_popup(msg);
             }
@@ -306,6 +311,9 @@ pub(crate) fn change_disks_value(app: &mut AppState, next: bool) {
             idx = (idx + 3 - 1) % 3;
         }
         app.disks_mode_index = idx;
+        if idx == 2 {
+            app.refresh_pre_mounted_probe_cache();
+        }
     }
 }
 pub(crate) fn move_diskenc_up(app: &mut AppState) {

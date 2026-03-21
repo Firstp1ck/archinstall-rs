@@ -13,6 +13,10 @@ impl AppState {
         // TODO: Implement encryption password prompts and partition selection UX.
     }
 
+    pub fn disk_encryption_available(&self) -> bool {
+        self.disks_mode_index == 0
+    }
+
     pub fn open_disk_encryption_type_popup(&mut self) {
         self.popup_kind = Some(super::PopupKind::DiskEncryptionType);
         self.popup_items = vec!["None".into(), "LUKS".into()];
@@ -106,12 +110,69 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
             .add_modifier(Modifier::BOLD),
     );
 
+    let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
+
+    if !app.disk_encryption_available() {
+        let mode_name = match app.disks_mode_index {
+            1 => "Manual Partitioning",
+            _ => "Pre-mounted configuration",
+        };
+
+        let notice_style = Style::default().fg(Color::DarkGray);
+        lines.push(Line::from(Span::styled(
+            format!("Disk encryption is not available for {mode_name}."),
+            notice_style,
+        )));
+        lines.push(Line::from(""));
+        if app.disks_mode_index == 1 {
+            lines.push(Line::from(Span::styled(
+                "For manual partitioning, set encryption per-partition",
+                notice_style,
+            )));
+            lines.push(Line::from(Span::styled(
+                "when creating partitions in the Disk Partitioning screen.",
+                notice_style,
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                "For pre-mounted mode, configure encryption before",
+                notice_style,
+            )));
+            lines.push(Line::from(Span::styled(
+                "mounting your filesystems at /mnt.",
+                notice_style,
+            )));
+        }
+
+        lines.push(Line::from(""));
+        let continue_style =
+            if app.diskenc_focus_index == 0 && matches!(app.focus, super::Focus::Content) {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+        lines.push(Line::from(Span::styled("[ Continue ]", continue_style)));
+
+        let content = Paragraph::new(lines)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(match app.focus {
+                        super::Focus::Content => " Decision Menu (focused) ",
+                        _ => " Decision Menu ",
+                    }),
+            )
+            .wrap(Wrap { trim: false });
+        frame.render_widget(content, area);
+        return;
+    }
+
     let enc_type = match app.disk_encryption_type_index {
         0 => "None",
         _ => "LUKS",
     };
-
-    let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
     // Field 0: Encryption Type (always visible)
     let is_focused_line =
@@ -144,7 +205,7 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
     };
     lines.push(Line::from(vec![
         Span::styled(format!("{bullet} "), bullet_style),
-        Span::styled("Encryption Type: (not implemented yet)", label_style),
+        Span::styled("Encryption Type: ", label_style),
         Span::styled(enc_type.to_string(), value_style),
     ]));
 
@@ -235,6 +296,7 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
         // Partition selector
         let idx = 3;
         let is_act = app.diskenc_focus_index == idx && matches!(app.focus, super::Focus::Content);
+        let is_auto = app.disks_mode_index == 0;
         let bullet_style = if is_act {
             Style::default()
                 .fg(Color::Yellow)
@@ -249,17 +311,22 @@ pub fn draw_disk_encryption(frame: &mut ratatui::Frame, app: &mut AppState, area
         } else {
             Style::default().fg(Color::White)
         };
-        let value_style = if is_act {
+        let value_style = if is_auto {
+            Style::default().fg(Color::DarkGray)
+        } else if is_act {
             Style::default()
                 .fg(Color::Yellow)
                 .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::White)
         };
-        let part = app
-            .disk_encryption_selected_partition
-            .clone()
-            .unwrap_or_else(|| "(none)".into());
+        let part = if is_auto {
+            "Root partition (automatic)".to_string()
+        } else {
+            app.disk_encryption_selected_partition
+                .clone()
+                .unwrap_or_else(|| "(none)".into())
+        };
         lines.push(Line::from(vec![
             Span::styled(
                 format!(

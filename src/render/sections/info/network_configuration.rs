@@ -10,9 +10,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let t = crate::render::theme::catppuccin_mocha();
     let mut info_lines = vec![Line::from(Span::styled(
         "Info",
-        Style::default()
-            .fg(t.accent)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
     ))];
 
     info_lines.push(Line::from(format!(
@@ -42,9 +40,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
 
     let mut desc_lines = vec![Line::from(Span::styled(
         "Description",
-        Style::default()
-            .fg(t.accent)
-            .add_modifier(Modifier::BOLD),
+        Style::default().fg(t.accent).add_modifier(Modifier::BOLD),
     ))];
     let description_text = match app.network_mode_index {
         0 => {
