@@ -538,6 +538,7 @@ impl StoragePlan {
                 if mount.target == "/mnt/boot" && mount.fstype == "vfat" {
                     cmds.push("modprobe -q fat || true".into());
                     cmds.push("modprobe -q vfat || true".into());
+                    cmds.push("modprobe -q msdos || true".into());
                     cmds.push("modprobe -q nls_cp437 || true".into());
                     cmds.push("modprobe -q nls_iso8859_1 || true".into());
                     cmds.push("modprobe -q nls_ascii || true".into());
@@ -569,8 +570,9 @@ impl StoragePlan {
                     // so avoid hard-failing when "vfat" is unavailable.
                     let cmd_vfat = build_mount_cmd(Some("vfat"));
                     let cmd_fat = build_mount_cmd(Some("fat"));
+                    let cmd_msdos = build_mount_cmd(Some("msdos"));
                     let cmd_auto = build_mount_cmd(None);
-                    cmds.push(format!("{cmd_vfat} || {cmd_fat} || {cmd_auto}"));
+                    cmds.push(format!("{cmd_vfat} || {cmd_fat} || {cmd_msdos} || {cmd_auto}"));
                 } else {
                     cmds.push(build_mount_cmd(None));
                 }

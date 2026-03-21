@@ -1034,14 +1034,15 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/sda3 /mnt");
         assert_eq!(cmds[2], "modprobe -q fat || true");
         assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[4], "modprobe -q msdos || true");
+        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[7],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            cmds[8],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds[8], "swapon /dev/sda2");
+        assert_eq!(cmds[9], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1053,14 +1054,15 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/mapper/cryptroot /mnt");
         assert_eq!(cmds[2], "modprobe -q fat || true");
         assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[4], "modprobe -q msdos || true");
+        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[7],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            cmds[8],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds[8], "swapon /dev/sda2");
+        assert_eq!(cmds[9], "swapon /dev/sda2");
     }
 
     #[test]
@@ -1083,14 +1085,15 @@ mod tests {
         assert_eq!(cmds[1], "mount /dev/sda2 /mnt");
         assert_eq!(cmds[2], "modprobe -q fat || true");
         assert_eq!(cmds[3], "modprobe -q vfat || true");
-        assert_eq!(cmds[4], "modprobe -q nls_cp437 || true");
-        assert_eq!(cmds[5], "modprobe -q nls_iso8859_1 || true");
-        assert_eq!(cmds[6], "modprobe -q nls_ascii || true");
+        assert_eq!(cmds[4], "modprobe -q msdos || true");
+        assert_eq!(cmds[5], "modprobe -q nls_cp437 || true");
+        assert_eq!(cmds[6], "modprobe -q nls_iso8859_1 || true");
+        assert_eq!(cmds[7], "modprobe -q nls_ascii || true");
         assert_eq!(
-            cmds[7],
-            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
+            cmds[8],
+            "mount -t vfat --mkdir /dev/sda1 /mnt/boot || mount -t fat --mkdir /dev/sda1 /mnt/boot || mount -t msdos --mkdir /dev/sda1 /mnt/boot || mount --mkdir /dev/sda1 /mnt/boot"
         );
-        assert_eq!(cmds.len(), 8);
+        assert_eq!(cmds.len(), 9);
     }
 
     // ── Fstab command tests ──
