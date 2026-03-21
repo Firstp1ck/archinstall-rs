@@ -1,7 +1,9 @@
 use serde_json;
 use std::process::Command;
+use std::time::{Duration, Instant};
 
 use super::AppState;
+use crate::core::types::Screen;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
@@ -61,7 +63,8 @@ pub fn draw_disks(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) {
         lines.push(line);
     }
 
-    // Btrfs subvolume preset row (only interactive when mode 0 is active)
+    // Btrfs subvolume preset row: interactive in automatic mode (0), or in manual mode (1) when
+    // root is btrfs (subvolume layout only applies to btrfs root).
     let preset_label = match app.btrfs_subvolume_preset {
         1 => "Standard (@, @home, @snapshots)",
         2 => "Extended (@, @home, @var_log, @snapshots)",
@@ -628,5 +631,66 @@ impl AppState {
         self.popup_in_search = false;
         self.popup_search_query.clear();
         self.popup_open = true;
+    }
+
+    /// Runs findmnt + swapon and stores results for the pre-mounted info panel.
+    pub fn refresh_pre_mounted_probe_cache(&mut self) {
+        self.pre_mounted_cache_findmnt_failed = true;
+        self.pre_mounted_cache_mount_lines.clear();
+        self.pre_mounted_cache_swap_devices.clear();
+
+        if let Ok(output) = Command::new("findmnt")
+            .args(["-J", "-R", "--target", "/mnt"])
+            .output()
+            && output.status.success()
+            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
+            && let Some(filesystems) = json.get("filesystems").and_then(|v| v.as_array())
+        {
+            self.pre_mounted_cache_findmnt_failed = false;
+            fn collect(lines: &mut Vec<String>, fs_array: &[serde_json::Value]) {
+                for fs in fs_array {
+                    let target = fs.get("target").and_then(|v| v.as_str()).unwrap_or("");
+                    let source = fs.get("source").and_then(|v| v.as_str()).unwrap_or("");
+                    let fstype = fs.get("fstype").and_then(|v| v.as_str()).unwrap_or("");
+                    if !target.is_empty() && !source.is_empty() {
+                        lines.push(format!("  {source} -> {target} ({fstype})"));
+                    }
+                    if let Some(children) = fs.get("children").and_then(|v| v.as_array()) {
+                        collect(lines, children);
+                    }
+                }
+            }
+            collect(&mut self.pre_mounted_cache_mount_lines, filesystems);
+        }
+
+        if let Ok(out) = Command::new("swapon")
+            .args(["--raw", "--noheadings"])
+            .output()
+            && out.status.success()
+        {
+            let text = String::from_utf8_lossy(&out.stdout);
+            self.pre_mounted_cache_swap_devices = text
+                .lines()
+                .filter_map(|l| l.split_whitespace().next())
+                .map(str::to_string)
+                .collect();
+        }
+
+        self.pre_mounted_cache_instant = Some(Instant::now());
+    }
+
+    /// Refreshes pre-mounted probe data when the user is on that screen, throttled by TTL.
+    pub fn maybe_refresh_pre_mounted_probe_cache(&mut self) {
+        if self.current_screen() != Screen::Disks || self.disks_mode_index != 2 {
+            return;
+        }
+        const TTL: Duration = Duration::from_secs(3);
+        let stale = match self.pre_mounted_cache_instant {
+            None => true,
+            Some(t) => t.elapsed() >= TTL,
+        };
+        if stale {
+            self.refresh_pre_mounted_probe_cache();
+        }
     }
 }

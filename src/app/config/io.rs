@@ -512,6 +512,7 @@ impl AppState {
             "Manual Partitioning" => 1,
             _ => 2,
         };
+        self.pre_mounted_cache_instant = None;
         self.disks_selected_device = loaded_selected_device.and_then(|p| {
             if self.disks_devices.iter().any(|d| d.path == p) {
                 Some(p)

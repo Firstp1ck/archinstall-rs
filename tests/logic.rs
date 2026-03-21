@@ -23,6 +23,13 @@ fn utils_redact_chpasswd_and_cryptsetup() {
     let red3 = ai::common::utils::redact_command_for_logging(cmd3);
     assert!(red3.contains("echo \"<REDACTED>\" | cryptsetup"), "{red3}");
     assert!(!red3.contains("topsecret"), "{red3}");
+
+    // printf '%s' pipeline (legacy shell strings)
+    let cmd4 =
+        "printf '%s' 'hunter2' | cryptsetup open --type luks --key-file=- /dev/sda3 cryptroot";
+    let red4 = ai::common::utils::redact_command_for_logging(cmd4);
+    assert!(red4.contains("printf '%s' '<REDACTED>'"), "{red4}");
+    assert!(!red4.contains("hunter2"), "{red4}");
 }
 
 #[test]
@@ -146,7 +153,8 @@ fn partitioning_manual_converts_bytes_to_mib() {
     let plan = ai::core::services::partitioning::PartitioningService::build_plan(&state, device);
     let joined = plan.commands.join("\n");
     assert!(joined.contains("1MiB"), "{joined}");
-    assert!(joined.contains("2MiB"), "{joined}");
+    // Size is a byte length: 1 MiB start + 2 MiB size → end at 3 MiB (not 2 MiB as absolute end).
+    assert!(joined.contains("3MiB"), "{joined}");
 }
 
 #[test]

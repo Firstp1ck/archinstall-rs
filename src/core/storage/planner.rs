@@ -278,6 +278,23 @@ impl StoragePlanner {
                 });
             }
 
+            if let Some(sz) = spec.size.as_deref()
+                && super::spec_size_is_byte_length(sz)
+                && spec
+                    .start
+                    .as_deref()
+                    .unwrap_or("")
+                    .trim()
+                    .parse::<u64>()
+                    .is_err()
+            {
+                pre_errors.push(ValidationError {
+                    message: format!(
+                        "{label}: start must be a decimal byte offset when size is a byte length"
+                    ),
+                });
+            }
+
             if role != PartitionRole::Swap && role != PartitionRole::BiosBoot {
                 let mp = spec.mountpoint.as_deref().unwrap_or("");
                 if mp.is_empty() {
@@ -312,6 +329,65 @@ impl StoragePlanner {
             sa.cmp(&sb)
         });
 
+        #[derive(Clone, Copy)]
+        enum PrevRegion {
+            None,
+            EndsAtByte(u64),
+            ExtendsToDiskEnd,
+        }
+
+        let mut overlap_errors: Vec<ValidationError> = Vec::new();
+        let mut prev = PrevRegion::None;
+        for spec in &sorted_specs {
+            if let Some(spec_device) = &spec.name
+                && spec_device != &device_path
+            {
+                continue;
+            }
+
+            let start_s = spec.start.as_deref().unwrap_or("").trim();
+            let size_s = spec.size.as_deref().unwrap_or("").trim();
+            let Ok(start_b) = start_s.parse::<u64>() else {
+                prev = PrevRegion::None;
+                continue;
+            };
+
+            match prev {
+                PrevRegion::ExtendsToDiskEnd => {
+                    overlap_errors.push(ValidationError {
+                        message: "A partition is defined after one that already extends to the end of the disk (size 100%)".into(),
+                    });
+                    break;
+                }
+                PrevRegion::EndsAtByte(end_prev) if start_b < end_prev => {
+                    overlap_errors.push(ValidationError {
+                        message: format!(
+                            "Partition specs overlap on the target disk (byte {start_b} starts before byte {end_prev})"
+                        ),
+                    });
+                    break;
+                }
+                _ => {}
+            }
+
+            if super::spec_size_is_byte_length(size_s) {
+                if let Ok(len) = size_s.parse::<u64>() {
+                    let end_b = start_b.saturating_add(len);
+                    prev = PrevRegion::EndsAtByte(end_b);
+                } else {
+                    prev = PrevRegion::None;
+                }
+            } else if size_s == "100%" {
+                prev = PrevRegion::ExtendsToDiskEnd;
+            } else {
+                prev = PrevRegion::None;
+            }
+        }
+
+        if !overlap_errors.is_empty() {
+            return Err(overlap_errors);
+        }
+
         let mut partitions = Vec::new();
         let mut mounts = Vec::new();
         let mut part_num: u32 = 1;
@@ -329,8 +405,12 @@ impl StoragePlanner {
             let start = spec.start.as_deref().unwrap_or("0");
             let size = spec.size.as_deref().unwrap_or("100%");
 
-            let start_str = bytes_to_parted_unit(start);
-            let end_str = bytes_to_parted_unit(size);
+            let start_str = super::bytes_to_parted_unit(start);
+            let end_str = super::manual_disk_spec_end_for_parted(start, size).map_err(|msg| {
+                vec![ValidationError {
+                    message: format!("Partition {}: {msg}", part_num),
+                }]
+            })?;
 
             let mut flags = Vec::new();
             match role {
@@ -648,33 +728,18 @@ fn collect_findmnt_mounts(fs_array: &[serde_json::Value], mounts: &mut Vec<Plann
     }
 }
 
-fn bytes_to_parted_unit(bytes_str: &str) -> String {
-    if bytes_str.contains("MiB")
-        || bytes_str.contains("GiB")
-        || bytes_str.contains("KiB")
-        || bytes_str.contains("MB")
-        || bytes_str.contains("GB")
-        || bytes_str.contains("KB")
-        || bytes_str == "100%"
-    {
-        return bytes_str.to_string();
-    }
-
-    if let Ok(bytes) = bytes_str.parse::<u64>() {
-        let mib = bytes / (1024 * 1024);
-        if mib == 0 {
-            "1MiB".to_string()
-        } else {
-            format!("{mib}MiB")
-        }
-    } else {
-        bytes_str.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::common::install_cmd::InstallCmd;
+
+    fn partition_cmds_joined(cmds: &[InstallCmd]) -> String {
+        cmds.iter()
+            .map(|c| c.for_log())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 
     fn compile_auto_uefi(swap: bool, luks: bool) -> StoragePlan {
         // Build a plan manually matching what the planner would produce for UEFI
@@ -903,26 +968,29 @@ mod tests {
         let cmds = plan.partition_commands();
         let device = "/dev/sda";
 
-        assert_eq!(cmds[0], format!("wipefs -a {device}"));
-        assert_eq!(cmds[1], format!("parted -s {device} mklabel gpt"));
-        assert_eq!(cmds[2], format!("partprobe {device} || true"));
-        assert_eq!(cmds[3], "udevadm settle");
+        assert_eq!(cmds[0].for_log(), format!("wipefs -a {device}"));
+        assert_eq!(cmds[1].for_log(), format!("parted -s {device} mklabel gpt"));
+        assert_eq!(cmds[2].for_log(), format!("partprobe {device} || true"));
+        assert_eq!(cmds[3].for_log(), "udevadm settle");
         assert_eq!(
-            cmds[4],
+            cmds[4].for_log(),
             format!("parted -s {device} mkpart ESP fat32 1MiB 1025MiB")
         );
-        assert_eq!(cmds[5], format!("parted -s {device} set 1 esp on"));
-        assert_eq!(cmds[6], format!("mkfs.fat -F 32 {device}1"));
         assert_eq!(
-            cmds[7],
+            cmds[5].for_log(),
+            format!("parted -s {device} set 1 esp on")
+        );
+        assert_eq!(cmds[6].for_log(), format!("mkfs.fat -F 32 {device}1"));
+        assert_eq!(
+            cmds[7].for_log(),
             format!("parted -s {device} mkpart swap linux-swap 1025MiB 5121MiB")
         );
-        assert_eq!(cmds[8], format!("mkswap {device}2"));
+        assert_eq!(cmds[8].for_log(), format!("mkswap {device}2"));
         assert_eq!(
-            cmds[9],
+            cmds[9].for_log(),
             format!("parted -s {device} mkpart root btrfs 5121MiB 100%")
         );
-        assert_eq!(cmds[10], format!("mkfs.btrfs -f {device}3"));
+        assert_eq!(cmds[10].for_log(), format!("mkfs.btrfs -f {device}3"));
     }
 
     #[test]
@@ -932,23 +1000,23 @@ mod tests {
         let device = "/dev/sda";
 
         assert_eq!(
-            cmds[9],
+            cmds[9].for_log(),
             format!("parted -s {device} mkpart root btrfs 5121MiB 100%")
         );
         assert_eq!(
-            cmds[10],
+            cmds[10].for_log(),
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
         assert_eq!(
-            cmds[11],
+            cmds[11].for_log(),
             format!("cryptsetup luksFormat --type luks2 -q {device}3")
         );
-        assert_eq!(cmds[12], "udevadm settle");
+        assert_eq!(cmds[12].for_log(), "udevadm settle");
         assert_eq!(
-            cmds[13],
+            cmds[13].for_log(),
             format!("cryptsetup open --type luks {device}3 cryptroot")
         );
-        assert_eq!(cmds[14], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(cmds[14].for_log(), "mkfs.btrfs -f /dev/mapper/cryptroot");
     }
 
     #[test]
@@ -958,16 +1026,19 @@ mod tests {
         let device = "/dev/sda";
 
         assert_eq!(
-            cmds[4],
+            cmds[4].for_log(),
             format!("parted -s {device} mkpart ESP fat32 1MiB 1025MiB")
         );
-        assert_eq!(cmds[5], format!("parted -s {device} set 1 esp on"));
-        assert_eq!(cmds[6], format!("mkfs.fat -F 32 {device}1"));
         assert_eq!(
-            cmds[7],
+            cmds[5].for_log(),
+            format!("parted -s {device} set 1 esp on")
+        );
+        assert_eq!(cmds[6].for_log(), format!("mkfs.fat -F 32 {device}1"));
+        assert_eq!(
+            cmds[7].for_log(),
             format!("parted -s {device} mkpart root btrfs 1025MiB 100%")
         );
-        assert_eq!(cmds[8], format!("mkfs.btrfs -f {device}2"));
+        assert_eq!(cmds[8].for_log(), format!("mkfs.btrfs -f {device}2"));
     }
 
     #[test]
@@ -976,26 +1047,29 @@ mod tests {
         let cmds = plan.partition_commands();
         let device = "/dev/sda";
 
-        assert_eq!(cmds[0], format!("wipefs -a {device}"));
-        assert_eq!(cmds[1], format!("parted -s {device} mklabel gpt"));
-        assert_eq!(cmds[2], format!("partprobe {device} || true"));
-        assert_eq!(cmds[3], "udevadm settle");
+        assert_eq!(cmds[0].for_log(), format!("wipefs -a {device}"));
+        assert_eq!(cmds[1].for_log(), format!("parted -s {device} mklabel gpt"));
+        assert_eq!(cmds[2].for_log(), format!("partprobe {device} || true"));
+        assert_eq!(cmds[3].for_log(), "udevadm settle");
         assert_eq!(
-            cmds[4],
+            cmds[4].for_log(),
             format!("parted -s {device} mkpart biosboot 1MiB 2MiB")
         );
-        assert_eq!(cmds[5], format!("parted -s {device} set 1 bios_grub on"));
+        assert_eq!(
+            cmds[5].for_log(),
+            format!("parted -s {device} set 1 bios_grub on")
+        );
         // no mkfs for biosboot — next is swap
         assert_eq!(
-            cmds[6],
+            cmds[6].for_log(),
             format!("parted -s {device} mkpart swap linux-swap 2MiB 4098MiB")
         );
-        assert_eq!(cmds[7], format!("mkswap {device}2"));
+        assert_eq!(cmds[7].for_log(), format!("mkswap {device}2"));
         assert_eq!(
-            cmds[8],
+            cmds[8].for_log(),
             format!("parted -s {device} mkpart root btrfs 4098MiB 100%")
         );
-        assert_eq!(cmds[9], format!("mkfs.btrfs -f {device}3"));
+        assert_eq!(cmds[9].for_log(), format!("mkfs.btrfs -f {device}3"));
     }
 
     #[test]
@@ -1005,23 +1079,23 @@ mod tests {
         let device = "/dev/sda";
 
         assert_eq!(
-            cmds[8],
+            cmds[8].for_log(),
             format!("parted -s {device} mkpart root btrfs 4098MiB 100%")
         );
         assert_eq!(
-            cmds[9],
+            cmds[9].for_log(),
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
         assert_eq!(
-            cmds[10],
+            cmds[10].for_log(),
             format!("cryptsetup luksFormat --type luks2 -q {device}3")
         );
-        assert_eq!(cmds[11], "udevadm settle");
+        assert_eq!(cmds[11].for_log(), "udevadm settle");
         assert_eq!(
-            cmds[12],
+            cmds[12].for_log(),
             format!("cryptsetup open --type luks {device}3 cryptroot")
         );
-        assert_eq!(cmds[13], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(cmds[13].for_log(), "mkfs.btrfs -f /dev/mapper/cryptroot");
     }
 
     // ── Mount command tests ──
@@ -1249,13 +1323,24 @@ mod tests {
         assert_eq!(plan.devices[0].partitions[0].role, PartitionRole::Esp);
         assert_eq!(plan.devices[0].partitions[1].role, PartitionRole::Root);
 
+        let esp = &plan.devices[0].partitions[0];
+        assert_eq!(esp.start, "1MiB");
+        assert_eq!(
+            esp.end, "1025MiB",
+            "byte size must become start+size, not raw size as end"
+        );
+
         // Mounts: root first, then boot
         assert_eq!(plan.mounts[0].target, "/mnt");
         assert_eq!(plan.mounts[1].target, "/mnt/boot");
 
         // Commands should include ESP and root formatting
         let cmds = plan.partition_commands();
-        let joined = cmds.join("\n");
+        let joined = cmds
+            .iter()
+            .map(|c| c.for_log())
+            .collect::<Vec<_>>()
+            .join("\n");
         assert!(joined.contains("mkfs.fat -F 32"), "{joined}");
         assert!(joined.contains("mkfs.btrfs -f"), "{joined}");
     }
@@ -1375,7 +1460,7 @@ mod tests {
         );
 
         let cmds = plan.partition_commands();
-        let joined = cmds.join("\n");
+        let joined = partition_cmds_joined(&cmds);
         assert!(joined.contains("cryptsetup luksFormat"), "{joined}");
         assert!(joined.contains("cryptsetup open"), "{joined}");
         assert!(
@@ -1411,6 +1496,106 @@ mod tests {
 
         let err = StoragePlanner::compile(&state).unwrap_err();
         assert!(err.iter().any(|e| e.message.contains("missing role")));
+    }
+
+    #[test]
+    fn test_manual_rejects_overlapping_byte_ranges() {
+        let mut state = make_manual_state();
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                // Overlaps ESP (starts before ESP byte end 1074790400)
+                start: Some("1073741824".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
+
+        let err = StoragePlanner::compile(&state).unwrap_err();
+        assert!(
+            err.iter()
+                .any(|e| e.message.contains("overlap") || e.message.contains("before byte")),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn test_manual_rejects_partition_after_100pct() {
+        let mut state = make_manual_state();
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: Some("1048576".into()),
+                size: Some("100%".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("OTHER".into()),
+                fs: Some("ext4".into()),
+                start: Some("1073741824".into()),
+                size: Some("1048576".into()),
+                mountpoint: Some("/home".into()),
+                ..Default::default()
+            });
+
+        let err = StoragePlanner::compile(&state).unwrap_err();
+        assert!(err.iter().any(|e| e.message.contains("100%")), "{err:?}");
+    }
+
+    #[test]
+    fn test_manual_absolute_mib_end_passthrough() {
+        let mut state = make_manual_state();
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("BOOT".into()),
+                fs: Some("fat32".into()),
+                start: Some("1048576".into()),
+                size: Some("1073741824".into()),
+                mountpoint: Some("/boot".into()),
+                ..Default::default()
+            });
+        state
+            .disks_partitions
+            .push(crate::core::types::DiskPartitionSpec {
+                name: Some("/dev/sda".into()),
+                role: Some("ROOT".into()),
+                fs: Some("ext4".into()),
+                start: Some("1074790400".into()),
+                size: Some("5120MiB".into()),
+                mountpoint: Some("/".into()),
+                ..Default::default()
+            });
+
+        let plan = StoragePlanner::compile(&state).expect("compile");
+        let root = plan.devices[0]
+            .partitions
+            .iter()
+            .find(|p| p.role == PartitionRole::Root)
+            .expect("root");
+        assert_eq!(root.end, "5120MiB");
     }
 
     #[test]
@@ -1514,7 +1699,7 @@ mod tests {
         assert!(root_mount.options.is_empty());
 
         let cmds = plan.partition_commands();
-        let joined = cmds.join("\n");
+        let joined = partition_cmds_joined(&cmds);
         assert!(!joined.contains("btrfs subvolume create"), "{joined}");
     }
 
@@ -1543,7 +1728,7 @@ mod tests {
 
         // Partition commands should contain subvolume creation
         let part_cmds = plan.partition_commands();
-        let joined = part_cmds.join("\n");
+        let joined = partition_cmds_joined(&part_cmds);
         assert!(
             joined.contains("btrfs subvolume create /mnt/@\n"),
             "{joined}"
@@ -1613,7 +1798,7 @@ mod tests {
         assert!(plan.has_encryption());
 
         let part_cmds = plan.partition_commands();
-        let joined = part_cmds.join("\n");
+        let joined = partition_cmds_joined(&part_cmds);
         // Should mount the mapper device for subvolume creation
         assert!(
             joined.contains("mount /dev/mapper/cryptroot /mnt"),
@@ -2151,16 +2336,16 @@ mod tests {
         assert!(
             root_cmds
                 .iter()
-                .any(|c| c.contains("cryptsetup luksFormat"))
+                .any(|c| c.for_log().contains("cryptsetup luksFormat"))
         );
-        assert!(root_cmds.iter().any(|c| c.contains("pvcreate")));
-        assert!(root_cmds.iter().any(|c| c.contains("vgcreate")));
-        assert!(root_cmds.iter().any(|c| c.contains("lvcreate")));
-        assert!(root_cmds.iter().any(|c| c.contains("mkfs.ext4")));
+        assert!(root_cmds.iter().any(|c| c.for_log().contains("pvcreate")));
+        assert!(root_cmds.iter().any(|c| c.for_log().contains("vgcreate")));
+        assert!(root_cmds.iter().any(|c| c.for_log().contains("lvcreate")));
+        assert!(root_cmds.iter().any(|c| c.for_log().contains("mkfs.ext4")));
 
         // Existing partition_commands still work for the ESP + LUKS partition
         let cmds = plan.partition_commands();
-        let joined = cmds.join("\n");
+        let joined = partition_cmds_joined(&cmds);
         assert!(joined.contains("mkfs.fat -F 32"), "{joined}");
         assert!(joined.contains("cryptsetup luksFormat"), "{joined}");
         assert!(joined.contains("cryptsetup open"), "{joined}");
@@ -2240,10 +2425,18 @@ mod tests {
         assert_eq!(plan.root_device_path(), Some("/dev/md/md0".into()));
 
         let raid_cmds = plan.stacks[0].setup_commands();
-        assert!(raid_cmds.iter().any(|c| c.contains("mdadm --create")));
-        assert!(raid_cmds.iter().any(|c| c.contains("--level=1")));
-        assert!(raid_cmds.iter().any(|c| c.contains("--raid-devices=2")));
-        assert!(raid_cmds.iter().any(|c| c.contains("mkfs.ext4")));
+        assert!(
+            raid_cmds
+                .iter()
+                .any(|c| c.for_log().contains("mdadm --create"))
+        );
+        assert!(raid_cmds.iter().any(|c| c.for_log().contains("--level=1")));
+        assert!(
+            raid_cmds
+                .iter()
+                .any(|c| c.for_log().contains("--raid-devices=2"))
+        );
+        assert!(raid_cmds.iter().any(|c| c.for_log().contains("mkfs.ext4")));
 
         if let VolumeLayer::Raid(ref raid) = plan.stacks[0].layers[0] {
             assert_eq!(raid.level, "1");
@@ -2303,13 +2496,19 @@ mod tests {
         };
         let cmds = stack.setup_commands();
         assert_eq!(
-            cmds[0],
+            cmds[0].for_log(),
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
-        assert_eq!(cmds[1], "cryptsetup luksFormat --type luks2 -q /dev/sda3");
-        assert_eq!(cmds[2], "udevadm settle");
-        assert_eq!(cmds[3], "cryptsetup open --type luks /dev/sda3 cryptroot");
-        assert_eq!(cmds[4], "mkfs.btrfs -f /dev/mapper/cryptroot");
+        assert_eq!(
+            cmds[1].for_log(),
+            "cryptsetup luksFormat --type luks2 -q /dev/sda3"
+        );
+        assert_eq!(cmds[2].for_log(), "udevadm settle");
+        assert_eq!(
+            cmds[3].for_log(),
+            "cryptsetup open --type luks /dev/sda3 cryptroot"
+        );
+        assert_eq!(cmds[4].for_log(), "mkfs.btrfs -f /dev/mapper/cryptroot");
         assert_eq!(cmds.len(), 5);
     }
 
@@ -2328,10 +2527,10 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "pvcreate /dev/sda2");
-        assert_eq!(cmds[1], "vgcreate vg0 /dev/sda2");
-        assert_eq!(cmds[2], "lvcreate -L 50GiB vg0 -n lv_root");
-        assert_eq!(cmds[3], "mkfs.ext4 -F /dev/vg0/lv_root");
+        assert_eq!(cmds[0].for_log(), "pvcreate /dev/sda2");
+        assert_eq!(cmds[1].for_log(), "vgcreate vg0 /dev/sda2");
+        assert_eq!(cmds[2].for_log(), "lvcreate -L 50GiB vg0 -n lv_root");
+        assert_eq!(cmds[3].for_log(), "mkfs.ext4 -F /dev/vg0/lv_root");
         assert_eq!(cmds.len(), 4);
     }
 
@@ -2347,7 +2546,11 @@ mod tests {
             filesystem: None,
         };
         let cmds = stack.setup_commands();
-        assert!(cmds[2].contains("-l 100%FREE"), "{}", cmds[2]);
+        assert!(
+            cmds[2].for_log().contains("-l 100%FREE"),
+            "{}",
+            cmds[2].for_log()
+        );
     }
 
     #[test]
@@ -2366,10 +2569,10 @@ mod tests {
         };
         let cmds = stack.setup_commands();
         assert_eq!(
-            cmds[0],
+            cmds[0].for_log(),
             "mdadm --create /dev/md/md0 --level=1 --raid-devices=2 /dev/sda1 /dev/sdb1"
         );
-        assert_eq!(cmds[1], "mkfs.ext4 -F /dev/md/md0");
+        assert_eq!(cmds[1].for_log(), "mkfs.ext4 -F /dev/md/md0");
         assert_eq!(cmds.len(), 2);
     }
 
@@ -2396,22 +2599,22 @@ mod tests {
         };
         let cmds = stack.setup_commands();
         assert_eq!(
-            cmds[0],
+            cmds[0].for_log(),
             "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
         );
         assert_eq!(
-            cmds[1],
+            cmds[1].for_log(),
             "cryptsetup luksFormat --type luks2 -q /dev/nvme0n1p3"
         );
-        assert_eq!(cmds[2], "udevadm settle");
+        assert_eq!(cmds[2].for_log(), "udevadm settle");
         assert_eq!(
-            cmds[3],
+            cmds[3].for_log(),
             "cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm"
         );
-        assert_eq!(cmds[4], "pvcreate /dev/mapper/cryptlvm");
-        assert_eq!(cmds[5], "vgcreate vg_system /dev/mapper/cryptlvm");
-        assert_eq!(cmds[6], "lvcreate -L 50GiB vg_system -n lv_root");
-        assert_eq!(cmds[7], "mkfs.ext4 -F /dev/vg_system/lv_root");
+        assert_eq!(cmds[4].for_log(), "pvcreate /dev/mapper/cryptlvm");
+        assert_eq!(cmds[5].for_log(), "vgcreate vg_system /dev/mapper/cryptlvm");
+        assert_eq!(cmds[6].for_log(), "lvcreate -L 50GiB vg_system -n lv_root");
+        assert_eq!(cmds[7].for_log(), "mkfs.ext4 -F /dev/vg_system/lv_root");
         assert_eq!(cmds.len(), 8);
     }
 
@@ -2428,7 +2631,7 @@ mod tests {
         };
         let cmds = stack.setup_commands();
         assert_eq!(cmds.len(), 4);
-        assert!(!cmds.iter().any(|c| c.contains("mkfs")));
+        assert!(!cmds.iter().any(|c| c.for_log().contains("mkfs")));
     }
 
     #[test]
@@ -2443,7 +2646,7 @@ mod tests {
         };
         let cmds = stack.setup_commands();
         assert_eq!(cmds.len(), 1);
-        assert_eq!(cmds[0], "mkfs.xfs -f /dev/sda1");
+        assert_eq!(cmds[0].for_log(), "mkfs.xfs -f /dev/sda1");
     }
 
     #[test]
@@ -2484,10 +2687,13 @@ mod tests {
             ],
         };
         let cmds = plan.stack_setup_commands();
-        assert!(cmds.iter().any(|c| c.contains("cryptsetup luksFormat")));
-        assert!(cmds.iter().any(|c| c.contains("pvcreate")));
-        assert!(cmds.iter().any(|c| c.contains("lvcreate")));
-        assert!(cmds.iter().any(|c| c.contains("mkfs.ext4")));
+        assert!(
+            cmds.iter()
+                .any(|c| c.for_log().contains("cryptsetup luksFormat"))
+        );
+        assert!(cmds.iter().any(|c| c.for_log().contains("pvcreate")));
+        assert!(cmds.iter().any(|c| c.for_log().contains("lvcreate")));
+        assert!(cmds.iter().any(|c| c.for_log().contains("mkfs.ext4")));
     }
 
     #[test]
@@ -2534,6 +2740,6 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert!(cmds.last().unwrap().contains("mkswap"));
+        assert!(cmds.last().unwrap().for_log().contains("mkswap"));
     }
 }

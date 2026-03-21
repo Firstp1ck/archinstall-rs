@@ -17,6 +17,8 @@ impl AppState {
 /// - echo 'user:password' | chpasswd  -> echo 'user:<REDACTED>' | chpasswd
 /// - echo "pass" | cryptsetup ...     -> echo "<REDACTED>" | cryptsetup ...
 /// - echo 'pass' | cryptsetup ...     -> echo '<REDACTED>' | cryptsetup ...
+/// - printf '%s' 'pass' | cryptsetup  -> printf '%s' '<REDACTED>' | cryptsetup ...
+/// - printf "%s" "pass" | cryptsetup -> printf "%s" "<REDACTED>" | cryptsetup ...
 pub fn redact_command_for_logging(command: &str) -> String {
     let mut redacted = command.to_string();
 
@@ -63,7 +65,32 @@ pub fn redact_command_for_logging(command: &str) -> String {
         redact_after_echo_segment(&mut redacted, |_inner| "<REDACTED>".to_string());
     }
 
+    // printf '%s' '…' | cryptsetup (legacy / external shell strings)
+    if redacted.contains("cryptsetup") && redacted.contains("printf ") {
+        redact_printf_pipeline_to_cryptsetup(&mut redacted);
+    }
+
     redacted
+}
+
+/// Redact the secret argument in `printf '%s' 'SECRET' | cryptsetup` (and `"%s"` / `"…"`).
+/// Uses a conservative rewrite: everything from the first `printf '%s'` / `printf "%s"` up to
+/// `| cryptsetup` is replaced with `printf '%s' '<REDACTED>' ` so embedded `'` in passphrases
+/// cannot leak via a naive quoted span.
+fn redact_printf_pipeline_to_cryptsetup(s: &mut String) {
+    let Some(pipe_idx) = s.rfind("| cryptsetup") else {
+        return;
+    };
+    let head = &s[..pipe_idx];
+    let tail = &s[pipe_idx..];
+    let Some(fmt_start) = head
+        .find("printf '%s'")
+        .or_else(|| head.find("printf \"%s\""))
+    else {
+        return;
+    };
+    let before = &s[..fmt_start];
+    *s = format!("{before}printf '%s' '<REDACTED>' {tail}");
 }
 
 /// Remove ANSI escape/control sequences from a single line of terminal output.

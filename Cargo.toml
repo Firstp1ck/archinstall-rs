@@ -11,3 +11,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 toml = "0.9.8"
 sha2 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+unicode-width = "0.2"

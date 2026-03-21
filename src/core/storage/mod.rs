@@ -2,6 +2,8 @@ pub mod planner;
 
 use std::fmt;
 
+use crate::common::install_cmd::InstallCmd;
+
 #[derive(Clone, Debug)]
 pub struct StoragePlan {
     pub devices: Vec<PlannedDevice>,
@@ -182,19 +184,18 @@ impl DeviceStack {
     /// Walks each layer in order, tracking the current device path and emitting
     /// the commands needed to set up that layer. Finishes with filesystem creation
     /// on the final device when a `FilesystemSpec` is present.
-    pub fn setup_commands(&self) -> Vec<String> {
+    pub fn setup_commands(&self) -> Vec<InstallCmd> {
         let mut cmds = Vec::new();
         let mut current = self.base.clone();
 
         for layer in &self.layers {
             match layer {
                 VolumeLayer::Luks(enc) => {
-                    cmds.push(
-                        "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
-                            .into(),
-                    );
+                    cmds.push(InstallCmd::shell(
+                        "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true",
+                    ));
                     cmds.push(Self::luks_format_cmd(&current, enc.passphrase.as_deref()));
-                    cmds.push("udevadm settle".into());
+                    cmds.push(InstallCmd::shell("udevadm settle"));
                     cmds.push(Self::luks_open_cmd(
                         &current,
                         &enc.mapper_name,
@@ -203,68 +204,68 @@ impl DeviceStack {
                     current = format!("/dev/mapper/{}", enc.mapper_name);
                 }
                 VolumeLayer::Lvm(lvm) => {
-                    cmds.push(format!("pvcreate {current}"));
-                    cmds.push(format!("vgcreate {} {current}", lvm.vg_name));
+                    cmds.push(InstallCmd::shell(format!("pvcreate {current}")));
+                    cmds.push(InstallCmd::shell(format!(
+                        "vgcreate {} {current}",
+                        lvm.vg_name
+                    )));
                     let size_flag = if lvm.size.contains('%') {
                         format!("-l {}", lvm.size)
                     } else {
                         format!("-L {}", lvm.size)
                     };
-                    cmds.push(format!(
+                    cmds.push(InstallCmd::shell(format!(
                         "lvcreate {size_flag} {} -n {}",
                         lvm.vg_name, lvm.lv_name
-                    ));
+                    )));
                     current = format!("/dev/{}/{}", lvm.vg_name, lvm.lv_name);
                 }
                 VolumeLayer::Raid(raid) => {
                     let members_str = raid.members.join(" ");
-                    cmds.push(format!(
+                    cmds.push(InstallCmd::shell(format!(
                         "mdadm --create /dev/md/{} --level={} --raid-devices={} {}",
                         raid.name,
                         raid.level,
                         raid.members.len(),
                         members_str
-                    ));
+                    )));
                     current = format!("/dev/md/{}", raid.name);
                 }
             }
         }
 
         if let Some(ref fs) = self.filesystem {
-            cmds.push(Self::mkfs_command(&fs.fstype, &current));
+            cmds.push(InstallCmd::shell(Self::mkfs_command(&fs.fstype, &current)));
         }
 
         cmds
     }
 
-    /// Build a `cryptsetup luksFormat` command, piping the passphrase via stdin.
-    /// Uses `--key-file=-` so cryptsetup reads from stdin (not /dev/tty), and
-    /// `-q` to suppress the "Are you sure?" confirmation. Uses `printf '%s'`
-    /// instead of `echo -n` to avoid shell-dependent newline behaviour.
-    pub(crate) fn luks_format_cmd(device: &str, passphrase: Option<&str>) -> String {
+    /// LUKS format step: when a passphrase is set, it is passed via stdin by the runner
+    /// (never embedded in a logged shell string).
+    pub(crate) fn luks_format_cmd(device: &str, passphrase: Option<&str>) -> InstallCmd {
         match passphrase {
-            Some(pw) => {
-                let escaped = pw.replace('\'', "'\\''");
-                format!(
-                    "printf '%s' '{escaped}' | cryptsetup luksFormat --type luks2 -q --key-file=- {device}"
-                )
-            }
-            None => format!("cryptsetup luksFormat --type luks2 -q {device}"),
+            Some(pw) => InstallCmd::CryptsetupLuksFormat {
+                device: device.to_string(),
+                passphrase: pw.to_string(),
+            },
+            None => InstallCmd::shell(format!("cryptsetup luksFormat --type luks2 -q {device}")),
         }
     }
 
-    /// Build a `cryptsetup open` command, piping the passphrase via stdin.
-    /// Uses `--key-file=-` so cryptsetup reads from stdin with consistent
-    /// passphrase processing (no newline stripping) matching luksFormat.
-    pub(crate) fn luks_open_cmd(device: &str, mapper: &str, passphrase: Option<&str>) -> String {
+    /// LUKS open step; passphrase handling matches [`Self::luks_format_cmd`].
+    pub(crate) fn luks_open_cmd(
+        device: &str,
+        mapper: &str,
+        passphrase: Option<&str>,
+    ) -> InstallCmd {
         match passphrase {
-            Some(pw) => {
-                let escaped = pw.replace('\'', "'\\''");
-                format!(
-                    "printf '%s' '{escaped}' | cryptsetup open --type luks --key-file=- {device} {mapper}"
-                )
-            }
-            None => format!("cryptsetup open --type luks {device} {mapper}"),
+            Some(pw) => InstallCmd::CryptsetupOpen {
+                device: device.to_string(),
+                mapper: mapper.to_string(),
+                passphrase: pw.to_string(),
+            },
+            None => InstallCmd::shell(format!("cryptsetup open --type luks {device} {mapper}")),
         }
     }
 
@@ -407,21 +408,24 @@ impl StoragePlan {
         }
     }
 
-    pub fn partition_commands(&self) -> Vec<String> {
+    pub fn partition_commands(&self) -> Vec<InstallCmd> {
         let mut cmds = Vec::new();
 
         for device in &self.devices {
             if device.wipe {
-                cmds.push(format!("wipefs -a {}", device.path));
+                cmds.push(InstallCmd::shell(format!("wipefs -a {}", device.path)));
             }
 
-            cmds.push(format!(
+            cmds.push(InstallCmd::shell(format!(
                 "parted -s {} mklabel {}",
                 device.path,
                 device.label.as_parted_str()
-            ));
-            cmds.push(format!("partprobe {} || true", device.path));
-            cmds.push("udevadm settle".into());
+            )));
+            cmds.push(InstallCmd::shell(format!(
+                "partprobe {} || true",
+                device.path
+            )));
+            cmds.push(InstallCmd::shell("udevadm settle"));
 
             for part in &device.partitions {
                 let parted_type = match part.role {
@@ -434,24 +438,24 @@ impl StoragePlan {
 
                 // biosboot partitions use only a label, no filesystem hint
                 if part.role == PartitionRole::BiosBoot {
-                    cmds.push(format!(
+                    cmds.push(InstallCmd::shell(format!(
                         "parted -s {} mkpart {} {} {}",
                         device.path, parted_type, part.start, part.end
-                    ));
+                    )));
                 } else {
-                    cmds.push(format!(
+                    cmds.push(InstallCmd::shell(format!(
                         "parted -s {} mkpart {} {} {} {}",
                         device.path, parted_type, part.filesystem.fstype, part.start, part.end
-                    ));
+                    )));
                 }
 
                 for flag in &part.flags {
-                    cmds.push(format!(
+                    cmds.push(InstallCmd::shell(format!(
                         "parted -s {} set {} {} on",
                         device.path,
                         part.number,
                         flag.as_parted_str()
-                    ));
+                    )));
                 }
 
                 // biosboot partitions are not formatted
@@ -464,15 +468,14 @@ impl StoragePlan {
                 if let Some(enc) = &part.encryption {
                     match enc.method {
                         EncryptionMethod::Luks2 => {
-                            cmds.push(
-                                "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
-                                    .into(),
-                            );
+                            cmds.push(InstallCmd::shell(
+                                "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true",
+                            ));
                             cmds.push(DeviceStack::luks_format_cmd(
                                 &part_path,
                                 enc.passphrase.as_deref(),
                             ));
-                            cmds.push("udevadm settle".into());
+                            cmds.push(InstallCmd::shell("udevadm settle"));
                             cmds.push(DeviceStack::luks_open_cmd(
                                 &part_path,
                                 &enc.mapper_name,
@@ -489,30 +492,46 @@ impl StoragePlan {
                 };
 
                 match part.filesystem.fstype.as_str() {
-                    "fat32" => cmds.push(format!("mkfs.fat -F 32 {format_target}")),
-                    "fat16" => cmds.push(format!("mkfs.fat -F 16 {format_target}")),
-                    "fat12" => cmds.push(format!("mkfs.fat -F 12 {format_target}")),
-                    "linux-swap" => cmds.push(format!("mkswap {format_target}")),
-                    "btrfs" => cmds.push(format!("mkfs.btrfs -f {format_target}")),
-                    "ext4" => cmds.push(format!("mkfs.ext4 -F {format_target}")),
-                    "ext3" => cmds.push(format!("mkfs.ext3 -F {format_target}")),
-                    "ext2" => cmds.push(format!("mkfs.ext2 -F {format_target}")),
-                    "xfs" => cmds.push(format!("mkfs.xfs -f {format_target}")),
-                    "f2fs" => cmds.push(format!("mkfs.f2fs -f {format_target}")),
-                    _ => cmds.push(format!("mkfs.ext4 -F {format_target}")),
+                    "fat32" => {
+                        cmds.push(InstallCmd::shell(format!("mkfs.fat -F 32 {format_target}")))
+                    }
+                    "fat16" => {
+                        cmds.push(InstallCmd::shell(format!("mkfs.fat -F 16 {format_target}")))
+                    }
+                    "fat12" => {
+                        cmds.push(InstallCmd::shell(format!("mkfs.fat -F 12 {format_target}")))
+                    }
+                    "linux-swap" => {
+                        cmds.push(InstallCmd::shell(format!("mkswap {format_target}")));
+                    }
+                    "btrfs" => {
+                        cmds.push(InstallCmd::shell(format!("mkfs.btrfs -f {format_target}")))
+                    }
+                    "ext4" => cmds.push(InstallCmd::shell(format!("mkfs.ext4 -F {format_target}"))),
+                    "ext3" => cmds.push(InstallCmd::shell(format!("mkfs.ext3 -F {format_target}"))),
+                    "ext2" => cmds.push(InstallCmd::shell(format!("mkfs.ext2 -F {format_target}"))),
+                    "xfs" => cmds.push(InstallCmd::shell(format!("mkfs.xfs -f {format_target}"))),
+                    "f2fs" => cmds.push(InstallCmd::shell(format!("mkfs.f2fs -f {format_target}"))),
+                    _ => cmds.push(InstallCmd::shell(format!("mkfs.ext4 -F {format_target}"))),
                 }
 
                 if !part.subvolumes.is_empty() && part.filesystem.fstype == "btrfs" {
-                    cmds.push(format!("mount {format_target} /mnt"));
+                    cmds.push(InstallCmd::shell(format!("mount {format_target} /mnt")));
                     for sv in &part.subvolumes {
-                        cmds.push(format!("btrfs subvolume create /mnt/{}", sv.name));
+                        cmds.push(InstallCmd::shell(format!(
+                            "btrfs subvolume create /mnt/{}",
+                            sv.name
+                        )));
                     }
-                    cmds.push("umount /mnt".into());
+                    cmds.push(InstallCmd::shell("umount /mnt"));
                 }
             }
 
-            cmds.push(format!("partprobe {} || true", device.path));
-            cmds.push("udevadm settle".into());
+            cmds.push(InstallCmd::shell(format!(
+                "partprobe {} || true",
+                device.path
+            )));
+            cmds.push(InstallCmd::shell("udevadm settle"));
         }
 
         cmds
@@ -797,7 +816,7 @@ impl StoragePlan {
 
     /// Collect setup commands for all device stacks (LVM, RAID, multi-layer).
     /// Returns an empty vec for simple partition-based layouts with no stacks.
-    pub fn stack_setup_commands(&self) -> Vec<String> {
+    pub fn stack_setup_commands(&self) -> Vec<InstallCmd> {
         let mut cmds = Vec::new();
         for stack in &self.stacks {
             cmds.extend(stack.setup_commands());
@@ -813,6 +832,57 @@ impl StoragePlan {
                 .stacks
                 .iter()
                 .any(|s| s.layers.iter().any(|l| matches!(l, VolumeLayer::Luks(_))))
+    }
+}
+
+/// True when `size` is a plain decimal byte length (manual UI and typical configs).
+/// Values like `100%` or `512MiB` are treated as absolute `parted` end coordinates.
+pub(crate) fn spec_size_is_byte_length(size: &str) -> bool {
+    let s = size.trim();
+    !s.is_empty() && s.chars().all(|c| c.is_ascii_digit())
+}
+
+pub(crate) fn bytes_to_parted_unit(bytes_str: &str) -> String {
+    let bytes_str = bytes_str.trim();
+    if bytes_str.contains("MiB")
+        || bytes_str.contains("GiB")
+        || bytes_str.contains("KiB")
+        || bytes_str.contains("MB")
+        || bytes_str.contains("GB")
+        || bytes_str.contains("KB")
+        || bytes_str == "100%"
+    {
+        return bytes_str.to_string();
+    }
+
+    if let Ok(bytes) = bytes_str.parse::<u64>() {
+        let mib = bytes / (1024 * 1024);
+        if mib == 0 {
+            "1MiB".to_string()
+        } else {
+            format!("{mib}MiB")
+        }
+    } else {
+        bytes_str.to_string()
+    }
+}
+
+/// `parted mkpart` uses start and end positions. When `size` is a byte length, end is
+/// `start + size` in byte space; otherwise `size` is an end specifier (`100%`, `NMiB`, …).
+pub(crate) fn manual_disk_spec_end_for_parted(start: &str, size: &str) -> Result<String, String> {
+    let start = start.trim();
+    let size = size.trim();
+    if spec_size_is_byte_length(size) {
+        let start_b: u64 = start.parse().map_err(|_| {
+            "start must be a decimal byte offset when size is a plain byte length".to_string()
+        })?;
+        let size_b: u64 = size
+            .parse()
+            .map_err(|_| "invalid partition size bytes".to_string())?;
+        let end_b = start_b.saturating_add(size_b);
+        Ok(bytes_to_parted_unit(&end_b.to_string()))
+    } else {
+        Ok(bytes_to_parted_unit(size))
     }
 }
 

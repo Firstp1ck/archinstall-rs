@@ -183,7 +183,11 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
                     debug_enabled,
                     &format!(
                         "Warning: Kernel/module version mismatch -- running kernel {kver} but modules on disk: {}",
-                        if available.is_empty() { "none".into() } else { available.join(", ") }
+                        if available.is_empty() {
+                            "none".into()
+                        } else {
+                            available.join(", ")
+                        }
                     ),
                 );
                 print_info(
@@ -192,7 +196,9 @@ fn run_preflight_checks(dry_run: bool, debug_enabled: bool) -> bool {
                 );
                 debug_log(
                     debug_enabled,
-                    &format!("preflight: kernel/module mismatch kver={kver} available={available:?}"),
+                    &format!(
+                        "preflight: kernel/module mismatch kver={kver} available={available:?}"
+                    ),
                 );
                 had_warning = true;
             }

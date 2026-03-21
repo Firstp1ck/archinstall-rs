@@ -76,6 +76,11 @@ pub struct AppState {
     pub disks_align: Option<String>,
     pub disks_partitions: Vec<DiskPartitionSpec>,
     pub btrfs_subvolume_preset: usize, // 0=Flat, 1=Standard, 2=Extended
+    /// Cached output of findmnt/swapon for pre-mounted mode (avoid subprocesses every render).
+    pub pre_mounted_cache_mount_lines: Vec<String>,
+    pub pre_mounted_cache_findmnt_failed: bool,
+    pub pre_mounted_cache_swap_devices: Vec<String>,
+    pub pre_mounted_cache_instant: Option<std::time::Instant>,
 
     // Manual Partitioning: create partition popup state
     pub manual_create_units_index: usize, // 0: B, 1: KiB/KB, 2: MiB/MB, 3: GiB/GB
@@ -251,7 +256,8 @@ pub struct AppState {
 
     // Request to exit TUI and run install in stdout mode
     pub exit_tui_after_install: bool,
-    pub pending_install_sections: Option<Vec<(String, Vec<String>)>>,
+    pub pending_install_sections:
+        Option<Vec<(String, Vec<crate::common::install_cmd::InstallCmd>)>>,
 
     // Clickable targets in Install decision menu (computed each render)
     pub install_click_targets: Vec<(ratatui::layout::Rect, InstallClickTarget)>,
@@ -433,6 +439,10 @@ impl AppState {
             disks_align: Some("1MiB".into()),
             disks_partitions: Vec::new(),
             btrfs_subvolume_preset: 0, // Flat (no subvolumes) by default
+            pre_mounted_cache_mount_lines: Vec::new(),
+            pre_mounted_cache_findmnt_failed: false,
+            pre_mounted_cache_swap_devices: Vec::new(),
+            pre_mounted_cache_instant: None,
 
             manual_create_units_index: 0,
             manual_create_free_start_bytes: 0,

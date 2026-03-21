@@ -3,6 +3,7 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use unicode_width::UnicodeWidthStr;
 
 use crate::app::{AppState, PopupKind};
 
@@ -21,10 +22,16 @@ pub fn draw_popup(frame: &mut Frame, app: &mut AppState) {
     let (width, height) = if matches!(app.popup_kind, Some(PopupKind::Info)) {
         let body = app.popup_items.first().map(|s| s.as_str()).unwrap_or("");
         let line_count = body.lines().count().max(1);
-        let longest_line = body.lines().map(|l| l.len()).max().unwrap_or(20);
-        // +4 for border + padding on each side; +5 for border, blank line, hint, border, padding
-        let w = (longest_line as u16 + 6).clamp(40, area.width.saturating_sub(4).max(40));
-        let h = (line_count as u16 + 6).clamp(10, area.height.saturating_sub(2).max(10));
+        let longest_display = body.lines().map(|l| l.width()).max().unwrap_or(20);
+        // +4 for border + padding on each side; +2 horizontal margin inside block
+        let w_raw = longest_display.saturating_add(6);
+        let w = u16::try_from(w_raw)
+            .unwrap_or(u16::MAX)
+            .clamp(40, area.width.saturating_sub(4).max(40));
+        let h_raw = line_count.saturating_add(6);
+        let h = u16::try_from(h_raw)
+            .unwrap_or(u16::MAX)
+            .clamp(10, area.height.saturating_sub(2).max(10));
         (w, h)
     } else if matches!(
         app.popup_kind,

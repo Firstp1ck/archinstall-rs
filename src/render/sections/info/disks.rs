@@ -296,49 +296,8 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         ));
         info_lines.push(Line::from(""));
 
-        // Detect mounts under /mnt for display
-        if let Ok(output) = std::process::Command::new("findmnt")
-            .args(["-J", "-R", "--target", "/mnt"])
-            .output()
-            && output.status.success()
-            && let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout)
-            && let Some(filesystems) = json.get("filesystems").and_then(|v| v.as_array())
-        {
-            fn collect_display_lines(
-                fs_array: &[serde_json::Value],
-                lines: &mut Vec<Line<'static>>,
-            ) {
-                for fs in fs_array {
-                    let target = fs
-                        .get("target")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let source = fs
-                        .get("source")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    let fstype = fs
-                        .get("fstype")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    if !target.is_empty() && !source.is_empty() {
-                        lines.push(Line::from(format!("  {source} -> {target} ({fstype})")));
-                    }
-                    if let Some(children) = fs.get("children").and_then(|v| v.as_array()) {
-                        collect_display_lines(children, lines);
-                    }
-                }
-            }
-
-            info_lines.push(Line::from(Span::styled(
-                "Detected mounts:",
-                Style::default().add_modifier(Modifier::BOLD),
-            )));
-            collect_display_lines(filesystems, &mut info_lines);
-        } else {
+        // Pre-mounted mount/swap data (refreshed in AppState, not here — see refresh_pre_mounted_probe_cache)
+        if app.pre_mounted_cache_findmnt_failed {
             info_lines.push(Line::from(Span::styled(
                 "No mounts detected under /mnt",
                 Style::default().fg(Color::Red),
@@ -346,28 +305,24 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             info_lines.push(Line::from(
                 "Mount your filesystems at /mnt first, then select this mode.",
             ));
+        } else {
+            info_lines.push(Line::from(Span::styled(
+                "Detected mounts:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            for line in &app.pre_mounted_cache_mount_lines {
+                info_lines.push(Line::from(line.clone()));
+            }
         }
 
-        // Show swap status
-        if let Ok(out) = std::process::Command::new("swapon")
-            .args(["--raw", "--noheadings"])
-            .output()
-            && out.status.success()
-        {
-            let text = String::from_utf8_lossy(&out.stdout);
-            let swap_devices: Vec<&str> = text
-                .lines()
-                .filter_map(|l| l.split_whitespace().next())
-                .collect();
-            if !swap_devices.is_empty() {
-                info_lines.push(Line::from(""));
-                info_lines.push(Line::from(Span::styled(
-                    "Active swap:",
-                    Style::default().add_modifier(Modifier::BOLD),
-                )));
-                for dev in swap_devices {
-                    info_lines.push(Line::from(format!("  {dev}")));
-                }
+        if !app.pre_mounted_cache_swap_devices.is_empty() {
+            info_lines.push(Line::from(""));
+            info_lines.push(Line::from(Span::styled(
+                "Active swap:",
+                Style::default().add_modifier(Modifier::BOLD),
+            )));
+            for dev in &app.pre_mounted_cache_swap_devices {
+                info_lines.push(Line::from(format!("  {dev}")));
             }
         }
 

@@ -1,10 +1,11 @@
 use crate::app::{AppState, PopupKind};
+use crate::common::install_cmd::InstallCmd;
 use crate::core::services::network::NetworkService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
 use crate::core::storage::planner::StoragePlanner;
 use std::io::{BufRead, BufReader};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::thread;
 
 impl AppState {
@@ -158,11 +159,8 @@ impl AppState {
                     write_log(&mut log_file, &header);
                     send(&tx, header);
                     std::thread::sleep(std::time::Duration::from_millis(25));
-                    for c in cmds {
-                        let line = format!(
-                            "[Dry-Run] $ {}",
-                            crate::common::utils::redact_command_for_logging(&c)
-                        );
+                    for cmd in cmds {
+                        let line = format!("[Dry-Run] $ {}", cmd.for_log());
                         write_log(&mut log_file, &line);
                         send(&tx, line);
                         std::thread::sleep(std::time::Duration::from_millis(8));
@@ -310,32 +308,13 @@ impl AppState {
                     dbg(&format!("section_start: '{}' ({} cmds)", title, cmds.len()));
                     send(&tx, format!("::section_start::{title}"));
                     send(&tx, format!("=== {title} ==="));
-                    for c in cmds {
-                        let red = crate::common::utils::redact_command_for_logging(&c);
+                    for cmd in cmds {
+                        let red = cmd.for_log();
                         send(&tx, format!("$ {red}"));
                         dbg(&format!("spawn: '{red}'"));
                         // Force all output through our pipe using `script` to avoid /dev/tty writes.
                         // -q: quiet (no start/stop banner), -f: flush, -e: return child status, -c: command
-                        let escaped = c.replace('"', "\\\"");
-                        let pipeline = format!("script -qfec \"{escaped}\" /dev/null 2>&1");
-                        let mut child = match Command::new("bash")
-                            .arg("-lc")
-                            .arg(&pipeline)
-                            .env("TERM", "dumb")
-                            .env("NO_COLOR", "1")
-                            .env("PACMAN_COLOR", "never")
-                            .env("SYSTEMD_PAGER", "cat")
-                            .env("SYSTEMD_COLORS", "0")
-                            .env("PAGER", "cat")
-                            .env("LESS", "FRX")
-                            .env(
-                                "PACMAN",
-                                "pacman --noconfirm --noprogressbar --color never --quiet",
-                            )
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::piped())
-                            .spawn()
-                        {
+                        let mut child = match cmd.spawn_script_pipeline(Stdio::piped()) {
                             Ok(ch) => ch,
                             Err(e) => {
                                 any_error = Some(format!("Failed to spawn: {red} ({e})"));
@@ -344,7 +323,14 @@ impl AppState {
                                 break 'outer;
                             }
                         };
-                        let thin_pacstrap = c.contains("pacstrap");
+                        if let Err(e) = cmd.write_passphrase_to_stdin(&mut child) {
+                            any_error =
+                                Some(format!("Failed to pass LUKS passphrase: {red} ({e})"));
+                            send(&tx, any_error.as_ref().unwrap().clone());
+                            dbg(&format!("stdin error: {red} ({e})"));
+                            break 'outer;
+                        }
+                        let thin_pacstrap = cmd.is_thin_pacstrap();
                         let mut fmt = LogFormatter::new();
                         if let Some(stdout) = child.stdout.take() {
                             let reader = BufReader::new(stdout);
@@ -472,9 +458,25 @@ impl AppState {
             issues.push("Region is not selected (Mirrors & Repositories).".into());
         }
 
-        // Disk partitioning target device must be selected (not required for pre-mounted mode)
+        // Disk partitioning target device must be selected (pre-mounted mode skips partitioning
+        // but BIOS GRUB still needs a whole-disk target for grub-install --target=i386-pc).
         if self.disks_mode_index != 2 && self.disks_selected_device.is_none() {
             issues.push("Disk partitioning: target device is not selected.".into());
+        }
+        if self.disks_mode_index == 2 && self.bootloader_index == 1 && !self.is_uefi() {
+            let from_mount = crate::core::services::bootloader::BootloaderService::disk_for_block_device_behind_mnt_root();
+            let from_ui = self
+                .disks_selected_device
+                .as_deref()
+                .filter(|s| !s.is_empty());
+            if from_mount.is_none() && from_ui.is_none() {
+                issues.push(
+                    "Pre-mounted mode with BIOS GRUB needs a whole-disk device for grub-install: \
+                     either mount root at /mnt on a resolvable block device (findmnt/lsblk), \
+                     or pick a target disk on the Disks screen."
+                        .into(),
+                );
+            }
         }
 
         // Hostname must be non-empty
@@ -533,8 +535,8 @@ impl AppState {
         }
     }
 
-    fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<String>)> {
-        let mut sections: Vec<(String, Vec<String>)> = Vec::new();
+    fn build_install_sections(&self, target: &str) -> Vec<(String, Vec<InstallCmd>)> {
+        let mut sections: Vec<(String, Vec<InstallCmd>)> = Vec::new();
 
         // Compile the storage plan (validated at start_install time, safe to unwrap-or here)
         let storage_plan = match StoragePlanner::compile(self) {
@@ -550,16 +552,26 @@ impl AppState {
                 ));
                 return vec![(
                     "Error".into(),
-                    vec![format!("echo 'Storage plan error: {msg}'")],
+                    vec![InstallCmd::shell(format!(
+                        "echo 'Storage plan error: {msg}'"
+                    ))],
                 )];
             }
         };
 
-        let locales = self.build_locales_plan();
+        let locales = self
+            .build_locales_plan()
+            .into_iter()
+            .map(InstallCmd::shell)
+            .collect::<Vec<_>>();
         if !locales.is_empty() {
             sections.push(("Locales".into(), locales));
         }
-        let mirrors = self.build_mirrors_plan();
+        let mirrors = self
+            .build_mirrors_plan()
+            .into_iter()
+            .map(InstallCmd::shell)
+            .collect::<Vec<_>>();
         if !mirrors.is_empty() {
             sections.push(("Mirrors & Repos".into(), mirrors));
         }
@@ -567,14 +579,16 @@ impl AppState {
         // Skip for pre-mounted mode — the user's mounts must stay intact.
         if storage_plan.mode != crate::core::storage::StorageMode::PreMounted {
             let mut cleanup_cmds = vec![
-                "swapoff -a || true".into(),
-                "umount -R /mnt 2>/dev/null || true".into(),
+                InstallCmd::shell("swapoff -a || true"),
+                InstallCmd::shell("umount -R /mnt 2>/dev/null || true"),
             ];
             // Close any stale LUKS mappings from a previous installer run
             for mapper in storage_plan.luks_mapper_names() {
-                cleanup_cmds.push(format!("cryptsetup close {mapper} 2>/dev/null || true"));
+                cleanup_cmds.push(InstallCmd::shell(format!(
+                    "cryptsetup close {mapper} 2>/dev/null || true"
+                )));
             }
-            cleanup_cmds.push("udevadm settle || true".into());
+            cleanup_cmds.push(InstallCmd::shell("udevadm settle || true"));
             sections.push(("Pre-cleanup".into(), cleanup_cmds));
         }
 
@@ -588,45 +602,80 @@ impl AppState {
             sections.push(("Volume stack setup (LVM/RAID)".into(), stack_cmds));
         }
 
-        let mount_cmds = storage_plan.mount_commands();
+        let mount_cmds = storage_plan
+            .mount_commands()
+            .into_iter()
+            .map(InstallCmd::shell)
+            .collect::<Vec<_>>();
         if !mount_cmds.is_empty() {
             sections.push(("Mounting".into(), mount_cmds));
         }
 
         sections.push((
             "System pre-install".into(),
-            SystemService::build_pre_install_plan(self).commands,
+            SystemService::build_pre_install_plan(self)
+                .commands
+                .into_iter()
+                .map(InstallCmd::shell)
+                .collect(),
         ));
         sections.push((
             "System package installations".into(),
-            SystemService::build_pacstrap_plan(self).commands,
+            SystemService::build_pacstrap_plan(self)
+                .commands
+                .into_iter()
+                .map(InstallCmd::shell)
+                .collect(),
         ));
 
-        let fstab_cmds = storage_plan.fstab_check_commands();
+        let fstab_cmds = storage_plan
+            .fstab_check_commands()
+            .into_iter()
+            .map(InstallCmd::shell)
+            .collect::<Vec<_>>();
         if !fstab_cmds.is_empty() {
             sections.push(("fstab and checks".into(), fstab_cmds));
         }
 
         sections.push((
             "System configuration".into(),
-            SysConfigService::build_plan(self).commands,
+            SysConfigService::build_plan(self)
+                .commands
+                .into_iter()
+                .map(InstallCmd::shell)
+                .collect(),
         ));
         sections.push((
             "Network configuration".into(),
-            NetworkService::build_plan(self).commands,
+            NetworkService::build_plan(self)
+                .commands
+                .into_iter()
+                .map(InstallCmd::shell)
+                .collect(),
         ));
+        let bootloader_disk =
+            crate::core::services::bootloader::BootloaderService::effective_bios_grub_disk(
+                self, target,
+            );
         sections.push((
             "Bootloader setup".into(),
             crate::core::services::bootloader::BootloaderService::build_plan(
                 self,
-                target,
+                &bootloader_disk,
                 &storage_plan,
             )
-            .commands,
+            .commands
+            .into_iter()
+            .map(InstallCmd::shell)
+            .collect(),
         ));
         sections.push((
             "User setup".into(),
-            crate::core::services::usersetup::UserSetupService::build_plan(self).commands,
+            crate::core::services::usersetup::UserSetupService::build_plan(self)
+                .commands
+                .into_iter()
+                .map(InstallCmd::shell)
+                .collect(),
         ));
         // Log assembled sections summary
         let summary: String = sections

@@ -311,6 +311,9 @@ pub(crate) fn change_disks_value(app: &mut AppState, next: bool) {
             idx = (idx + 3 - 1) % 3;
         }
         app.disks_mode_index = idx;
+        if idx == 2 {
+            app.refresh_pre_mounted_probe_cache();
+        }
     }
 }
 pub(crate) fn move_diskenc_up(app: &mut AppState) {

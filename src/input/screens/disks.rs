@@ -26,6 +26,9 @@ pub(crate) fn handle_enter_disks(app: &mut AppState) {
     if app.disks_focus_index <= 2 {
         let prev_mode = app.disks_mode_index;
         app.disks_mode_index = app.disks_focus_index;
+        if app.disks_mode_index == 2 {
+            app.refresh_pre_mounted_probe_cache();
+        }
         if prev_mode == 0 && app.disks_mode_index != 0 {
             app.disk_encryption_type_index = 0;
             app.disk_encryption_password.clear();
@@ -73,6 +76,7 @@ pub(crate) fn handle_enter_disks(app: &mut AppState) {
                 .unwrap_or(false)
                 && p.fs.as_deref() == Some("btrfs")
         });
+        // Match `preset_available` in `draw_disks` (src/app/disks.rs).
         if app.disks_mode_index == 0 || (app.disks_mode_index == 1 && has_btrfs_root) {
             app.open_btrfs_subvolume_preset_popup();
         }

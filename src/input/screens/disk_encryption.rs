@@ -50,8 +50,7 @@ pub(crate) fn change_diskenc_value(app: &mut AppState, next: bool) {
         }
         app.disk_encryption_type_index = idx;
         if idx == 1 && app.disks_mode_index == 0 {
-            app.disk_encryption_selected_partition =
-                Some("Root partition (automatic)".into());
+            app.disk_encryption_selected_partition = Some("Root partition (automatic)".into());
         } else if idx == 0 {
             app.disk_encryption_selected_partition = None;
         }
@@ -77,8 +76,7 @@ pub(crate) fn handle_enter_diskenc(app: &mut AppState) {
             3 => {
                 if app.disks_mode_index == 0 {
                     app.open_info_popup(
-                        "Best-effort mode encrypts the root partition automatically."
-                            .into(),
+                        "Best-effort mode encrypts the root partition automatically.".into(),
                     );
                 } else {
                     app.open_disk_encryption_partition_list();

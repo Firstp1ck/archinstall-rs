@@ -1,5 +1,6 @@
 use crate::core::state::AppState;
 use crate::core::storage::StoragePlan;
+use std::process::Command;
 
 #[derive(Clone, Debug)]
 pub struct BootloaderPlan {
@@ -15,6 +16,72 @@ impl BootloaderPlan {
 pub struct BootloaderService;
 
 impl BootloaderService {
+    /// Whole-disk path for `grub-install --target=i386-pc` when the partitioning flow has no target
+    /// (pre-mounted mode). Prefers the disk behind `/mnt` (findmnt + lsblk), then `disks_selected_device`.
+    pub(crate) fn effective_bios_grub_disk(state: &AppState, partition_target: &str) -> String {
+        if !partition_target.is_empty() {
+            return partition_target.to_string();
+        }
+        if state.bootloader_index != 1 || state.is_uefi() {
+            return String::new();
+        }
+        Self::disk_for_block_device_behind_mnt_root()
+            .or_else(|| {
+                state
+                    .disks_selected_device
+                    .clone()
+                    .filter(|s| !s.is_empty())
+            })
+            .unwrap_or_default()
+    }
+
+    /// Walks from the `/mnt` root block source up to a `TYPE=disk` node (handles partitions, LUKS, LVM).
+    pub fn disk_for_block_device_behind_mnt_root() -> Option<String> {
+        let out = Command::new("findmnt")
+            .args(["-n", "-o", "SOURCE", "--target", "/mnt"])
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            return None;
+        }
+        let mut src = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if src.is_empty() {
+            return None;
+        }
+        if let Some(idx) = src.find('[') {
+            src.truncate(idx);
+            src = src.trim().to_string();
+        }
+        if !src.starts_with("/dev/") {
+            return None;
+        }
+
+        let mut dev = src;
+        for _ in 0..32 {
+            let out = Command::new("lsblk")
+                .args(["-ndo", "TYPE,PKNAME", &dev])
+                .output()
+                .ok()?;
+            if !out.status.success() {
+                return None;
+            }
+            let line = String::from_utf8_lossy(&out.stdout);
+            let mut parts = line.split_whitespace();
+            let typ = parts.next()?;
+            let pkname = parts.next().filter(|s| !s.is_empty());
+            if typ == "disk" {
+                return Some(dev);
+            }
+            let parent = pkname?;
+            dev = if parent.starts_with("/dev/") {
+                parent.to_string()
+            } else {
+                format!("/dev/{parent}")
+            };
+        }
+        None
+    }
+
     pub fn build_plan(
         state: &AppState,
         device: &str,
@@ -130,5 +197,27 @@ impl BootloaderService {
         ));
 
         BootloaderPlan::new(cmds)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BootloaderService;
+    use crate::app::AppState;
+
+    #[test]
+    fn effective_bios_grub_disk_passes_through_partition_target() {
+        let mut state = AppState::new(true);
+        state.bootloader_index = 1;
+        assert_eq!(
+            BootloaderService::effective_bios_grub_disk(&state, "/dev/zda").as_str(),
+            "/dev/zda"
+        );
+    }
+
+    #[test]
+    fn effective_bios_grub_disk_non_grub_returns_empty_for_empty_target() {
+        let state = AppState::new(true);
+        assert!(BootloaderService::effective_bios_grub_disk(&state, "").is_empty());
     }
 }
