@@ -554,14 +554,16 @@ impl AppState {
         // Pre-cleanup to avoid device busy if re-running installer or previous mounts exist.
         // Skip for pre-mounted mode — the user's mounts must stay intact.
         if storage_plan.mode != crate::core::storage::StorageMode::PreMounted {
-            sections.push((
-                "Pre-cleanup".into(),
-                vec![
-                    "swapoff -a || true".into(),
-                    "umount -R /mnt 2>/dev/null || true".into(),
-                    "udevadm settle || true".into(),
-                ],
-            ));
+            let mut cleanup_cmds = vec![
+                "swapoff -a || true".into(),
+                "umount -R /mnt 2>/dev/null || true".into(),
+            ];
+            // Close any stale LUKS mappings from a previous installer run
+            for mapper in storage_plan.luks_mapper_names() {
+                cleanup_cmds.push(format!("cryptsetup close {mapper} 2>/dev/null || true"));
+            }
+            cleanup_cmds.push("udevadm settle || true".into());
+            sections.push(("Pre-cleanup".into(), cleanup_cmds));
         }
 
         let part_cmds = storage_plan.partition_commands();

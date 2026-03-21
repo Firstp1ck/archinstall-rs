@@ -189,8 +189,9 @@ impl DeviceStack {
         for layer in &self.layers {
             match layer {
                 VolumeLayer::Luks(enc) => {
-                    cmds.push("modprobe -q dm-crypt || true".into());
+                    cmds.push("modprobe dm-crypt".into());
                     cmds.push(Self::luks_format_cmd(&current, enc.passphrase.as_deref()));
+                    cmds.push("udevadm settle".into());
                     cmds.push(Self::luks_open_cmd(
                         &current,
                         &enc.mapper_name,
@@ -233,26 +234,30 @@ impl DeviceStack {
         cmds
     }
 
-    /// Build a `cryptsetup luksFormat` command, piping the passphrase via stdin
-    /// and using `-q` to skip the interactive "Are you sure?" confirmation.
+    /// Build a `cryptsetup luksFormat` command, piping the passphrase via stdin.
+    /// Uses `--key-file=-` so cryptsetup reads from stdin (not /dev/tty), and
+    /// `-q` to suppress the "Are you sure?" confirmation. Uses `printf '%s'`
+    /// instead of `echo -n` to avoid shell-dependent newline behaviour.
     pub(crate) fn luks_format_cmd(device: &str, passphrase: Option<&str>) -> String {
         match passphrase {
             Some(pw) => {
                 let escaped = pw.replace('\'', "'\\''");
-                format!("echo -n '{escaped}' | cryptsetup luksFormat -q {device}")
+                format!("printf '%s' '{escaped}' | cryptsetup luksFormat --type luks2 -q --key-file=- {device}")
             }
-            None => format!("cryptsetup luksFormat -q {device}"),
+            None => format!("cryptsetup luksFormat --type luks2 -q {device}"),
         }
     }
 
     /// Build a `cryptsetup open` command, piping the passphrase via stdin.
+    /// Uses `--key-file=-` so cryptsetup reads from stdin with consistent
+    /// passphrase processing (no newline stripping) matching luksFormat.
     pub(crate) fn luks_open_cmd(device: &str, mapper: &str, passphrase: Option<&str>) -> String {
         match passphrase {
             Some(pw) => {
                 let escaped = pw.replace('\'', "'\\''");
-                format!("echo -n '{escaped}' | cryptsetup open {device} {mapper}")
+                format!("printf '%s' '{escaped}' | cryptsetup open --type luks --key-file=- {device} {mapper}")
             }
-            None => format!("cryptsetup open {device} {mapper}"),
+            None => format!("cryptsetup open --type luks {device} {mapper}"),
         }
     }
 
@@ -365,6 +370,26 @@ impl fmt::Display for ValidationError {
 }
 
 impl StoragePlan {
+    /// Collect all LUKS mapper names used by this plan (for pre-cleanup).
+    pub fn luks_mapper_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        for device in &self.devices {
+            for part in &device.partitions {
+                if let Some(enc) = &part.encryption {
+                    names.push(enc.mapper_name.clone());
+                }
+            }
+        }
+        for stack in &self.stacks {
+            for layer in &stack.layers {
+                if let VolumeLayer::Luks(enc) = layer {
+                    names.push(enc.mapper_name.clone());
+                }
+            }
+        }
+        names
+    }
+
     /// Generate partition path for a device + partition number.
     /// Handles nvme-style devices (ending in digit) with a `p` separator.
     pub fn partition_path(device: &str, number: u32) -> String {
@@ -436,11 +461,12 @@ impl StoragePlan {
                 if let Some(enc) = &part.encryption {
                     match enc.method {
                         EncryptionMethod::Luks2 => {
-                            cmds.push("modprobe -q dm-crypt || true".into());
+                            cmds.push("modprobe dm-crypt".into());
                             cmds.push(DeviceStack::luks_format_cmd(
                                 &part_path,
                                 enc.passphrase.as_deref(),
                             ));
+                            cmds.push("udevadm settle".into());
                             cmds.push(DeviceStack::luks_open_cmd(
                                 &part_path,
                                 &enc.mapper_name,
