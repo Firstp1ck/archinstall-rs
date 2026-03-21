@@ -940,7 +940,7 @@ mod tests {
             cmds[9],
             format!("parted -s {device} mkpart root btrfs 5121MiB 100%")
         );
-        assert_eq!(cmds[10], "modprobe dm-crypt");
+        assert_eq!(cmds[10], "modprobe dm-crypt 2>/dev/null || test -d /sys/module/dm_crypt");
         assert_eq!(cmds[11], format!("cryptsetup luksFormat --type luks2 -q {device}3"));
         assert_eq!(cmds[12], "udevadm settle");
         assert_eq!(
@@ -1007,7 +1007,7 @@ mod tests {
             cmds[8],
             format!("parted -s {device} mkpart root btrfs 4098MiB 100%")
         );
-        assert_eq!(cmds[9], "modprobe dm-crypt");
+        assert_eq!(cmds[9], "modprobe dm-crypt 2>/dev/null || test -d /sys/module/dm_crypt");
         assert_eq!(cmds[10], format!("cryptsetup luksFormat --type luks2 -q {device}3"));
         assert_eq!(cmds[11], "udevadm settle");
         assert_eq!(
@@ -2200,7 +2200,7 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "modprobe dm-crypt");
+        assert_eq!(cmds[0], "modprobe dm-crypt 2>/dev/null || test -d /sys/module/dm_crypt");
         assert_eq!(cmds[1], "cryptsetup luksFormat --type luks2 -q /dev/sda3");
         assert_eq!(cmds[2], "udevadm settle");
         assert_eq!(cmds[3], "cryptsetup open --type luks /dev/sda3 cryptroot");
@@ -2290,7 +2290,7 @@ mod tests {
             }),
         };
         let cmds = stack.setup_commands();
-        assert_eq!(cmds[0], "modprobe dm-crypt");
+        assert_eq!(cmds[0], "modprobe dm-crypt 2>/dev/null || test -d /sys/module/dm_crypt");
         assert_eq!(cmds[1], "cryptsetup luksFormat --type luks2 -q /dev/nvme0n1p3");
         assert_eq!(cmds[2], "udevadm settle");
         assert_eq!(cmds[3], "cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm");
