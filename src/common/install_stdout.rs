@@ -15,8 +15,12 @@ pub fn looks_like_tty_progress_line(s: &str) -> bool {
 }
 
 /// Feed decoded text into line assembly; `on_full_line` receives **raw** lines (caller sanitizes).
-pub fn process_install_stdout_text_chunk<F, G>(text: &str, line_buf: &mut String, mut on_full_line: F, mut on_replace_last: G)
-where
+pub fn process_install_stdout_text_chunk<F, G>(
+    text: &str,
+    line_buf: &mut String,
+    mut on_full_line: F,
+    mut on_replace_last: G,
+) where
     F: FnMut(&str),
     G: FnMut(&str),
 {
@@ -48,15 +52,24 @@ where
     }
 }
 
-fn decode_and_process_bytes<F, G>(byte_buf: &mut Vec<u8>, line_buf: &mut String, on_full_line: &mut F, on_replace_last: &mut G)
-where
+fn decode_and_process_bytes<F, G>(
+    byte_buf: &mut Vec<u8>,
+    line_buf: &mut String,
+    on_full_line: &mut F,
+    on_replace_last: &mut G,
+) where
     F: FnMut(&str),
     G: FnMut(&str),
 {
     loop {
         if let Ok(text) = String::from_utf8(byte_buf.clone()) {
             byte_buf.clear();
-            process_install_stdout_text_chunk(&text, line_buf, |s| on_full_line(s), |s| on_replace_last(s));
+            process_install_stdout_text_chunk(
+                &text,
+                line_buf,
+                |s| on_full_line(s),
+                |s| on_replace_last(s),
+            );
             break;
         }
         if byte_buf.len() < 4 {
@@ -69,7 +82,12 @@ where
                 break;
             }
             if let Ok(text) = String::from_utf8(byte_buf[..test_len].to_vec()) {
-                process_install_stdout_text_chunk(&text, line_buf, |s| on_full_line(s), |s| on_replace_last(s));
+                process_install_stdout_text_chunk(
+                    &text,
+                    line_buf,
+                    |s| on_full_line(s),
+                    |s| on_replace_last(s),
+                );
                 byte_buf.drain(..test_len);
                 found_valid = true;
                 break;
@@ -77,7 +95,12 @@ where
         }
         if !found_valid {
             let text = String::from_utf8_lossy(byte_buf);
-            process_install_stdout_text_chunk(&text, line_buf, |s| on_full_line(s), |s| on_replace_last(s));
+            process_install_stdout_text_chunk(
+                &text,
+                line_buf,
+                |s| on_full_line(s),
+                |s| on_replace_last(s),
+            );
             byte_buf.clear();
             break;
         }
@@ -85,7 +108,14 @@ where
 }
 
 /// Read all bytes from `reader`, decode UTF-8, and emit log lines / in-place progress updates.
-pub fn pump_install_stdout<R, F, G>(mut reader: R, line_buf: &mut String, byte_buf: &mut Vec<u8>, scratch: &mut [u8], mut on_full_line: F, mut on_replace_last: G) -> io::Result<()>
+pub fn pump_install_stdout<R, F, G>(
+    mut reader: R,
+    line_buf: &mut String,
+    byte_buf: &mut Vec<u8>,
+    scratch: &mut [u8],
+    mut on_full_line: F,
+    mut on_replace_last: G,
+) -> io::Result<()>
 where
     R: Read,
     F: FnMut(&str),
@@ -94,7 +124,12 @@ where
     loop {
         let n = match reader.read(scratch) {
             Ok(0) => {
-                decode_and_process_bytes(byte_buf, line_buf, &mut on_full_line, &mut on_replace_last);
+                decode_and_process_bytes(
+                    byte_buf,
+                    line_buf,
+                    &mut on_full_line,
+                    &mut on_replace_last,
+                );
                 break;
             }
             Ok(n) => n,

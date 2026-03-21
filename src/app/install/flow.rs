@@ -1,7 +1,7 @@
 use crate::app::{AppState, PopupKind};
+use crate::common::InstallLogMsg;
 use crate::common::install_cmd::InstallCmd;
 use crate::common::install_stdout::pump_install_stdout;
-use crate::common::InstallLogMsg;
 use crate::core::services::network::NetworkService;
 use crate::core::services::sysconfig::SysConfigService;
 use crate::core::services::system::SystemService;
@@ -363,7 +363,8 @@ impl AppState {
                                     send(&tx, clean);
                                 },
                                 |clean| {
-                                    let _ = tx.send(InstallLogMsg::ReplaceLastLine(clean.to_string()));
+                                    let _ =
+                                        tx.send(InstallLogMsg::ReplaceLastLine(clean.to_string()));
                                 },
                             ) {
                                 dbg(&format!("error reading child stdout: {e}"));

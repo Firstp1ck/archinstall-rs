@@ -48,7 +48,10 @@ fn main() -> std::io::Result<()> {
             debug_enabled,
             "\nOne or more preflight warnings were detected. Continuing.",
         );
-        debug_log(debug_enabled, "preflight: warnings detected; continuing without prompt");
+        debug_log(
+            debug_enabled,
+            "preflight: warnings detected; continuing without prompt",
+        );
     }
     // TODO(v0.5.0): Parse config path and unattended flags to run non-interactively.
     runner::run_with_debug(dry_run, debug_enabled)
