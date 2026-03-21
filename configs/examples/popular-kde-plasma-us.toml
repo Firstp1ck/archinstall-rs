@@ -1,10 +1,9 @@
 # KDE Plasma + US English — aligns with pkgstats (Plasma is the most common full desktop
 # among reporting Arch installs) and typical “recommended Arch desktop” threads.
-# Replace password hashes before use (below uses SHA256 of "1234" as a placeholder only).
+# Set root and user passwords in the TUI before install (presets omit password hashes).
 
 [[users]]
 username = "archie"
-password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 is_sudo = true
 
 additional_packages = []
@@ -35,7 +34,6 @@ kind = "systemd-boot"
 
 [system]
 hostname = "archlinux"
-root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 automatic_time_sync = true
 timezone = "America/New_York"
 

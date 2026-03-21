@@ -34,11 +34,12 @@ archinstall-rs/
 │   └── limine/                 # Limine assets (experimental)
 ├── boot.sh                     # Minimal GUI bootstrap helper
 ├── run-tui.sh                  # Wrapper to launch prebuilt binary in a terminal
-├── archinstall-rs.config.toml  # Example configuration (dev machine snapshot)
-├── configs/examples/           # Portable TOML presets (locales + popular stacks)
+├── configs/examples/           # Portable TOML presets (locales + popular stacks; manifest.toml)
 ├── Cargo.toml
 └── README.md
 ```
+
+Save/load in the TUI reads and writes `archinstall-rs.config.toml` in the **current working directory** (often gitignored if you keep a local copy).
 
 ## Principles
 

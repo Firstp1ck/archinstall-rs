@@ -48,3 +48,10 @@ country = "France"
 language = "French"
 desktop = "GNOME"
 additional = "fr_FR.UTF-8, fr-latin9, France mirrors, Europe/Paris."
+
+[[preset]]
+file = "locale-ch-kde.toml"
+country = "Switzerland"
+language = "German (Switzerland)"
+desktop = "KDE Plasma"
+additional = "de_CH.UTF-8, de_CH-latin1, Switzerland mirrors, Europe/Zurich; systemd-boot, multilib, extended Plasma package list vs minimal locale presets."

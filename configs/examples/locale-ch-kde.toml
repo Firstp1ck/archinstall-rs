@@ -1,4 +1,11 @@
-users = []
+# Swiss German (Switzerland) + KDE Plasma — mirrors and locale for CH; typical multilib + PipeWire stack.
+# Set root and user passwords in the TUI before install (presets omit password hashes).
+# Disk layout is always re-confirmed in the TUI after load; this file omits a concrete device snapshot.
+
+[[users]]
+username = "archie"
+is_sudo = true
+
 additional_packages = []
 
 [locales]
@@ -7,6 +14,7 @@ locale_language = "de_CH.UTF-8"
 locale_encoding = "UTF-8"
 
 [mirrors]
+# Exact line from `reflector --list-countries` (mirror counts change over time; re-copy if load misses).
 regions = ["Switzerland            CH    26"]
 optional_repos = ["multilib"]
 custom_servers = []
@@ -14,17 +22,6 @@ custom_repos = []
 
 [disks]
 mode = "Best-effort partition layout"
-selected_device = "/dev/sdb"
-selected_device_model = "ST2000DM006-2DM164"
-selected_device_devtype = "disk"
-selected_device_size = "1.8 TiB"
-selected_device_freespace = "1.8 TiB"
-selected_device_sector_size = "512/4096 B"
-selected_device_read_only = false
-label = "gpt"
-wipe = true
-align = "1MiB"
-partitions = []
 
 [disk_encryption]
 encryption_type = "None"
@@ -33,11 +30,10 @@ encryption_type = "None"
 enabled = true
 
 [bootloader]
-kind = "grub"
+kind = "systemd-boot"
 
 [system]
-hostname = "Archlinux"
-root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+hostname = "archlinux"
 automatic_time_sync = true
 timezone = "Europe/Zurich"
 
@@ -45,7 +41,7 @@ timezone = "Europe/Zurich"
 enabled = false
 
 [kernels]
-selected = ["linux"]
+selected = ["linux", "linux-lts"]
 
 [audio]
 kind = "pipewire"
@@ -75,14 +71,14 @@ graphic_drivers = [
 "KDE Plasma" = [
     "ark",
     "dolphin",
-    "htop",
-    "iwd",
     "kate",
     "konsole",
-    "nano",
-    "openssh",
     "plasma-meta",
     "plasma-workspace",
+    "htop",
+    "iwd",
+    "nano",
+    "openssh",
     "smartmontools",
     "vim",
     "wget",
@@ -90,10 +86,6 @@ graphic_drivers = [
     "wpa_supplicant",
     "xdg-utils",
 ]
-
-[experience.server_packages]
-
-[experience.xorg_packages]
 
 [network]
 mode = "NetworkManager"

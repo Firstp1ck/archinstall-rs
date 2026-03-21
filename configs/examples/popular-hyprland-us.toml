@@ -1,9 +1,8 @@
 # Hyprland + US English — tiling Wayland compositors (Hyprland, Sway) rank very high in
-# recent r/archlinux community surveys alongside traditional DEs. Replace password hashes before use.
+# recent r/archlinux community surveys alongside traditional DEs. Set passwords in the TUI before install.
 
 [[users]]
 username = "archie"
-password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 is_sudo = true
 
 additional_packages = []
@@ -33,7 +32,6 @@ kind = "systemd-boot"
 
 [system]
 hostname = "archlinux"
-root_password_hash = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 automatic_time_sync = true
 timezone = "America/Los_Angeles"
 

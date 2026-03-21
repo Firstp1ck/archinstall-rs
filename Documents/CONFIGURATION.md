@@ -7,10 +7,9 @@ The installer can save and load configuration as TOML for reproducible installs,
 
 Repository examples:
 
-- [`archinstall-rs.config.toml`](../archinstall-rs.config.toml) — fuller example from development (includes disk selection from a real machine).
 - [`configs/examples/`](../configs/examples/) — portable presets (no chosen disk). The Load Configuration table uses [`manifest.toml`](../configs/examples/manifest.toml) (`[[preset]]`: `file`, `country`, `language`, `desktop`, `additional`); files without an entry use `—` and a short fallback from the preset’s first comment line.
   - **Popular stacks** (roughly aligned with [Arch pkgstats](https://pkgstats.archlinux.de/) desktop rankings and recurring r/archlinux survey write-ups such as [Linuxiac’s summary](https://linuxiac.com/arch-linux-community-survey-results)): [KDE Plasma (US)](../configs/examples/popular-kde-plasma-us.toml), [GNOME (Germany)](../configs/examples/popular-gnome-de.toml), [Hyprland (US)](../configs/examples/popular-hyprland-us.toml), [Xfce4 (UK)](../configs/examples/popular-xfce4-gb.toml).
-  - **Locale / region**: [Japan + KDE](../configs/examples/locale-jp-kde.toml), [Brazil + GNOME](../configs/examples/locale-br-gnome.toml), [France + GNOME](../configs/examples/locale-fr-gnome.toml).
+  - **Locale / region**: [Japan + KDE](../configs/examples/locale-jp-kde.toml), [Brazil + GNOME](../configs/examples/locale-br-gnome.toml), [France + GNOME](../configs/examples/locale-fr-gnome.toml), [Switzerland + KDE](../configs/examples/locale-ch-kde.toml) (longer package list than the minimal locale presets).
 
 `[mirrors].regions` entries must match a line from `reflector --list-countries` exactly (including spacing); mirror counts change when the upstream list changes, so re-copy that line from the ISO if a preset no longer loads a region.
 
@@ -46,7 +45,6 @@ kind = "systemd-boot"
 
 [system]
 hostname = "archlinux"
-root_password_hash = "" # optional, SHA256 hex
 automatic_time_sync = true
 timezone = "Europe/London"
 
@@ -68,10 +66,9 @@ mode = "NetworkManager"
 [unified_kernel_images]
 enabled = false
 
-# Optional: define users
+# Optional: define users (password_hash optional — see note below)
 [[users]]
 username = "myuser"
-password_hash = "..." # SHA256 hex
 is_sudo = true
 
 # Optional: additional packages
@@ -83,6 +80,8 @@ is_sudo = true
 ```
 
 Field names and sections follow the types in `src/app/config/types.rs` and I/O in `src/app/config/io.rs`.
+
+**Passwords:** Install validation uses the **plaintext** root password and user passwords from the TUI, not hashes. Optional `system.root_password_hash` and `[[users]].password_hash` (SHA256 hex) are produced when you **Save** so the file avoids storing raw passwords; shared presets can omit them entirely.
 
 ## Loading example presets in the TUI
 

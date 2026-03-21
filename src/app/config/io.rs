@@ -631,14 +631,10 @@ impl AppState {
                 .retain(|s| s != "System: hostname");
         }
         self.hostname_value = cfg.system.hostname;
-        self.root_password_hash = cfg.system.root_password_hash; // keep as hash only
-        if self.root_password_hash.is_none() {
-            self.last_load_missing_sections
-                .push("System: root_password_hash".into());
-        } else {
-            self.last_load_missing_sections
-                .retain(|s| s != "System: root_password_hash");
-        }
+        // Hash is optional in presets: install still requires plaintext root password in the TUI.
+        self.root_password_hash = cfg.system.root_password_hash;
+        self.last_load_missing_sections
+            .retain(|s| s != "System: root_password_hash");
         self.ats_enabled = cfg.system.automatic_time_sync;
         if cfg.system.timezone.is_empty() {
             self.last_load_missing_sections
