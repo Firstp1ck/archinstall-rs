@@ -17,7 +17,7 @@
 - Basic system configuration (locale, timezone, hostname, keymap)
 - Networking and time sync (NetworkManager / systemd-timesyncd as selected)
 - Root/user setup (passwords, sudoers, optional login manager)
-- Bootloaders: systemd-boot (UEFI) and GRUB (UEFI/BIOS), including LUKS-related kernel options when encryption is enabled
+- Bootloaders: systemd-boot (UEFI), GRUB (UEFI/BIOS), EFISTUB (UEFI), Limine (UEFI/BIOS), including LUKS-related kernel options when encryption is enabled; optional UKI path with mkinitcpio (not GRUB)
 - Installation progress view and log viewer
 - Manual partitioning partially implemented (simple flows)
 
@@ -34,12 +34,12 @@
 
 ## v0.3.0 — Advanced disk and system features
 
-- EFISTUB and Limine bootloaders
 - LVM support
 - RAID configuration
-- Unified kernel image generation
 - Multi-language UI
 - Advanced partition editor
+
+**Done (boot — see `Documents/Plans/BOOT_AND_KERNEL_DELIVERY_PLAN.md`):** EFISTUB and Limine install paths; UKI via mkinitcpio + systemd-boot/EFISTUB/Limine (multi-kernel UKI presets still open).
 
 ## v0.4.0 — Advanced features
 

@@ -86,8 +86,8 @@ Logs go to the path printed at startup.
 3. **Disks** — Automatic best-effort layout with btrfs subvolume presets (flat / standard / extended) when btrfs is root; pre-mounted mode if targets are already under `/mnt` (`findmnt`); manual selection and filesystem options.
 4. **Disk encryption** — Experimental LUKS on supported automatic layouts; passwords; per-layout options.
 5. **Swap** — Enable/disable, sizing, custom swap.
-6. **Bootloader** — systemd-boot (UEFI only; blocked on legacy BIOS — use GRUB); GRUB (UEFI/BIOS).
-7. **Unified kernel images** — UKI-related options (see [STATUS.md](STATUS.md) for current support).
+6. **Bootloader** — systemd-boot (UEFI only; blocked on legacy BIOS); GRUB (UEFI/BIOS); EFISTUB (UEFI only — direct firmware boot of kernel or UKI); Limine (UEFI/BIOS, `limine.conf` + EFI or BIOS install).
+7. **Unified kernel images** — Toggle UKI when not using GRUB: adds `systemd-ukify`, adjusts mkinitcpio `linux.preset`, writes `/etc/kernel/cmdline`, and switches bootloader entries to `/EFI/Linux/arch-linux.efi` (see [STATUS.md](STATUS.md)).
 8. **System** — Hostname, root password, users, sudo.
 9. **Experience mode** — Desktop environment, display manager, base package sets.
 10. **Audio** — PulseAudio, PipeWire, ALSA-only, or none.

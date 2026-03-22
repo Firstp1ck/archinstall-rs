@@ -30,6 +30,9 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .add_modifier(Modifier::BOLD),
     ))];
     desc_lines.push(Line::from("A bootloader is a program that starts at system boot, loading the Operating System kernel and initializing hardware. Systemd-boot is simple, UEFI-only, and uses separate text files for each boot entry, making it easy to maintain, but offers minimal features and customization. GRUB2 is more complex, working on both BIOS and UEFI, supporting advanced features, graphical menus, multi-OS setups, and custom scripts, making it ideal for diverse or complex boot needs. Limine is a modern, lightweight bootloader supporting both UEFI and legacy BIOS. It uses a simple limine.conf, supports multiple kernels, and works well for straightforward Arch setups with or without disk encryption."));
+    desc_lines.push(Line::from(
+        "Efistub (UEFI only) registers the kernel or a UKI directly with the firmware. Some firmware ignores cmdline options for direct kernel boot; use Unified Kernel Images in that case.",
+    ));
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

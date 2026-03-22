@@ -12,8 +12,8 @@ This backlog groups repository TODOs by feature area and dependency, then orders
 
 1. **Disk & filesystem foundation (P0)**  
    Complete advanced partitioning + mount/fstab consistency so later features (encryption/UKI/boot) are reliable.
-2. **Boot chain expansion (P0)**  
-   Add EFISTUB/Limine and UKI integration after disk layout and hooks are stable.
+2. **Boot chain expansion (P0)** — *core path done*  
+   EFISTUB, Limine, and UKI (mkinitcpio + non-GRUB bootloaders) are implemented; follow-ups: multi-kernel UKI/entries, Secure Boot signing (P1/P2).
 3. **Encryption UX + system hooks (P0/P1)**  
    Finalize passphrase UX and mkinitcpio/boot integration for encrypted installs.
 4. **System identity and essential config hardening (P1)**  
@@ -52,12 +52,17 @@ Follow-ups completed:
 
 **Plan:** See [`Documents/Plans/BOOT_AND_KERNEL_DELIVERY_PLAN.md`](Documents/Plans/BOOT_AND_KERNEL_DELIVERY_PLAN.md) for phased implementation (EFISTUB → Limine → UKI integration).
 
-- [ ] EFISTUB boot entry creation + kernel cmdline generation.
-- [ ] Limine setup path (replace current TODO placeholder behavior).
-- [ ] Unified Kernel Images generation integrated with mkinitcpio/systemd-boot.
+- [x] EFISTUB boot entry creation + kernel cmdline generation.
+- [x] Limine setup path (UEFI + BIOS, `limine.conf`, optional pacman hook).
+- [x] Unified Kernel Images: mkinitcpio preset, `/etc/kernel/cmdline`, `systemd-ukify`, entries for systemd-boot / EFISTUB / Limine.
+
+**Follow-ups (not blocking basic installs):**
+
+- [ ] Multi-kernel: extra `linux-lts` (etc.) bootloader + UKI preset entries (currently default `linux` only).
+- [ ] **Secure Boot (P1/P2):** signing pipeline for UKI/EFI binaries — out of scope for initial UKI delivery; track when hardening boot trust.
 
 **Depends on:** Stable partition/mount model and system hook generation.  
-**Unblocks:** Secure-boot-friendly flow and advanced boot scenarios.
+**Unblocks:** Secure-boot-friendly flow and advanced boot scenarios (signing still TODO).
 
 ### 3) Encryption and Early-Boot Integration (P0/P1)
 
@@ -109,7 +114,7 @@ Follow-ups completed:
 ### Now (next sprint)
 
 - [x] Workstream 1: Disk Architecture and Storage Stack (all phases complete)
-- [ ] Workstream 2: Boot and Kernel Delivery (start EFISTUB first)
+- [x] Workstream 2: Boot and Kernel Delivery (EFISTUB, Limine, UKI — see plan; multi-kernel + Secure Boot signing remain)
 - [ ] Workstream 3: Encryption and Early-Boot Integration (design + plumbing)
 
 ### Next

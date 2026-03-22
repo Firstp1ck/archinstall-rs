@@ -558,3 +558,38 @@ fn uki_limine_uses_efi_protocol() {
     assert!(joined.contains("protocol: efi"), "{joined}");
     assert!(joined.contains("/EFI/Linux/arch-linux.efi"), "{joined}");
 }
+
+/// Pre-mounted install flow passes an empty partition target; EFISTUB still resolves ESP via `findmnt /boot`.
+#[test]
+fn pre_mounted_efistub_empty_target_still_generates_efibootmgr() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2;
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, "", &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("efibootmgr --create"),
+        "EFISTUB must not depend on a whole-disk target string: {joined}"
+    );
+    assert!(joined.contains("vmlinuz-linux"), "{joined}");
+}
+
+/// Same as pre-mounted: Limine UEFI uses `findmnt` + `efibootmgr`, not the partition-target disk string.
+#[test]
+fn pre_mounted_limine_uefi_empty_target_still_installs() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3;
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, "", &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+}
