@@ -292,3 +292,50 @@ fn bootloader_grub_luks_injects_cmdline() {
     assert!(joined.contains("GRUB_CMDLINE_LINUX"), "{joined}");
     assert!(joined.contains("grub-mkconfig"), "{joined}");
 }
+
+#[test]
+fn bootloader_efistub_creates_efibootmgr_entry() {
+    let mut state = make_state(); // UEFI
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(joined.contains("vmlinuz-linux"), "{joined}");
+    assert!(joined.contains("initramfs-linux.img"), "{joined}");
+    assert!(joined.contains("initramfs-linux-fallback.img"), "{joined}");
+    assert!(joined.contains("efibootmgr --verbose"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "shared cmdline script should strip btrfs suffix: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_efistub_luks_uses_shared_cmdline() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 2; // EFISTUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "encrypted EFISTUB should use same LUKS cmdline as systemd-boot: {joined}"
+    );
+}

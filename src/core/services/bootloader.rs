@@ -16,6 +16,45 @@ impl BootloaderPlan {
 pub struct BootloaderService;
 
 impl BootloaderService {
+    /// What: Builds a bash snippet that prints kernel cmdline options for `/` (root) inside the chroot.
+    ///
+    /// Inputs:
+    /// - `encrypted`: When true, resolves LUKS mapper + UUID and emits `rd.luks.name=…` or
+    ///   `cryptdevice=UUID=…` based on `/etc/mkinitcpio.conf` hooks; otherwise emits `root=UUID=… rw`.
+    ///
+    /// Output:
+    /// - A shell script body (no surrounding quotes) suitable for `OPTS=$(…)` substitution.
+    ///
+    /// Details:
+    /// - Strips btrfs `[@subvol]` suffixes from `findmnt` output before `blkid`/`cryptsetup`.
+    pub(crate) fn boot_options_script(encrypted: bool) -> String {
+        let strip_subvol = "rootdev=$(findmnt -n -o SOURCE /); rootdev=\"${rootdev%%\\[*}\"";
+        if encrypted {
+            format!(
+                "{strip_subvol}; \
+                 mapper=$(basename \"$rootdev\"); \
+                 if cryptsetup status \"$mapper\" >/dev/null 2>&1; then \
+                   underlying=$(cryptsetup status \"$mapper\" | awk '/device:/{{print $2}}'); \
+                   luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
+                   if grep -qP '^HOOKS=.*\\bsystemd\\b' /etc/mkinitcpio.conf; then \
+                     echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
+                   else \
+                     echo \"cryptdevice=UUID=$luksuuid:$mapper root=$rootdev rw\"; \
+                   fi; \
+                 else \
+                   rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+                   echo \"root=UUID=$rootuuid rw\"; \
+                 fi"
+            )
+        } else {
+            format!(
+                "{strip_subvol}; \
+                 rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
+                 echo \"root=UUID=$rootuuid rw\""
+            )
+        }
+    }
+
     /// Whole-disk path for `grub-install --target=i386-pc` when the partitioning flow has no target
     /// (pre-mounted mode). Prefers the disk behind `/mnt` (findmnt + lsblk), then `disks_selected_device`.
     pub(crate) fn effective_bios_grub_disk(state: &AppState, partition_target: &str) -> String {
@@ -103,37 +142,7 @@ impl BootloaderService {
             encrypted
         ));
 
-        // findmnt appends a btrfs subvolume suffix like [/@] to the SOURCE field;
-        // strip it so blkid / cryptsetup receive a clean device path.
-        let strip_subvol = "rootdev=$(findmnt -n -o SOURCE /); rootdev=\"${rootdev%%\\[*}\"";
-
-        // Kernel parameters differ by encryption and initramfs hook style:
-        //   systemd hooks (sd-encrypt) → rd.luks.name=<uuid>=<mapper>
-        //   udev hooks    (encrypt)    → cryptdevice=UUID=<uuid>:<mapper>
-        let boot_options_script = if encrypted {
-            format!(
-                "{strip_subvol}; \
-                 mapper=$(basename \"$rootdev\"); \
-                 if cryptsetup status \"$mapper\" >/dev/null 2>&1; then \
-                   underlying=$(cryptsetup status \"$mapper\" | awk '/device:/{{print $2}}'); \
-                   luksuuid=$(blkid -s UUID -o value \"$underlying\" || true); \
-                   if grep -qP '^HOOKS=.*\\bsystemd\\b' /etc/mkinitcpio.conf; then \
-                     echo \"rd.luks.name=$luksuuid=$mapper root=$rootdev rw\"; \
-                   else \
-                     echo \"cryptdevice=UUID=$luksuuid:$mapper root=$rootdev rw\"; \
-                   fi; \
-                 else \
-                   rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-                   echo \"root=UUID=$rootuuid rw\"; \
-                 fi"
-            )
-        } else {
-            format!(
-                "{strip_subvol}; \
-                 rootuuid=$(blkid -s UUID -o value \"$rootdev\" || true); \
-                 echo \"root=UUID=$rootuuid rw\""
-            )
-        };
+        let boot_options_script = Self::boot_options_script(encrypted);
 
         match state.bootloader_index {
             // 0: systemd-boot
@@ -185,7 +194,20 @@ impl BootloaderService {
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
             }
             2 => {
-                cmds.push("echo 'TODO: EFISTUB configuration not yet implemented'".into());
+                // Direct kernel boot via firmware: efibootmgr entries with vmlinuz + embedded cmdline/initrd path.
+                if state.is_uefi() {
+                    cmds.push(chroot_cmd(&format!(
+                        "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+                         OPTS=$({boot_options_script}); \
+                         BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                         DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
+                         PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
+                         efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || true; \
+                         efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || true; \
+                         efibootmgr --verbose || true; \
+                         fi"
+                    )));
+                }
             }
             3 => {
                 cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());

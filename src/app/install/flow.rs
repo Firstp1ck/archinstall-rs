@@ -489,6 +489,12 @@ impl AppState {
                 "systemd-boot requires UEFI firmware. In BIOS/legacy mode, choose GRUB.".into(),
             );
         }
+        if self.bootloader_index == 2 && !self.is_uefi() {
+            issues.push(
+                "EFISTUB requires UEFI firmware. In BIOS/legacy mode, choose GRUB or Limine."
+                    .into(),
+            );
+        }
 
         // Hostname must be non-empty
         if self.hostname_value.trim().is_empty() {
