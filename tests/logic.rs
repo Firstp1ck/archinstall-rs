@@ -361,6 +361,10 @@ fn bootloader_limine_uefi_creates_conf_and_efibootmgr() {
     assert!(joined.contains("99-limine.hook"), "{joined}");
     assert!(joined.contains("efibootmgr --create"), "{joined}");
     assert!(joined.contains("Arch Linux Limine"), "{joined}");
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "should install to UEFI fallback path: {joined}"
+    );
 }
 
 #[test]
@@ -592,4 +596,8 @@ fn pre_mounted_limine_uefi_empty_target_still_installs() {
     let joined = plan.commands.join("\n");
     assert!(joined.contains("/boot/limine.conf"), "{joined}");
     assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "should install to UEFI fallback path: {joined}"
+    );
 }

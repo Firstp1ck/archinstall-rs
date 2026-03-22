@@ -191,7 +191,10 @@ LIMINEOF"
         }
         if state.is_uefi() {
             out.push(chroot_cmd(
-                "install -d -m 0755 /boot/EFI/limine && install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI",
+                "install -d -m 0755 /boot/EFI/limine && \
+                 install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI && \
+                 install -d -m 0755 /boot/EFI/BOOT && \
+                 install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI",
             ));
             out.push(chroot_cmd(
                 "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF\n\
@@ -204,7 +207,7 @@ Target = limine\n\
 [Action]\n\
 Description = Sync Limine EFI binary after package upgrade\n\
 When = PostTransaction\n\
-Exec = /usr/bin/install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI\n\
+Exec = /bin/sh -c \"/usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI && /usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI\"\n\
 HOOK_EOF",
             ));
             out.push(chroot_cmd(
@@ -212,7 +215,8 @@ HOOK_EOF",
                  BOOTSRC=$(findmnt -n -o SOURCE /boot); \
                  DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                  PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || true; \
+                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || \
+                 echo 'WARNING: efibootmgr failed to create NVRAM entry; UEFI fallback path EFI/BOOT/BOOTX64.EFI is available'; \
                  efibootmgr --verbose || true; \
                  fi",
             ));
