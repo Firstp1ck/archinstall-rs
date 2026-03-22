@@ -339,3 +339,73 @@ fn bootloader_efistub_luks_uses_shared_cmdline() {
         "encrypted EFISTUB should use same LUKS cmdline as systemd-boot: {joined}"
     );
 }
+
+#[test]
+fn bootloader_limine_uefi_creates_conf_and_efibootmgr() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3; // Limine
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("protocol: linux"), "{joined}");
+    assert!(joined.contains("BOOTX64.EFI"), "{joined}");
+    assert!(joined.contains("99-limine.hook"), "{joined}");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(joined.contains("Arch Linux Limine"), "{joined}");
+}
+
+#[test]
+fn bootloader_limine_bios_installs_and_creates_conf() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(false);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("limine-bios.sys"), "{joined}");
+    assert!(joined.contains("limine bios-install"), "{joined}");
+    assert!(
+        !joined.contains("99-limine.hook"),
+        "BIOS path should not install EFI pacman hook: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_limine_luks_cmdline() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 3;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("limine.conf"), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "encrypted Limine should reuse LUKS cmdline script: {joined}"
+    );
+}

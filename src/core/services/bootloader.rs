@@ -55,13 +55,17 @@ impl BootloaderService {
         }
     }
 
-    /// Whole-disk path for `grub-install --target=i386-pc` when the partitioning flow has no target
-    /// (pre-mounted mode). Prefers the disk behind `/mnt` (findmnt + lsblk), then `disks_selected_device`.
+    /// Whole-disk path for BIOS `grub-install --target=i386-pc` or `limine bios-install` when the
+    /// partitioning flow has no explicit target (pre-mounted mode). Prefers the disk behind `/mnt`
+    /// (findmnt + lsblk), then `disks_selected_device`.
     pub(crate) fn effective_bios_grub_disk(state: &AppState, partition_target: &str) -> String {
         if !partition_target.is_empty() {
             return partition_target.to_string();
         }
-        if state.bootloader_index != 1 || state.is_uefi() {
+        if state.is_uefi() {
+            return String::new();
+        }
+        if state.bootloader_index != 1 && state.bootloader_index != 3 {
             return String::new();
         }
         Self::disk_for_block_device_behind_mnt_root()
@@ -119,6 +123,85 @@ impl BootloaderService {
             };
         }
         None
+    }
+
+    /// What: Builds `arch-chroot` shell commands for Limine on UEFI and/or BIOS.
+    ///
+    /// Inputs:
+    /// - `state`: Firmware mode from `state.is_uefi()` selects EFI vs BIOS steps.
+    /// - `device`: Whole disk for `limine bios-install` when not UEFI (ignored on UEFI).
+    /// - `boot_options_script`: Bash snippet that prints kernel cmdline options (`boot_options_script` output).
+    ///
+    /// Output:
+    /// - Ordered `arch-chroot … bash -lc '…'` command strings.
+    ///
+    /// Details:
+    /// - Writes `/boot/limine.conf` on the ESP/boot volume; copies `BOOTX64.EFI` and registers NVRAM on UEFI;
+    ///   copies `limine-bios.sys` and runs `limine bios-install` on BIOS when `device` is non-empty.
+    fn limine_install_chroot_commands(
+        state: &AppState,
+        device: &str,
+        boot_options_script: &str,
+    ) -> Vec<String> {
+        fn chroot_cmd(inner: &str) -> String {
+            let escaped = inner.replace("'", "'\\''");
+            format!("arch-chroot /mnt bash -lc '{escaped}'")
+        }
+        let mut out: Vec<String> = Vec::new();
+        out.push(chroot_cmd(&format!(
+            "OPTS=$({boot_options_script}); cat > /boot/limine.conf <<LIMINEOF\n\
+timeout: 5\n\
+\n\
+/Arch Linux\n\
+    protocol: linux\n\
+    path: boot():/vmlinuz-linux\n\
+    cmdline: $OPTS\n\
+    module_path: boot():/initramfs-linux.img\n\
+\n\
+/Arch Linux (fallback initramfs)\n\
+    protocol: linux\n\
+    path: boot():/vmlinuz-linux\n\
+    cmdline: $OPTS\n\
+    module_path: boot():/initramfs-linux-fallback.img\n\
+LIMINEOF"
+        )));
+        if state.is_uefi() {
+            out.push(chroot_cmd(
+                "install -d -m 0755 /boot/EFI/limine && install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI",
+            ));
+            out.push(chroot_cmd(
+                "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF\n\
+[Trigger]\n\
+Operation = Install\n\
+Operation = Upgrade\n\
+Type = Package\n\
+Target = limine\n\
+\n\
+[Action]\n\
+Description = Sync Limine EFI binary after package upgrade\n\
+When = PostTransaction\n\
+Exec = /usr/bin/install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI\n\
+HOOK_EOF",
+            ));
+            out.push(chroot_cmd(
+                "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+                 BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                 DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
+                 PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
+                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || true; \
+                 efibootmgr --verbose || true; \
+                 fi",
+            ));
+        } else {
+            out.push(chroot_cmd(
+                "install -d -m 0755 /boot/limine && install -m 0644 /usr/share/limine/limine-bios.sys /boot/limine/limine-bios.sys",
+            ));
+            let disk = device.trim();
+            if !disk.is_empty() {
+                out.push(chroot_cmd(&format!("limine bios-install {disk}")));
+            }
+        }
+        out
     }
 
     pub fn build_plan(
@@ -210,7 +293,11 @@ impl BootloaderService {
                 }
             }
             3 => {
-                cmds.push("echo 'TODO: Limine bootloader setup not yet implemented'".into());
+                cmds.extend(Self::limine_install_chroot_commands(
+                    state,
+                    device,
+                    boot_options_script.as_str(),
+                ));
             }
             _ => {}
         }
@@ -251,6 +338,25 @@ mod tests {
     #[test]
     fn effective_bios_grub_disk_non_grub_returns_empty_for_empty_target() {
         let state = AppState::new(true);
+        assert!(BootloaderService::effective_bios_grub_disk(&state, "").is_empty());
+    }
+
+    #[test]
+    fn effective_bios_grub_disk_limine_passes_through_partition_target() {
+        let mut state = AppState::new(true);
+        state.bootloader_index = 3;
+        state.firmware_uefi_override = Some(false);
+        assert_eq!(
+            BootloaderService::effective_bios_grub_disk(&state, "/dev/zda").as_str(),
+            "/dev/zda"
+        );
+    }
+
+    #[test]
+    fn effective_bios_grub_disk_limine_empty_on_uefi_override() {
+        let mut state = AppState::new(true);
+        state.bootloader_index = 3;
+        state.firmware_uefi_override = Some(true);
         assert!(BootloaderService::effective_bios_grub_disk(&state, "").is_empty());
     }
 }

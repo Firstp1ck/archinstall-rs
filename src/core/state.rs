@@ -135,6 +135,8 @@ pub struct AppState {
     // Bootloader state
     pub bootloader_focus_index: usize, // 0: selector, 1: Continue
     pub bootloader_index: usize,       // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
+    /// When `Some`, install code treats the host as UEFI or BIOS without probing `/sys/firmware/efi` (tests).
+    pub firmware_uefi_override: Option<bool>,
 
     // Kernels state
     pub kernels_focus_index: usize, // 0: select, 1: Continue
@@ -495,6 +497,7 @@ impl AppState {
 
             bootloader_focus_index: 0,
             bootloader_index: 0,
+            firmware_uefi_override: None,
 
             kernels_focus_index: 0,
             selected_kernels: {

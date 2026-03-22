@@ -469,7 +469,10 @@ impl AppState {
         if self.disks_mode_index != 2 && self.disks_selected_device.is_none() {
             issues.push("Disk partitioning: target device is not selected.".into());
         }
-        if self.disks_mode_index == 2 && self.bootloader_index == 1 && !self.is_uefi() {
+        if self.disks_mode_index == 2
+            && (self.bootloader_index == 1 || self.bootloader_index == 3)
+            && !self.is_uefi()
+        {
             let from_mount = crate::core::services::bootloader::BootloaderService::disk_for_block_device_behind_mnt_root();
             let from_ui = self
                 .disks_selected_device
@@ -477,9 +480,10 @@ impl AppState {
                 .filter(|s| !s.is_empty());
             if from_mount.is_none() && from_ui.is_none() {
                 issues.push(
-                    "Pre-mounted mode with BIOS GRUB needs a whole-disk device for grub-install: \
-                     either mount root at /mnt on a resolvable block device (findmnt/lsblk), \
-                     or pick a target disk on the Disks screen."
+                    "Pre-mounted mode with BIOS GRUB or Limine needs a whole-disk device for the \
+                     bootloader (grub-install / limine bios-install): either mount root at /mnt on \
+                     a resolvable block device (findmnt/lsblk), or pick a target disk on the Disks \
+                     screen."
                         .into(),
                 );
             }
@@ -751,6 +755,9 @@ impl AppState {
     }
 
     pub(crate) fn is_uefi(&self) -> bool {
+        if let Some(v) = self.firmware_uefi_override {
+            return v;
+        }
         std::path::Path::new("/sys/firmware/efi").exists()
     }
 
