@@ -15,13 +15,15 @@ This backlog groups repository TODOs by feature area and dependency, then orders
 2. **Boot chain expansion (P0)** — *core path done*  
    EFISTUB, Limine, and UKI (mkinitcpio + non-GRUB bootloaders) are implemented; follow-ups: multi-kernel UKI/entries, Secure Boot signing (P1/P2).
 3. **Encryption UX + system hooks (P0/P1)**  
-   Finalize passphrase UX and mkinitcpio/boot integration for encrypted installs.
+   Finalize passphrase UX and mkinitcpio/boot integration for encrypted installs, including **LVM on LUKS** and **LUKS on LVM** layout choices.
 4. **System identity and essential config hardening (P1)**  
    Finish hostname/root/time-sync/locales behavior and additional system config coverage.
 5. **Config automation and unattended mode (P1/P2)**  
    Make save/load + CLI config-driven unattended installs first-class.
 6. **User experience polish and ecosystem features (P2)**  
    Shell/groups UI, kernel screen completeness, AUR flow polish, abort flow cleanup.
+7. **Extended configuration, localization, and desktop ecosystem (P2)**  
+   Multi-language UI, custom mirrors/repos, swap compression, rEFInd/linux-hardened follow-ups, U2F login, extra DE/WM targets, Bluetooth/print services, NetworkManager+iwd, btrfs snapshot stacks (Timeshift/Snapper, grub-btrfs with GRUB).
 
 ## Workstreams
 
@@ -44,6 +46,10 @@ Follow-ups completed:
 - [x] `BootloaderService` accepts `&StoragePlan` with LUKS-aware kernel cmdline.
 - [x] Btrfs subvolume preset TUI selector on Disks screen.
 
+**Additional roadmap:**
+
+- [ ] **LVM:** first-class **LVM** in the disks/install flow (VG/LV guided setup, sizing, and integration with encryption stacking in workstream 3) — low-level planner support exists; track UX completeness and common presets.
+
 **Unblocks:** Encryption, UKI, non-default bootloaders, unattended reliability.
 
 ### 2) Boot and Kernel Delivery (P0)
@@ -58,7 +64,8 @@ Follow-ups completed:
 
 **Follow-ups (not blocking basic installs):**
 
-- [ ] Multi-kernel: extra `linux-lts` (etc.) bootloader + UKI preset entries (currently default `linux` only).
+- [ ] Multi-kernel: extra `linux-lts`, **`linux-hardened`**, and similar variants — bootloader + UKI preset entries (currently default `linux` only).
+- [ ] **rEFInd** bootloader option (alongside EFISTUB, Limine, systemd-boot/GRUB paths as applicable).
 - [ ] **Secure Boot (P1/P2):** signing pipeline for UKI/EFI binaries — out of scope for initial UKI delivery; track when hardening boot trust.
 
 **Depends on:** Stable partition/mount model and system hook generation.  
@@ -69,6 +76,7 @@ Follow-ups completed:
 **Goal:** Make encrypted installs fully usable end-to-end.
 
 - [ ] Encryption password prompts + partition selection UX.
+- [ ] **Disk encryption + LVM stacking:** support **LVM on LUKS** and **LUKS on LVM** — selectable layout with correct crypttab/initramfs, unlock order, and kernel cmdline for boot.
 - [ ] mkinitcpio/system config hooks for LUKS/UKI and related early-boot settings.
 
 **Depends on:** Disk architecture + boot chain updates.  
@@ -109,6 +117,23 @@ Follow-ups completed:
 **Depends on:** Core implementation complete.  
 **Unblocks:** Better day-to-day user experience.
 
+### 7) Extended Configuration, Localization, and Desktop Ecosystem (P2)
+
+**Goal:** Broader installer coverage for language, mirrors, repositories, swap tuning, boot/auth/desktop choices, common hardware services, and Wi-Fi backend selection.
+
+- [ ] **Localization:** installer **multi-language** support — **English** and **German** (UI strings / locale selection for the TUI or equivalent).
+- [ ] **Pacman mirrors:** allow adding a **custom mirror server** (user-defined base URL) in addition to reflector/country presets.
+- [ ] **Custom repositories:** add repo flow capturing **Name → URL → signature check → signing options** (mirror `[repo]` semantics: SigLevel, key/trust options as needed).
+- [ ] **Swap compression:** selectable algorithm where supported (e.g. zram) — **zstd** (default), **lzo-rle**, **lzo**, **lz4**, **lz4hc**.
+- [ ] **U2F login setup:** configure **U2F device**-based login (e.g. PAM / `pam_u2f` and related packages) as an optional post-install security step.
+- [ ] **Desktop environment / compositor / WM:** add install targets for **Niri**, **River**, **Xmonad**, **labwc**, **COSMIC** (alongside existing DE/WM options).
+- [ ] **Packages / services:** optional **Bluetooth** stack setup; **print service** (e.g. CUPS and sensible defaults or driver guidance).
+- [ ] **Btrfs snapshots:** optional install of **Timeshift** or **Snapper** (package + basic configuration aligned with subvolume layout); when **GRUB** is the bootloader, also set up **grub-btrfs** so snapshots appear in the boot menu.
+- [ ] **Network manager:** **NetworkManager** with **iwd** backend option (vs wpa_supplicant or other backends).
+
+**Depends on:** Stable core install flow and package/service wiring patterns.  
+**Unblocks:** Power-user and regional installs without heavy post-install scripting.
+
 ## Suggested Execution Plan
 
 ### Now (next sprint)
@@ -125,6 +150,7 @@ Follow-ups completed:
 ### Later
 
 - [ ] Workstream 6: UX and Ecosystem Polish
+- [ ] Workstream 7: Extended Configuration, Localization, and Desktop Ecosystem
 
 ## Source Coverage
 
@@ -148,3 +174,5 @@ This semantic backlog is derived from TODO markers currently found in:
 - `src/core/services/system.rs`
 - `src/core/services/usersetup.rs`
 - `src/main.rs`
+
+Marked **roadmap** bullets (e.g. LVM UX in workstream 1, LVM/LUKS stacking, workstream **7**) are captured here for planning; they are not necessarily reflected as `TODO` markers in the tree yet.
