@@ -55,6 +55,13 @@ impl BootloaderService {
         }
     }
 
+    /// Returns true when UKI install integration should run (`uki_enabled` and bootloader is not GRUB).
+    ///
+    /// Same rule as UKI TUI visibility (hidden for GRUB).
+    pub(crate) fn uki_requested(state: &AppState) -> bool {
+        state.uki_enabled && state.bootloader_index != 1
+    }
+
     /// Whole-disk path for BIOS `grub-install --target=i386-pc` or `limine bios-install` when the
     /// partitioning flow has no explicit target (pre-mounted mode). Prefers the disk behind `/mnt`
     /// (findmnt + lsblk), then `disks_selected_device`.
@@ -148,8 +155,24 @@ impl BootloaderService {
             format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
         let mut out: Vec<String> = Vec::new();
-        out.push(chroot_cmd(&format!(
-            "OPTS=$({boot_options_script}); cat > /boot/limine.conf <<LIMINEOF\n\
+        let uki = Self::uki_requested(state);
+        if uki {
+            out.push(chroot_cmd(
+                "cat > /boot/limine.conf <<'LIMINEOF'\n\
+timeout: 5\n\
+\n\
+/Arch Linux\n\
+    protocol: efi\n\
+    path: boot():/EFI/Linux/arch-linux.efi\n\
+\n\
+/Arch Linux (fallback UKI)\n\
+    protocol: efi\n\
+    path: boot():/EFI/Linux/arch-linux-fallback.efi\n\
+LIMINEOF",
+            ));
+        } else {
+            out.push(chroot_cmd(&format!(
+                "OPTS=$({boot_options_script}); cat > /boot/limine.conf <<LIMINEOF\n\
 timeout: 5\n\
 \n\
 /Arch Linux\n\
@@ -164,7 +187,8 @@ timeout: 5\n\
     cmdline: $OPTS\n\
     module_path: boot():/initramfs-linux-fallback.img\n\
 LIMINEOF"
-        )));
+            )));
+        }
         if state.is_uefi() {
             out.push(chroot_cmd(
                 "install -d -m 0755 /boot/EFI/limine && install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI",
@@ -226,6 +250,7 @@ HOOK_EOF",
         ));
 
         let boot_options_script = Self::boot_options_script(encrypted);
+        let uki = Self::uki_requested(state);
 
         match state.bootloader_index {
             // 0: systemd-boot
@@ -241,13 +266,21 @@ HOOK_EOF",
                     "bash -lc 'cat > /boot/loader/loader.conf <<EOF\ndefault  arch.conf\ntimeout  4\nconsole-mode auto\neditor   no\nEOF'",
                 ));
 
-                // Build arch.conf and fallback using the dynamic options script
-                cmds.push(chroot_cmd(&format!(
-                    "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch.conf <<EOF\ntitle   Arch Linux\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions $OPTS\nEOF"
-                )));
-                cmds.push(chroot_cmd(&format!(
-                    "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch-fallback.conf <<EOF\ntitle   Arch Linux (fallback initramfs)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions $OPTS\nEOF"
-                )));
+                if uki {
+                    cmds.push(chroot_cmd(
+                        "cat > /boot/loader/entries/arch.conf <<'EOF'\ntitle   Arch Linux\nefi     /EFI/Linux/arch-linux.efi\nEOF",
+                    ));
+                    cmds.push(chroot_cmd(
+                        "cat > /boot/loader/entries/arch-fallback.conf <<'EOF'\ntitle   Arch Linux (fallback UKI)\nefi     /EFI/Linux/arch-linux-fallback.efi\nEOF",
+                    ));
+                } else {
+                    cmds.push(chroot_cmd(&format!(
+                        "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch.conf <<EOF\ntitle   Arch Linux\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions $OPTS\nEOF"
+                    )));
+                    cmds.push(chroot_cmd(&format!(
+                        "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch-fallback.conf <<EOF\ntitle   Arch Linux (fallback initramfs)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions $OPTS\nEOF"
+                    )));
+                }
 
                 cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
@@ -277,19 +310,32 @@ HOOK_EOF",
                 cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
             }
             2 => {
-                // Direct kernel boot via firmware: efibootmgr entries with vmlinuz + embedded cmdline/initrd path.
+                // Direct kernel boot via firmware: efibootmgr entries (UKI binary or vmlinuz + cmdline/initrd).
                 if state.is_uefi() {
-                    cmds.push(chroot_cmd(&format!(
-                        "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-                         OPTS=$({boot_options_script}); \
-                         BOOTSRC=$(findmnt -n -o SOURCE /boot); \
-                         DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                         PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                         efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || true; \
-                         efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || true; \
-                         efibootmgr --verbose || true; \
-                         fi"
-                    )));
+                    if uki {
+                        cmds.push(chroot_cmd(
+                            "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+                             BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                             DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
+                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\EFI\\\\Linux\\\\arch-linux.efi' || true; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\arch-linux-fallback.efi' || true; \
+                             efibootmgr --verbose || true; \
+                             fi",
+                        ));
+                    } else {
+                        cmds.push(chroot_cmd(&format!(
+                            "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+                             OPTS=$({boot_options_script}); \
+                             BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                             DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
+                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || true; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || true; \
+                             efibootmgr --verbose || true; \
+                             fi"
+                        )));
+                    }
                 }
             }
             3 => {
@@ -303,7 +349,7 @@ HOOK_EOF",
         }
 
         state.debug_log(&format!(
-            "bootloader: choice={} mode={} (uefi={}, encrypted={})",
+            "bootloader: choice={} mode={} (uefi={}, encrypted={}, uki={})",
             match state.bootloader_index {
                 0 => "systemd-boot",
                 1 => "grub",
@@ -313,7 +359,8 @@ HOOK_EOF",
             },
             if state.is_uefi() { "UEFI" } else { "BIOS" },
             state.is_uefi(),
-            encrypted
+            encrypted,
+            uki
         ));
 
         BootloaderPlan::new(cmds)

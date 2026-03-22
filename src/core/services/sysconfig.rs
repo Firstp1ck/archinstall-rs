@@ -1,3 +1,4 @@
+use crate::core::services::bootloader::BootloaderService;
 use crate::core::state::AppState;
 use crate::core::storage::StoragePlan;
 
@@ -18,6 +19,10 @@ impl SysConfigService {
     pub fn build_plan(state: &AppState, storage_plan: &StoragePlan) -> SysConfigPlan {
         let mut cmds: Vec<String> = Vec::new();
         let encrypted = storage_plan.has_encryption();
+        let uki = BootloaderService::uki_requested(state);
+        let boot_options_script = BootloaderService::boot_options_script(encrypted);
+
+        const MKINITCPIO_P: &str = "out=$(mkinitcpio -P 2>&1); rc=$?; printf '%s\\n' \"$out\"; if [ \"$rc\" -ne 0 ]; then if printf '%s\\n' \"$out\" | grep -q '^==> ERROR:'; then exit \"$rc\"; fi; if printf '%s\\n' \"$out\" | grep -q 'WARNING: errors were encountered during the build'; then echo 'mkinitcpio returned warnings-only non-zero exit; continuing install' >&2; else exit \"$rc\"; fi; fi";
 
         // Helper: wrap a command to run inside the target system via arch-chroot
         fn chroot_cmd(inner: &str) -> String {
@@ -150,6 +155,25 @@ impl SysConfigService {
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
+        // UKI: kernel cmdline file, output dir, and linux.preset must exist before mkinitcpio -P.
+        if uki {
+            cmds.push(chroot_cmd(&format!(
+                "install -d -m 0755 /etc/kernel && OPTS=$({boot_options_script}) && printf '%s\\n' \"$OPTS\" > /etc/kernel/cmdline"
+            )));
+            cmds.push(chroot_cmd("install -d -m 0755 /boot/EFI/Linux"));
+            cmds.push(chroot_cmd(
+                "PRESET=/etc/mkinitcpio.d/linux.preset; \
+                 if [ -f \"$PRESET\" ]; then \
+                   sed -i -E 's/^default_image=/#default_image=/' \"$PRESET\"; \
+                   sed -i -E 's/^fallback_image=/#fallback_image=/' \"$PRESET\"; \
+                   sed -i -E 's|^#?default_uki=.*|default_uki=\"/boot/EFI/Linux/arch-linux.efi\"|' \"$PRESET\"; \
+                   grep -q '^default_uki=' \"$PRESET\" || printf '%s\\n' 'default_uki=\"/boot/EFI/Linux/arch-linux.efi\"' >> \"$PRESET\"; \
+                   sed -i -E 's|^#?fallback_uki=.*|fallback_uki=\"/boot/EFI/Linux/arch-linux-fallback.efi\"|' \"$PRESET\"; \
+                   grep -q '^fallback_uki=' \"$PRESET\" || printf '%s\\n' 'fallback_uki=\"/boot/EFI/Linux/arch-linux-fallback.efi\"' >> \"$PRESET\"; \
+                 fi",
+            ));
+        }
+
         // mkinitcpio: for LUKS, ensure the correct encrypt hook is present.
         // Modern Arch (mkinitcpio >=37) defaults to `systemd` hooks → use `sd-encrypt`.
         // Older ISOs still ship `udev` hooks → need `encrypt` instead.  Detect which is
@@ -165,14 +189,14 @@ impl SysConfigService {
                      sed -i '/^HOOKS=/s/\\bblock\\b/block encrypt/' /etc/mkinitcpio.conf; \
                  fi",
             ));
-            cmds.push(chroot_cmd(
-                "out=$(mkinitcpio -P 2>&1); rc=$?; printf '%s\\n' \"$out\"; if [ \"$rc\" -ne 0 ]; then if printf '%s\\n' \"$out\" | grep -q '^==> ERROR:'; then exit \"$rc\"; fi; if printf '%s\\n' \"$out\" | grep -q 'WARNING: errors were encountered during the build'; then echo 'mkinitcpio returned warnings-only non-zero exit; continuing install' >&2; else exit \"$rc\"; fi; fi",
-            ));
+        }
+        if encrypted || uki {
+            cmds.push(chroot_cmd(MKINITCPIO_P));
         }
 
         // Debug summary (log only, do not add to command list)
         state.debug_log(&format!(
-            "sysconfig: hostname={} timezone={} ats={} kernels={} addpkgs={} sudoers_edits={} aur_selected={} aur_helper={}",
+            "sysconfig: hostname={} timezone={} ats={} kernels={} addpkgs={} sudoers_edits={} aur_selected={} aur_helper={} uki={}",
             hostname,
             timezone,
             state.ats_enabled,
@@ -183,7 +207,8 @@ impl SysConfigService {
             state
                 .aur_helper_index
                 .map(|i| if i == 1 { "paru" } else { "yay" })
-                .unwrap_or("none")
+                .unwrap_or("none"),
+            uki
         ));
 
         SysConfigPlan::new(cmds)

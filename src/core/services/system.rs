@@ -150,6 +150,9 @@ impl SystemService {
             }
             _ => {}
         }
+        if state.uki_enabled && state.bootloader_index != 1 {
+            package_set.insert("systemd-ukify".into());
+        }
 
         // Network stack
         if state.network_mode_index == 2 {
@@ -287,11 +290,12 @@ impl SystemService {
 
         // Debug summary
         state.debug_log(&format!(
-            "system: pacstrap packages={} missing={} uefi={} bootloader_index={} nm={} audio={} desktops={} servers={} xorg={} drivers={} addpkgs={}",
+            "system: pacstrap packages={} missing={} uefi={} bootloader_index={} uki={} nm={} audio={} desktops={} servers={} xorg={} drivers={} addpkgs={}",
             packages_len,
             missing.len(),
             state.is_uefi(),
             state.bootloader_index,
+            state.uki_enabled && state.bootloader_index != 1,
             state.network_mode_index == 2,
             state.audio_index,
             state.selected_desktop_envs.len(),
