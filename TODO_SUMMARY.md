@@ -50,6 +50,8 @@ Follow-ups completed:
 
 **Goal:** Complete bootloader matrix and modern kernel boot pipeline.
 
+**Plan:** See [`Documents/Plans/BOOT_AND_KERNEL_DELIVERY_PLAN.md`](Documents/Plans/BOOT_AND_KERNEL_DELIVERY_PLAN.md) for phased implementation (EFISTUB → Limine → UKI integration).
+
 - [ ] EFISTUB boot entry creation + kernel cmdline generation.
 - [ ] Limine setup path (replace current TODO placeholder behavior).
 - [ ] Unified Kernel Images generation integrated with mkinitcpio/systemd-boot.
