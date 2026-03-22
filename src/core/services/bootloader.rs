@@ -315,27 +315,55 @@ HOOK_EOF",
             }
             2 => {
                 // Direct kernel boot via firmware: efibootmgr entries (UKI binary or vmlinuz + cmdline/initrd).
+                // UKI: copy self-contained EFI to `EFI/BOOT/BOOTX64.EFI` when NVRAM entries are missing (same idea as Limine).
+                // Non-UKI: `startup.nsh` on ESP root — Arch Wiki workaround when firmware drops `efibootmgr` entries (e.g. some VMs).
                 if state.is_uefi() {
                     if uki {
+                        cmds.push(chroot_cmd(
+                            "install -d -m 0755 /boot/EFI/BOOT && if [ -f /boot/EFI/Linux/arch-linux.efi ]; then \
+                             install -m 0644 /boot/EFI/Linux/arch-linux.efi /boot/EFI/BOOT/BOOTX64.EFI; \
+                             else echo \"WARNING: /boot/EFI/Linux/arch-linux.efi missing; UKI fallback copy skipped\"; fi",
+                        ));
+                        cmds.push(chroot_cmd(
+                            "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-efistub-uki-fallback.hook <<HOOK_EOF\n\
+[Trigger]\n\
+Operation = Install\n\
+Operation = Upgrade\n\
+Type = Package\n\
+Target = linux\n\
+\n\
+[Action]\n\
+Description = Refresh UEFI fallback UKI copy after kernel upgrade\n\
+When = PostTransaction\n\
+Exec = /bin/sh -c \"test -f /boot/EFI/Linux/arch-linux.efi && /usr/bin/install -Dm 0644 /boot/EFI/Linux/arch-linux.efi /boot/EFI/BOOT/BOOTX64.EFI\"\n\
+HOOK_EOF",
+                        ));
                         cmds.push(chroot_cmd(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
                              BOOTSRC=$(findmnt -n -o SOURCE /boot); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                              PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\EFI\\\\Linux\\\\arch-linux.efi' || true; \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\arch-linux-fallback.efi' || true; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\EFI\\\\Linux\\\\arch-linux.efi' || \
+                             echo \"WARNING: efibootmgr failed; firmware may still boot via EFI/BOOT/BOOTX64.EFI (UKI copy)\"; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\arch-linux-fallback.efi' || \
+                             echo \"WARNING: efibootmgr failed for fallback UKI NVRAM entry\"; \
                              efibootmgr --verbose || true; \
                              fi",
                         ));
                     } else {
+                        cmds.push(chroot_cmd(&format!(
+                            "OPTS=$({boot_options_script}); cat > /boot/startup.nsh <<EOF\nvmlinuz-linux $OPTS initrd=\\initramfs-linux.img\nEOF\nchmod 0644 /boot/startup.nsh"
+                        )));
                         cmds.push(chroot_cmd(&format!(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
                              OPTS=$({boot_options_script}); \
                              BOOTSRC=$(findmnt -n -o SOURCE /boot); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                              PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || true; \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || true; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || \
+                             echo \"WARNING: efibootmgr failed; ESP has /boot/startup.nsh for firmware that runs UEFI Shell startup.nsh\"; \
+                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || \
+                             echo \"WARNING: efibootmgr failed for fallback initramfs NVRAM entry\"; \
                              efibootmgr --verbose || true; \
                              fi"
                         )));

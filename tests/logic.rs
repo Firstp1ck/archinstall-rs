@@ -316,6 +316,14 @@ fn bootloader_efistub_creates_efibootmgr_entry() {
         joined.contains("rootdev=\"${rootdev%%"),
         "shared cmdline script should strip btrfs suffix: {joined}"
     );
+    assert!(
+        joined.contains("/boot/startup.nsh"),
+        "non-UKI EFISTUB should write startup.nsh for firmware without persistent NVRAM: {joined}"
+    );
+    assert!(
+        joined.contains("initrd=\\initramfs-linux.img"),
+        "startup.nsh should use UEFI-style initrd path: {joined}"
+    );
 }
 
 #[test]
@@ -337,6 +345,10 @@ fn bootloader_efistub_luks_uses_shared_cmdline() {
     assert!(
         joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
         "encrypted EFISTUB should use same LUKS cmdline as systemd-boot: {joined}"
+    );
+    assert!(
+        joined.contains("/boot/startup.nsh"),
+        "encrypted non-UKI EFISTUB should still write startup.nsh: {joined}"
     );
 }
 
@@ -541,6 +553,14 @@ fn uki_efistub_points_to_uki_loader() {
         !joined.contains("vmlinuz-linux"),
         "EFISTUB UKI should not register raw vmlinuz: {joined}"
     );
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "EFISTUB UKI should install UEFI fallback copy: {joined}"
+    );
+    assert!(
+        joined.contains("99-efistub-uki-fallback.hook"),
+        "EFISTUB UKI should install pacman hook to refresh fallback: {joined}"
+    );
 }
 
 #[test]
@@ -580,6 +600,10 @@ fn pre_mounted_efistub_empty_target_still_generates_efibootmgr() {
         "EFISTUB must not depend on a whole-disk target string: {joined}"
     );
     assert!(joined.contains("vmlinuz-linux"), "{joined}");
+    assert!(
+        joined.contains("/boot/startup.nsh"),
+        "pre-mounted non-UKI EFISTUB should still write startup.nsh: {joined}"
+    );
 }
 
 /// Same as pre-mounted: Limine UEFI uses `findmnt` + `efibootmgr`, not the partition-target disk string.
