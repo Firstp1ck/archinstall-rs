@@ -13,6 +13,8 @@ impl AppState {
         if let Some(v) = self.secure_boot_override {
             self.secure_boot_enabled = v;
             self.secure_boot_known = true;
+            // Override replaces firmware probes; do not leave a stale setup_mode from a prior call.
+            self.secure_boot_setup_mode = false;
             self.debug_log(&format!(
                 "secure_boot: using override value secure_boot_enabled={}",
                 self.secure_boot_enabled
@@ -22,6 +24,7 @@ impl AppState {
         if !self.is_uefi() {
             self.secure_boot_enabled = false;
             self.secure_boot_known = true;
+            self.secure_boot_setup_mode = false;
             self.debug_log("secure_boot: host not in UEFI mode, secure_boot_enabled=false");
             return;
         }

@@ -387,6 +387,23 @@ fn secure_boot_efistub_auto_enables_uki_policy() {
 }
 
 #[test]
+fn secure_boot_override_clears_stale_setup_mode_for_status_text() {
+    let mut state = make_state();
+    state.secure_boot_setup_mode = true;
+    state.secure_boot_override = Some(false);
+    state.detect_secure_boot_state();
+    assert!(
+        !state.secure_boot_setup_mode,
+        "override should not leave setup_mode from an earlier detection"
+    );
+    assert_eq!(
+        state.secure_boot_status_text(),
+        "Disabled",
+        "status text should follow override, not stale Setup Mode"
+    );
+}
+
+#[test]
 fn secure_boot_efistub_build_plan_uses_uki_even_if_toggle_was_off() {
     let mut state = make_state();
     state.firmware_uefi_override = Some(true);

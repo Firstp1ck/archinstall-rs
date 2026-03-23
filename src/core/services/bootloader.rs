@@ -98,6 +98,89 @@ impl BootloaderService {
         state.uki_enabled && state.bootloader_index != 1
     }
 
+    /// `efibootmgr --label` for the first selected kernel (primary entry, not fallback).
+    fn efistub_first_primary_label(
+        selected_kernels: &std::collections::BTreeSet<String>,
+    ) -> String {
+        let first = selected_kernels
+            .iter()
+            .next()
+            .map(|s| s.as_str())
+            .unwrap_or("linux");
+        let label_suffix = if first == "linux" {
+            String::new()
+        } else {
+            format!(" ({first})")
+        };
+        format!("Arch Linux{label_suffix}")
+    }
+
+    fn efistub_awk_escape_key(s: &str) -> String {
+        s.replace('\\', "\\\\").replace('"', "\\\"")
+    }
+
+    /// Delete EFISTUB NVRAM entries this run will recreate: exact `efibootmgr` description match,
+    /// and when `PARTUUID` is set (lowercase), the boot line must contain it (same ESP as `findmnt`).
+    fn efistub_nvram_cleanup_snippet(
+        uki: bool,
+        selected_kernels: &std::collections::BTreeSet<String>,
+    ) -> String {
+        let mut labels: Vec<String> = Vec::new();
+        for kernel in selected_kernels.iter() {
+            let label_suffix = if kernel == "linux" {
+                String::new()
+            } else {
+                format!(" ({kernel})")
+            };
+            labels.push(format!("Arch Linux{label_suffix}"));
+            labels.push(if uki {
+                format!("Arch Linux{label_suffix} (fallback UKI)")
+            } else {
+                format!("Arch Linux{label_suffix} (fallback initramfs)")
+            });
+        }
+        let want_init = labels
+            .iter()
+            .map(|l| {
+                let k = Self::efistub_awk_escape_key(l);
+                format!(r#"want["{k}"] = 1"#)
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        format!(
+            "EFI_LIST=$(efibootmgr 2>/dev/null || true); \
+             for bootnum in $(echo \"$EFI_LIST\" | awk -v pu=\"$PARTUUID\" 'BEGIN {{ {want_init} }} \
+/^Boot[0-9A-Fa-f]{{4}}[*]?[[:space:]]+/ {{ \
+  n = split($0, a, \"\\t\"); \
+  head = a[1]; \
+  sub(/^Boot[0-9A-Fa-f]{{4}}[*]?[[:space:]]+/, \"\", head); \
+  if (n >= 2) {{ desc = head; }} else {{ desc = head; sub(/[[:space:]]+HD\\(.*/, \"\", desc); gsub(/[[:space:]]+$/, \"\", desc); }} \
+  if (!(desc in want)) next; \
+  if (length(pu) > 0 && index(tolower($0), pu) == 0) next; \
+  print substr($1, 5, 4); \
+}}'); do \
+  efibootmgr -b \"$bootnum\" -B 2>/dev/null || true; \
+done"
+        )
+    }
+
+    fn efistub_first_arch_reorder_snippet(first_primary_label: &str) -> String {
+        format!(
+            "first_arch=$(efibootmgr 2>/dev/null | awk -v pu=\"$PARTUUID\" -v want='{want}' '\
+/^Boot[0-9A-Fa-f]{{4}}[*]?[[:space:]]+/ {{ \
+  n = split($0, a, \"\\t\"); \
+  head = a[1]; \
+  sub(/^Boot[0-9A-Fa-f]{{4}}[*]?[[:space:]]+/, \"\", head); \
+  if (n >= 2) {{ desc = head; }} else {{ desc = head; sub(/[[:space:]]+HD\\(.*/, \"\", desc); gsub(/[[:space:]]+$/, \"\", desc); }} \
+  if (desc != want) next; \
+  if (length(pu) > 0 && index(tolower($0), pu) == 0) next; \
+  print substr($1, 5, 4); exit; \
+}}'); \
+",
+            want = first_primary_label
+        )
+    }
+
     /// Whole-disk path for BIOS `grub-install --target=i386-pc` or `limine bios-install` when the
     /// partitioning flow has no explicit target (pre-mounted mode). Prefers the disk behind `/mnt`
     /// (findmnt + lsblk), then `disks_selected_device`.
@@ -267,7 +350,7 @@ HOOK_EOF"
                  BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                  DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                  PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
-                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || \
+                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\EFI\\limine\\BOOTX64.EFI' --unicode || \
                  echo 'WARNING: efibootmgr failed to create NVRAM entry; UEFI fallback path EFI/BOOT/BOOTX64.EFI is available'; \
                  first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{{4}}\\*/ && /Arch Linux/{{print substr($1,5,4); exit}}'); \
                  if [ -n \"$first_arch\" ]; then \
@@ -321,10 +404,6 @@ HOOK_EOF"
         let uki = Self::uki_requested(state)
             || (state.bootloader_index == 2 && state.is_secure_boot_enabled());
         let ucode = detect_microcode();
-
-        // Shell snippet to delete stale "Arch Linux" NVRAM entries before creating new ones
-        let nvram_cleanup = "for bootnum in $(efibootmgr 2>/dev/null | grep -i 'Arch Linux' | awk '\"'\"'{print $1}'\"'\"' | sed 's/Boot//;s/\\*//'); do \
-                             efibootmgr -b \"$bootnum\" -B 2>/dev/null || true; done";
 
         match state.bootloader_index {
             // 0: systemd-boot
@@ -396,7 +475,7 @@ HOOK_EOF"
                 cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
                 cmds.push(chroot_cmd(&format!(
-                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || {{ if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE {esp})) --part $(lsblk -no PARTN $(findmnt -n -o SOURCE {esp})) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }}"
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || {{ if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk /dev/$(lsblk -no pkname $(findmnt -n -o SOURCE {esp})) --part $(lsblk -no PARTN $(findmnt -n -o SOURCE {esp})) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }}"
                 )));
             }
             // 1: grub
@@ -463,13 +542,20 @@ HOOK_EOF",
                             uki_fallback = first_ka.uki_fallback,
                         )));
 
-                        // efibootmgr: clean stale entries, then register each kernel's UKI
+                        // efibootmgr: drop only our EFISTUB UKI labels on this ESP, then register each kernel's UKI
+                        let nvram_cleanup =
+                            Self::efistub_nvram_cleanup_snippet(true, &state.selected_kernels);
+                        let first_arch_snippet = Self::efistub_first_arch_reorder_snippet(
+                            &Self::efistub_first_primary_label(&state.selected_kernels),
+                        );
                         let mut efi_script = format!(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-                             {nvram_cleanup}; \
                              BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); "
+                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
+                             PARTUUID=$(lsblk -no PARTUUID \"$BOOTSRC\" 2>/dev/null | head -1 | tr 'A-Z' 'a-z'); \
+                             {nvram_cleanup}; \
+                             "
                         );
                         for kernel in state.selected_kernels.iter() {
                             let ka = kernel_artifacts(kernel);
@@ -479,17 +565,17 @@ HOOK_EOF",
                                 format!(" ({kernel})")
                             };
                             efi_script.push_str(&format!(
-                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{uki_default}' || \
+                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\EFI\\Linux\\{uki_default}' || \
                                  echo \"WARNING: efibootmgr failed for {kernel} UKI NVRAM entry\"; \
-                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\{uki_fallback}' || \
+                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback UKI)' --loader '\\EFI\\Linux\\{uki_fallback}' || \
                                  echo \"WARNING: efibootmgr failed for {kernel} fallback UKI NVRAM entry\"; ",
                                 uki_default = ka.uki_default,
                                 uki_fallback = ka.uki_fallback,
                             ));
                         }
+                        efi_script.push_str(&first_arch_snippet);
                         efi_script.push_str(
-                            "first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{4}\\*/ && /Arch Linux/{print substr($1,5,4); exit}'); \
-                             if [ -n \"$first_arch\" ]; then \
+                            "if [ -n \"$first_arch\" ]; then \
                                current=$(efibootmgr | awk -F'BootOrder: ' '/BootOrder:/{print $2}' | tr -d ' \\r'); \
                                if [ -n \"$current\" ]; then \
                                  rest=$(echo \"$current\" | awk -F, -v id=\"$first_arch\" '{out=\"\"; for(i=1;i<=NF;i++) if($i!=id) out=out (out?\",\":\"\") $i; print out}'); \
@@ -567,14 +653,20 @@ HOOK_EOF",
                                 .unwrap_or_default(),
                         )));
 
-                        // efibootmgr: clean stale entries, then register each kernel
+                        // efibootmgr: drop only our EFISTUB labels on this ESP, then register each kernel
+                        let nvram_cleanup =
+                            Self::efistub_nvram_cleanup_snippet(false, &state.selected_kernels);
+                        let first_arch_snippet = Self::efistub_first_arch_reorder_snippet(
+                            &Self::efistub_first_primary_label(&state.selected_kernels),
+                        );
                         let mut efi_script = format!(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-                             {nvram_cleanup}; \
-                             OPTS=$({boot_options_script}); \
                              BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                              PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
+                             PARTUUID=$(lsblk -no PARTUUID \"$BOOTSRC\" 2>/dev/null | head -1 | tr 'A-Z' 'a-z'); \
+                             {nvram_cleanup}; \
+                             OPTS=$({boot_options_script}); \
                              echo \"EFISTUB-DIAG: esp={esp} bootsrc=$BOOTSRC disk=/dev/$DISK part=$PART\"; \
                              if [ -z \"$BOOTSRC\" ] || [ -z \"$DISK\" ] || [ -z \"$PART\" ]; then \
                                echo 'EFISTUB-DIAG: failed to resolve ESP source/disk/partition from findmnt/lsblk'; \
@@ -599,13 +691,13 @@ HOOK_EOF",
                                      echo \"EFISTUB-DIAG: missing ESP artifact {esp}/EFI/Linux/$req\"; \
                                    fi; \
                                  done; \
-                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs}\" 2>&1); rc=$?; \
+                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\EFI\\Linux\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs}\" 2>&1); rc=$?; \
                                  if [ $rc -ne 0 ]; then \
                                    echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
                                    echo \"EFISTUB-DIAG: primary efibootmgr rc=$rc kernel={kernel}\"; \
                                    echo \"$out\"; \
                                  fi; \
-                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs_fb}\" 2>&1); rc=$?; \
+                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\EFI\\Linux\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs_fb}\" 2>&1); rc=$?; \
                                  if [ $rc -ne 0 ]; then \
                                    echo \"WARNING: efibootmgr failed for {kernel} fallback NVRAM entry\"; \
                                    echo \"EFISTUB-DIAG: fallback efibootmgr rc=$rc kernel={kernel}\"; \
@@ -616,9 +708,9 @@ HOOK_EOF",
                                 initramfs_fb = ka.initramfs_fallback,
                             ));
                         }
+                        efi_script.push_str(&first_arch_snippet);
                         efi_script.push_str(
-                            "first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{4}\\*/ && /Arch Linux/{print substr($1,5,4); exit}'); \
-                             if [ -n \"$first_arch\" ]; then \
+                            "if [ -n \"$first_arch\" ]; then \
                                current=$(efibootmgr | awk -F'BootOrder: ' '/BootOrder:/{print $2}' | tr -d ' \\r'); \
                                if [ -n \"$current\" ]; then \
                                  rest=$(echo \"$current\" | awk -F, -v id=\"$first_arch\" '{out=\"\"; for(i=1;i<=NF;i++) if($i!=id) out=out (out?\",\":\"\") $i; print out}'); \
