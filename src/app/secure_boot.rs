@@ -4,6 +4,8 @@ use std::process::Command;
 
 const SECURE_BOOT_EFIVAR: &str =
     "/sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c";
+const SETUP_MODE_EFIVAR: &str =
+    "/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c";
 
 impl AppState {
     /// Detect Secure Boot from EFI variable storage. Safe to call repeatedly.
@@ -24,12 +26,16 @@ impl AppState {
             return;
         }
         ensure_efivarfs_mounted();
-        if let Some(v) = read_secure_boot_efivar() {
+        self.secure_boot_setup_mode = read_efivar_bool(SETUP_MODE_EFIVAR).unwrap_or(false);
+        if self.secure_boot_setup_mode {
+            self.debug_log("secure_boot: firmware is in Setup Mode (no keys enrolled)");
+        }
+        if let Some(v) = read_efivar_bool(SECURE_BOOT_EFIVAR) {
             self.secure_boot_enabled = v;
             self.secure_boot_known = true;
             self.debug_log(&format!(
-                "secure_boot: detected from efivar secure_boot_enabled={}",
-                self.secure_boot_enabled
+                "secure_boot: detected from efivar secure_boot_enabled={} setup_mode={}",
+                self.secure_boot_enabled, self.secure_boot_setup_mode
             ));
             return;
         }
@@ -67,6 +73,8 @@ impl AppState {
     pub fn secure_boot_status_text(&self) -> &'static str {
         if self.is_secure_boot_enabled() {
             "Enabled"
+        } else if self.secure_boot_setup_mode {
+            "Disabled (Setup Mode - no keys enrolled)"
         } else if self.secure_boot_known {
             "Disabled"
         } else {
@@ -98,12 +106,12 @@ fn ensure_efivarfs_mounted() {
     }
 }
 
-fn read_secure_boot_efivar() -> Option<bool> {
-    if !Path::new(SECURE_BOOT_EFIVAR).exists() {
+fn read_efivar_bool(path: &str) -> Option<bool> {
+    if !Path::new(path).exists() {
         return None;
     }
     // EFI var format: first 4 bytes are attributes, payload starts at byte 4.
-    let bytes = std::fs::read(SECURE_BOOT_EFIVAR).ok()?;
+    let bytes = std::fs::read(path).ok()?;
     let value = *bytes.get(4)?;
     Some(value == 1)
 }

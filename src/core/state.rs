@@ -141,6 +141,8 @@ pub struct AppState {
     pub secure_boot_enabled: bool,
     /// True when Secure Boot status was detected confidently.
     pub secure_boot_known: bool,
+    /// True when the firmware is in UEFI Setup Mode (no keys enrolled).
+    pub secure_boot_setup_mode: bool,
     /// Optional test override for Secure Boot state.
     pub secure_boot_override: Option<bool>,
 
@@ -506,6 +508,7 @@ impl AppState {
             firmware_uefi_override: None,
             secure_boot_enabled: false,
             secure_boot_known: false,
+            secure_boot_setup_mode: false,
             secure_boot_override: None,
 
             kernels_focus_index: 0,
