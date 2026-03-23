@@ -333,6 +333,14 @@ fn bootloader_efistub_creates_efibootmgr_entry() {
         joined.contains("efibootmgr -b"),
         "should clean duplicate NVRAM entries before creating: {joined}"
     );
+    assert!(
+        joined.contains("efibootmgr -o"),
+        "EFISTUB should move Arch entry to front of BootOrder: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -n"),
+        "EFISTUB should set BootNext for immediate reboot reliability: {joined}"
+    );
 }
 
 #[test]
@@ -382,6 +390,14 @@ fn bootloader_limine_uefi_creates_conf_and_efibootmgr() {
     assert!(joined.contains("99-limine.hook"), "{joined}");
     assert!(joined.contains("efibootmgr --create"), "{joined}");
     assert!(joined.contains("Arch Linux Limine"), "{joined}");
+    assert!(
+        joined.contains("efibootmgr -o"),
+        "Limine UEFI should move new entry to front of BootOrder: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -n"),
+        "Limine UEFI should set BootNext for immediate reboot reliability: {joined}"
+    );
     assert!(
         joined.contains("EFI/BOOT/BOOTX64.EFI"),
         "should install to UEFI fallback path: {joined}"

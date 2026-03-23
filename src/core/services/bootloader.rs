@@ -268,6 +268,15 @@ HOOK_EOF"
                  PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
                  efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || \
                  echo 'WARNING: efibootmgr failed to create NVRAM entry; UEFI fallback path EFI/BOOT/BOOTX64.EFI is available'; \
+                 first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{{4}}\\*/ && /Arch Linux/{{print substr($1,5,4); exit}}'); \
+                 if [ -n \"$first_arch\" ]; then \
+                   current=$(efibootmgr | awk -F'BootOrder: ' '/BootOrder:/{{print $2}}' | tr -d ' \\r'); \
+                   if [ -n \"$current\" ]; then \
+                     rest=$(echo \"$current\" | awk -F, -v id=\"$first_arch\" '{{out=\"\"; for(i=1;i<=NF;i++) if($i!=id) out=out (out?\",\":\"\") $i; print out}}'); \
+                     efibootmgr -o \"$first_arch${{rest:+,$rest}}\" || true; \
+                     efibootmgr -n \"$first_arch\" || true; \
+                   fi; \
+                 fi; \
                  efibootmgr --verbose || true; \
                  fi"
             )));
@@ -476,7 +485,18 @@ HOOK_EOF",
                                 uki_fallback = ka.uki_fallback,
                             ));
                         }
-                        efi_script.push_str("efibootmgr --verbose || true; fi");
+                        efi_script.push_str(
+                            "first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{4}\\*/ && /Arch Linux/{print substr($1,5,4); exit}'); \
+                             if [ -n \"$first_arch\" ]; then \
+                               current=$(efibootmgr | awk -F'BootOrder: ' '/BootOrder:/{print $2}' | tr -d ' \\r'); \
+                               if [ -n \"$current\" ]; then \
+                                 rest=$(echo \"$current\" | awk -F, -v id=\"$first_arch\" '{out=\"\"; for(i=1;i<=NF;i++) if($i!=id) out=out (out?\",\":\"\") $i; print out}'); \
+                                 efibootmgr -o \"$first_arch${rest:+,$rest}\" || true; \
+                                 efibootmgr -n \"$first_arch\" || true; \
+                               fi; \
+                             fi; \
+                             efibootmgr --verbose || true; fi",
+                        );
                         cmds.push(chroot_cmd(&efi_script));
                     } else {
                         // Non-UKI: startup.nsh with FS-scanning loop (primary kernel only)
@@ -551,7 +571,18 @@ HOOK_EOF",
                                 initramfs_fb = ka.initramfs_fallback,
                             ));
                         }
-                        efi_script.push_str("efibootmgr --verbose || true; fi");
+                        efi_script.push_str(
+                            "first_arch=$(efibootmgr | awk '/^Boot[0-9A-Fa-f]{4}\\*/ && /Arch Linux/{print substr($1,5,4); exit}'); \
+                             if [ -n \"$first_arch\" ]; then \
+                               current=$(efibootmgr | awk -F'BootOrder: ' '/BootOrder:/{print $2}' | tr -d ' \\r'); \
+                               if [ -n \"$current\" ]; then \
+                                 rest=$(echo \"$current\" | awk -F, -v id=\"$first_arch\" '{out=\"\"; for(i=1;i<=NF;i++) if($i!=id) out=out (out?\",\":\"\") $i; print out}'); \
+                                 efibootmgr -o \"$first_arch${rest:+,$rest}\" || true; \
+                                 efibootmgr -n \"$first_arch\" || true; \
+                               fi; \
+                             fi; \
+                             efibootmgr --verbose || true; fi",
+                        );
                         cmds.push(chroot_cmd(&efi_script));
                     }
                 }
