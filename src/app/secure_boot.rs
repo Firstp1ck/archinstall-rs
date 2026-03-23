@@ -23,6 +23,7 @@ impl AppState {
             self.debug_log("secure_boot: host not in UEFI mode, secure_boot_enabled=false");
             return;
         }
+        ensure_efivarfs_mounted();
         if let Some(v) = read_secure_boot_efivar() {
             self.secure_boot_enabled = v;
             self.secure_boot_known = true;
@@ -85,6 +86,15 @@ impl AppState {
 
     pub fn is_uki_forced_for_efistub(&self) -> bool {
         self.bootloader_index == 2 && self.is_secure_boot_enabled()
+    }
+}
+
+fn ensure_efivarfs_mounted() {
+    let efivars = Path::new("/sys/firmware/efi/efivars");
+    if efivars.is_dir() && std::fs::read_dir(efivars).map_or(true, |mut d| d.next().is_none()) {
+        let _ = Command::new("mount")
+            .args(["-t", "efivarfs", "efivarfs", "/sys/firmware/efi/efivars"])
+            .output();
     }
 }
 
