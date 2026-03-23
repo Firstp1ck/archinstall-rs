@@ -5,9 +5,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 impl AppState {
-    #[allow(dead_code)]
+    /// Delegates to `update_unified_kernel_images_visibility` so the UKI menu matches the bootloader.
     pub fn init_unified_kernel_images(&mut self) {
-        // TODO(v0.3.0): Implement UKI generation plan and mkinitcpio/systemd-boot integration.
+        self.update_unified_kernel_images_visibility();
     }
 
     pub fn update_unified_kernel_images_visibility(&mut self) {
@@ -68,7 +68,7 @@ pub fn draw_unified_kernel_images(frame: &mut ratatui::Frame, app: &mut AppState
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
     let options = vec![(
-        "UKI (not implemented yet)",
+        "UKI",
         if app.uki_enabled {
             "Enabled"
         } else {

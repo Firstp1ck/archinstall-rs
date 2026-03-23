@@ -135,6 +135,16 @@ pub struct AppState {
     // Bootloader state
     pub bootloader_focus_index: usize, // 0: selector, 1: Continue
     pub bootloader_index: usize,       // 0: systemd-boot, 1: grub, 2: efistub, 3: limine
+    /// When `Some`, install code treats the host as UEFI or BIOS without probing `/sys/firmware/efi` (tests).
+    pub firmware_uefi_override: Option<bool>,
+    /// Secure Boot status detected at startup (or forced in tests via override).
+    pub secure_boot_enabled: bool,
+    /// True when Secure Boot status was detected confidently.
+    pub secure_boot_known: bool,
+    /// True when the firmware is in UEFI Setup Mode (no keys enrolled).
+    pub secure_boot_setup_mode: bool,
+    /// Optional test override for Secure Boot state.
+    pub secure_boot_override: Option<bool>,
 
     // Kernels state
     pub kernels_focus_index: usize, // 0: select, 1: Continue
@@ -495,6 +505,11 @@ impl AppState {
 
             bootloader_focus_index: 0,
             bootloader_index: 0,
+            firmware_uefi_override: None,
+            secure_boot_enabled: false,
+            secure_boot_known: false,
+            secure_boot_setup_mode: false,
+            secure_boot_override: None,
 
             kernels_focus_index: 0,
             selected_kernels: {

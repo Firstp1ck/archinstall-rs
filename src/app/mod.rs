@@ -22,6 +22,7 @@ pub mod mirrors;
 pub mod network_configuration;
 pub mod root_password;
 mod save_configuration;
+pub mod secure_boot;
 pub mod swap_partition;
 pub mod timezone;
 pub mod unified_kernel_images;

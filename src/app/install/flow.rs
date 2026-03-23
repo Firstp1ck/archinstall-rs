@@ -469,7 +469,10 @@ impl AppState {
         if self.disks_mode_index != 2 && self.disks_selected_device.is_none() {
             issues.push("Disk partitioning: target device is not selected.".into());
         }
-        if self.disks_mode_index == 2 && self.bootloader_index == 1 && !self.is_uefi() {
+        if self.disks_mode_index == 2
+            && (self.bootloader_index == 1 || self.bootloader_index == 3)
+            && !self.is_uefi()
+        {
             let from_mount = crate::core::services::bootloader::BootloaderService::disk_for_block_device_behind_mnt_root();
             let from_ui = self
                 .disks_selected_device
@@ -477,9 +480,10 @@ impl AppState {
                 .filter(|s| !s.is_empty());
             if from_mount.is_none() && from_ui.is_none() {
                 issues.push(
-                    "Pre-mounted mode with BIOS GRUB needs a whole-disk device for grub-install: \
-                     either mount root at /mnt on a resolvable block device (findmnt/lsblk), \
-                     or pick a target disk on the Disks screen."
+                    "Pre-mounted mode with BIOS GRUB or Limine needs a whole-disk device for the \
+                     bootloader (grub-install / limine bios-install): either mount root at /mnt on \
+                     a resolvable block device (findmnt/lsblk), or pick a target disk on the Disks \
+                     screen."
                         .into(),
                 );
             }
@@ -487,6 +491,31 @@ impl AppState {
         if self.bootloader_index == 0 && !self.is_uefi() {
             issues.push(
                 "systemd-boot requires UEFI firmware. In BIOS/legacy mode, choose GRUB.".into(),
+            );
+        }
+        if self.bootloader_index == 2 && !self.is_uefi() {
+            issues.push(
+                "Efistub (experimental) requires UEFI firmware. In BIOS/legacy mode, choose GRUB or Limine."
+                    .into(),
+            );
+        }
+        if self.bootloader_index == 2
+            && self.is_uefi()
+            && !self.uki_enabled
+            && let Ok(sp) = StoragePlanner::compile(self)
+            && sp.esp_chroot_mountpoint() == "/efi"
+        {
+            issues.push(
+                "Efistub (experimental) without UKI requires the ESP mounted at /boot (kernel files must \
+                 reside on the ESP). Either mount the ESP at /boot, or enable Unified Kernel Images."
+                    .into(),
+            );
+        }
+        if self.bootloader_index == 2 && self.is_secure_boot_enabled() && !self.uki_enabled {
+            issues.push(
+                "Secure Boot with Efistub (experimental) requires Unified Kernel Images (UKI). \
+                 Enable UKI or disable Secure Boot."
+                    .into(),
             );
         }
 
@@ -745,6 +774,9 @@ impl AppState {
     }
 
     pub(crate) fn is_uefi(&self) -> bool {
+        if let Some(v) = self.firmware_uefi_override {
+            return v;
+        }
         std::path::Path::new("/sys/firmware/efi").exists()
     }
 

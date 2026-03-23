@@ -131,6 +131,8 @@ fn run_loop_with_debug(
     );
     let mut app = AppState::new(dry_run);
     app.debug_enabled = debug_enabled;
+    app.detect_secure_boot_state();
+    app.apply_secure_boot_uki_policy();
     debug_log(
         debug_enabled,
         "run_loop_with_debug: entering run_loop_inner",

@@ -647,6 +647,8 @@ impl AppState {
 
         // Unified Kernel Images
         self.uki_enabled = cfg.unified_kernel_images.enabled;
+        self.update_unified_kernel_images_visibility();
+        self.apply_secure_boot_uki_policy();
 
         // Kernels
         self.selected_kernels = cfg.kernels.selected.into_iter().collect();

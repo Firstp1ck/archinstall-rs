@@ -178,7 +178,7 @@ pub fn draw_install(frame: &mut ratatui::Frame, app: &mut AppState, area: Rect) 
         match app.bootloader_index {
             0 => "systemd-boot",
             1 => "grub",
-            2 => "efistub",
+            2 => crate::app::bootloader::EFISTUB_SLUG_LABEL,
             _ => "limine",
         }
     )];

@@ -5,13 +5,14 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 use crate::app::AppState;
+use crate::app::bootloader::EFISTUB_MENU_LABEL;
 
 pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     let bl = match app.bootloader_index {
         0 => "Systemd-boot",
         1 => "Grub",
-        2 => "Efistub (not implemented yet)",
-        _ => "Limine (not implemented yet)",
+        2 => EFISTUB_MENU_LABEL,
+        _ => "Limine",
     };
     let info_lines = vec![
         Line::from(Span::styled(
@@ -21,6 +22,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(format!("Bootloader: {bl}")),
+        Line::from(format!("Secure Boot: {}", app.secure_boot_status_text())),
     ];
 
     let mut desc_lines = vec![Line::from(Span::styled(
@@ -30,6 +32,26 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             .add_modifier(Modifier::BOLD),
     ))];
     desc_lines.push(Line::from("A bootloader is a program that starts at system boot, loading the Operating System kernel and initializing hardware. Systemd-boot is simple, UEFI-only, and uses separate text files for each boot entry, making it easy to maintain, but offers minimal features and customization. GRUB2 is more complex, working on both BIOS and UEFI, supporting advanced features, graphical menus, multi-OS setups, and custom scripts, making it ideal for diverse or complex boot needs. Limine is a modern, lightweight bootloader supporting both UEFI and legacy BIOS. It uses a simple limine.conf, supports multiple kernels, and works well for straightforward Arch setups with or without disk encryption."));
+    desc_lines.push(Line::from(
+        "Efistub (experimental, UEFI only) registers the kernel or a UKI directly with the firmware. Some firmware ignores cmdline options for direct kernel boot; use Unified Kernel Images in that case.",
+    ));
+    if app.bootloader_index == 2 && !app.uki_enabled {
+        desc_lines.push(Line::from(Span::styled(
+            "Note: Without UKI, Efistub has no UEFI standard fallback path (EFI/BOOT/BOOTX64.EFI). Consider enabling Unified Kernel Images for maximum firmware compatibility.",
+            Style::default().fg(Color::Yellow),
+        )));
+    }
+    if app.bootloader_index == 2 {
+        let msg = if app.is_secure_boot_enabled() {
+            "Recommendation: Efistub (experimental) should use UKI. Secure Boot is enabled, so UKI is required."
+        } else {
+            "Recommendation: Efistub (experimental) should use UKI for better firmware compatibility. Secure Boot also requires UKI when enabled."
+        };
+        desc_lines.push(Line::from(Span::styled(
+            msg,
+            Style::default().fg(Color::Yellow),
+        )));
+    }
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

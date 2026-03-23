@@ -7,11 +7,12 @@ The installer is still under active development. Treat destructive operations (p
 - 64-bit x86_64 systems
 - UEFI and BIOS
 - Best-effort partitioning and simple manual partitioning
-- Bootloaders: GRUB and systemd-boot only
+- Bootloaders: systemd-boot, GRUB, EFISTUB (UEFI), and Limine (UEFI/BIOS)
 - Network: NetworkManager and “copy ISO network” (systemd-networkd / resolved on target)
 - Experience mode: “Desktop environment” is the primary path (NetworkManager-related constraints)
 - LUKS on automatic / best-effort btrfs layouts (still experimental)
-- Not yet: custom servers/repos in the sense advertised as complete, unified kernel images / Secure Boot
+- Unified kernel images (UKI): mkinitcpio preset, `/etc/kernel/cmdline`, and bootloader paths for systemd-boot, EFISTUB, and Limine when UKI is enabled (not GRUB). Extra kernels beyond `linux` still use a single default UKI/boot entry set.
+- Not yet: custom servers/repos in the sense advertised as complete, Secure Boot signing
 
 ## Known issue: log view at end of install
 

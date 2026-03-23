@@ -245,6 +245,11 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
         joined.contains("rootdev=\"${rootdev%%"),
         "should strip btrfs subvolume suffix from findmnt: {joined}"
     );
+    // No double bash -lc nesting
+    assert!(
+        !joined.contains("bash -lc 'bash -lc"),
+        "loader.conf should not have double bash -lc nesting: {joined}"
+    );
 }
 
 #[test]
@@ -291,4 +296,546 @@ fn bootloader_grub_luks_injects_cmdline() {
     assert!(joined.contains("grub-install"), "{joined}");
     assert!(joined.contains("GRUB_CMDLINE_LINUX"), "{joined}");
     assert!(joined.contains("grub-mkconfig"), "{joined}");
+}
+
+#[test]
+fn bootloader_efistub_creates_efibootmgr_entry() {
+    let mut state = make_state(); // UEFI
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(joined.contains("vmlinuz-linux"), "{joined}");
+    assert!(joined.contains("initramfs-linux.img"), "{joined}");
+    assert!(joined.contains("initramfs-linux-fallback.img"), "{joined}");
+    assert!(joined.contains("efibootmgr --verbose"), "{joined}");
+    assert!(
+        joined.contains("rootdev=\"${rootdev%%"),
+        "shared cmdline script should strip btrfs suffix: {joined}"
+    );
+    assert!(
+        joined.contains("startup.nsh"),
+        "non-UKI EFISTUB should write startup.nsh for firmware without persistent NVRAM: {joined}"
+    );
+    assert!(
+        joined.contains("99-efistub-direct.hook"),
+        "non-UKI EFISTUB should install pacman hook to refresh startup.nsh: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -b"),
+        "should clean duplicate NVRAM entries before creating: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -o"),
+        "EFISTUB should move Arch entry to front of BootOrder: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -n"),
+        "EFISTUB should set BootNext for immediate reboot reliability: {joined}"
+    );
+    assert!(
+        joined.contains("EFISTUB-DIAG:"),
+        "EFISTUB plan should emit diagnostics for NVRAM/path debugging: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_efistub_luks_uses_shared_cmdline() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 2; // EFISTUB
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "encrypted EFISTUB should use same LUKS cmdline as systemd-boot: {joined}"
+    );
+    assert!(
+        joined.contains("startup.nsh"),
+        "encrypted non-UKI EFISTUB should still write startup.nsh: {joined}"
+    );
+}
+
+#[test]
+fn secure_boot_efistub_auto_enables_uki_policy() {
+    let mut state = make_state();
+    state.bootloader_index = 2; // EFISTUB
+    state.uki_enabled = false;
+    state.secure_boot_override = Some(true);
+    state.apply_secure_boot_uki_policy();
+    assert!(
+        state.uki_enabled,
+        "Secure Boot policy should force UKI for EFISTUB"
+    );
+}
+
+#[test]
+fn secure_boot_override_clears_stale_setup_mode_for_status_text() {
+    let mut state = make_state();
+    state.secure_boot_setup_mode = true;
+    state.secure_boot_override = Some(false);
+    state.detect_secure_boot_state();
+    assert!(
+        !state.secure_boot_setup_mode,
+        "override should not leave setup_mode from an earlier detection"
+    );
+    assert_eq!(
+        state.secure_boot_status_text(),
+        "Disabled",
+        "status text should follow override, not stale Setup Mode"
+    );
+}
+
+#[test]
+fn secure_boot_efistub_build_plan_uses_uki_even_if_toggle_was_off() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    state.uki_enabled = false; // simulate stale config before policy
+    state.secure_boot_override = Some(true);
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("EFI/Linux/arch-linux.efi"),
+        "Secure Boot EFISTUB should use UKI EFI loader path: {joined}"
+    );
+    assert!(
+        !joined.contains("startup.nsh"),
+        "Secure Boot EFISTUB should avoid non-UKI startup.nsh path: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_limine_uefi_creates_conf_and_efibootmgr() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3; // Limine
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("protocol: linux"), "{joined}");
+    assert!(joined.contains("BOOTX64.EFI"), "{joined}");
+    assert!(joined.contains("99-limine.hook"), "{joined}");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(joined.contains("Arch Linux Limine"), "{joined}");
+    assert!(
+        joined.contains("efibootmgr -o"),
+        "Limine UEFI should move new entry to front of BootOrder: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -n"),
+        "Limine UEFI should set BootNext for immediate reboot reliability: {joined}"
+    );
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "should install to UEFI fallback path: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_limine_bios_installs_and_creates_conf() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(false);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("limine-bios.sys"), "{joined}");
+    assert!(joined.contains("limine bios-install"), "{joined}");
+    assert!(
+        !joined.contains("99-limine.hook"),
+        "BIOS path should not install EFI pacman hook: {joined}"
+    );
+}
+
+#[test]
+fn bootloader_limine_luks_cmdline() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.disk_encryption_type_index = 1; // LUKS
+    state.bootloader_index = 3;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("luks plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("limine.conf"), "{joined}");
+    assert!(
+        joined.contains("rd.luks.name=") || joined.contains("cryptdevice=UUID="),
+        "encrypted Limine should reuse LUKS cmdline script: {joined}"
+    );
+}
+
+#[test]
+fn uki_pacstrap_includes_systemd_ukify_when_enabled() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 0; // systemd-boot
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("systemd-ukify"),
+        "UKI requires systemd-ukify in pacstrap: {joined}"
+    );
+}
+
+#[test]
+fn uki_pacstrap_omits_systemd_ukify_for_grub() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 1; // GRUB — UKI not integrated
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+    assert!(
+        !joined.contains("systemd-ukify"),
+        "GRUB path should not pull in systemd-ukify: {joined}"
+    );
+}
+
+#[test]
+fn uki_sysconfig_writes_cmdline_and_preset() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 0;
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("/etc/kernel/cmdline"),
+        "UKI needs /etc/kernel/cmdline before mkinitcpio: {joined}"
+    );
+    assert!(
+        joined.contains("mkinitcpio.d/linux.preset"),
+        "UKI should patch linux.preset: {joined}"
+    );
+    assert!(
+        joined.contains("default_uki=") && joined.contains("/boot/EFI/Linux/arch-linux.efi"),
+        "{joined}"
+    );
+    assert!(
+        joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"),
+        "{joined}"
+    );
+}
+
+#[test]
+fn uki_sysconfig_runs_mkinitcpio_without_encryption() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 2; // EFISTUB
+    state.disk_encryption_type_index = 0; // none
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("out=$(mkinitcpio -P 2>&1); rc=$?;"),
+        "UKI must run mkinitcpio even without LUKS: {joined}"
+    );
+    assert!(
+        !joined.contains("block sd-encrypt") && !joined.contains("block encrypt"),
+        "non-encrypted UKI must not inject encrypt hooks: {joined}"
+    );
+}
+
+#[test]
+fn uki_systemd_boot_uses_efi_path() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 0;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("efi     /EFI/Linux/arch-linux.efi"),
+        "systemd-boot UKI entries use efi path: {joined}"
+    );
+    assert!(
+        !joined.contains("linux   /vmlinuz-linux"),
+        "UKI entries should not use a separate linux line: {joined}"
+    );
+}
+
+#[test]
+fn uki_efistub_points_to_uki_loader() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 2;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("arch-linux.efi") && joined.contains("EFI"),
+        "EFISTUB UKI should register the combined UKI path: {joined}"
+    );
+    assert!(
+        !joined.contains("vmlinuz-linux"),
+        "EFISTUB UKI should not register raw vmlinuz: {joined}"
+    );
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "EFISTUB UKI should install UEFI fallback copy: {joined}"
+    );
+    assert!(
+        joined.contains("99-efistub-uki-fallback.hook"),
+        "EFISTUB UKI should install pacman hook to refresh fallback: {joined}"
+    );
+}
+
+#[test]
+fn uki_limine_uses_efi_protocol() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 3;
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("protocol: efi"), "{joined}");
+    assert!(joined.contains("/EFI/Linux/arch-linux.efi"), "{joined}");
+}
+
+/// Pre-mounted install flow passes an empty partition target; EFISTUB still resolves ESP via `findmnt /boot`.
+#[test]
+fn pre_mounted_efistub_empty_target_still_generates_efibootmgr() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2;
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, "", &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("efibootmgr --create"),
+        "EFISTUB must not depend on a whole-disk target string: {joined}"
+    );
+    assert!(joined.contains("vmlinuz-linux"), "{joined}");
+    assert!(
+        joined.contains("startup.nsh"),
+        "pre-mounted non-UKI EFISTUB should still write startup.nsh: {joined}"
+    );
+}
+
+/// Same as pre-mounted: Limine UEFI uses `findmnt` + `efibootmgr`, not the partition-target disk string.
+#[test]
+fn pre_mounted_limine_uefi_empty_target_still_installs() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3;
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan =
+        ai::core::services::bootloader::BootloaderService::build_plan(&state, "", &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(joined.contains("/boot/limine.conf"), "{joined}");
+    assert!(joined.contains("efibootmgr --create"), "{joined}");
+    assert!(
+        joined.contains("EFI/BOOT/BOOTX64.EFI"),
+        "should install to UEFI fallback path: {joined}"
+    );
+}
+
+// ── Multi-kernel tests ──
+
+#[test]
+fn multi_kernel_efistub_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "EFISTUB should create entry for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux'") || joined.contains("vmlinuz-linux\\"),
+        "EFISTUB should also have entry for linux: {joined}"
+    );
+    assert!(
+        joined.contains("initramfs-linux-lts.img"),
+        "EFISTUB should reference linux-lts initramfs: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_systemd_boot_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 0; // systemd-boot
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("arch-linux-lts.conf"),
+        "systemd-boot should create conf for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("arch.conf") || joined.contains("arch-fallback.conf"),
+        "systemd-boot should still have linux entries: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "systemd-boot should reference linux-lts kernel: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_limine_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3; // Limine
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "Limine should have entry for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux"),
+        "Limine should also have entry for linux: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_sysconfig_uki_patches_all_presets() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 0;
+    state.selected_kernels.insert("linux-lts".into());
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("linux.preset"),
+        "UKI should patch linux.preset: {joined}"
+    );
+    assert!(
+        joined.contains("linux-lts.preset"),
+        "UKI should patch linux-lts.preset: {joined}"
+    );
+    assert!(
+        joined.contains("arch-linux-lts.efi"),
+        "UKI should reference linux-lts UKI filename: {joined}"
+    );
+}
+
+#[test]
+fn kernel_artifacts_returns_correct_names() {
+    let ka = ai::core::services::bootloader::kernel_artifacts("linux");
+    assert_eq!(ka.vmlinuz, "vmlinuz-linux");
+    assert_eq!(ka.initramfs, "initramfs-linux.img");
+    assert_eq!(ka.initramfs_fallback, "initramfs-linux-fallback.img");
+    assert_eq!(ka.uki_default, "arch-linux.efi");
+    assert_eq!(ka.uki_fallback, "arch-linux-fallback.efi");
+    assert_eq!(ka.preset, "linux.preset");
+
+    let ka_lts = ai::core::services::bootloader::kernel_artifacts("linux-lts");
+    assert_eq!(ka_lts.vmlinuz, "vmlinuz-linux-lts");
+    assert_eq!(ka_lts.initramfs, "initramfs-linux-lts.img");
+    assert_eq!(ka_lts.uki_default, "arch-linux-lts.efi");
+    assert_eq!(ka_lts.preset, "linux-lts.preset");
 }
