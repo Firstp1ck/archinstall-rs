@@ -341,6 +341,10 @@ fn bootloader_efistub_creates_efibootmgr_entry() {
         joined.contains("efibootmgr -n"),
         "EFISTUB should set BootNext for immediate reboot reliability: {joined}"
     );
+    assert!(
+        joined.contains("EFISTUB-DIAG:"),
+        "EFISTUB plan should emit diagnostics for NVRAM/path debugging: {joined}"
+    );
 }
 
 #[test]

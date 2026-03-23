@@ -568,7 +568,14 @@ HOOK_EOF",
                              OPTS=$({boot_options_script}); \
                              BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); "
+                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
+                             echo \"EFISTUB-DIAG: esp={esp} bootsrc=$BOOTSRC disk=/dev/$DISK part=$PART\"; \
+                             if [ -z \"$BOOTSRC\" ] || [ -z \"$DISK\" ] || [ -z \"$PART\" ]; then \
+                               echo 'EFISTUB-DIAG: failed to resolve ESP source/disk/partition from findmnt/lsblk'; \
+                               findmnt -no SOURCE {esp} || true; \
+                               lsblk -f || true; \
+                             fi; \
+                             ls -l {esp}/EFI/Linux 2>/dev/null || echo 'EFISTUB-DIAG: EFI/Linux missing or unreadable'; "
                         );
                         let ucode_efi = ucode
                             .map(|u| format!("initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{u} "))
@@ -581,10 +588,23 @@ HOOK_EOF",
                                 format!(" ({kernel})")
                             };
                             efi_script.push_str(&format!(
-                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs}\" || \
-                                 echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
-                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs_fb}\" || \
-                                 echo \"WARNING: efibootmgr failed for {kernel} fallback NVRAM entry\"; ",
+                                "for req in {vmlinuz} {initramfs} {initramfs_fb}; do \
+                                   if [ ! -f {esp}/EFI/Linux/$req ]; then \
+                                     echo \"EFISTUB-DIAG: missing ESP artifact {esp}/EFI/Linux/$req\"; \
+                                   fi; \
+                                 done; \
+                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs}\" 2>&1); rc=$?; \
+                                 if [ $rc -ne 0 ]; then \
+                                   echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
+                                   echo \"EFISTUB-DIAG: primary efibootmgr rc=$rc kernel={kernel}\"; \
+                                   echo \"$out\"; \
+                                 fi; \
+                                 out=$(efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs_fb}\" 2>&1); rc=$?; \
+                                 if [ $rc -ne 0 ]; then \
+                                   echo \"WARNING: efibootmgr failed for {kernel} fallback NVRAM entry\"; \
+                                   echo \"EFISTUB-DIAG: fallback efibootmgr rc=$rc kernel={kernel}\"; \
+                                   echo \"$out\"; \
+                                 fi; ",
                                 vmlinuz = ka.vmlinuz,
                                 initramfs = ka.initramfs,
                                 initramfs_fb = ka.initramfs_fallback,
@@ -600,7 +620,13 @@ HOOK_EOF",
                                  efibootmgr -n \"$first_arch\" || true; \
                                fi; \
                              fi; \
-                             efibootmgr --verbose || true; fi",
+                             efibootmgr --verbose || true; \
+                             else \
+                             echo 'WARNING: efivarfs unavailable; skipping EFISTUB NVRAM entry creation'; \
+                             echo 'EFISTUB-DIAG: /sys/firmware/efi state and mounts follow'; \
+                             ls -ld /sys/firmware/efi /sys/firmware/efi/efivars 2>/dev/null || true; \
+                             mount | grep -i efivarfs || true; \
+                             fi",
                         );
                         cmds.push(chroot_cmd(&efi_script));
                     }
