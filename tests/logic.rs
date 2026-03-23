@@ -380,7 +380,10 @@ fn secure_boot_efistub_auto_enables_uki_policy() {
     state.uki_enabled = false;
     state.secure_boot_override = Some(true);
     state.apply_secure_boot_uki_policy();
-    assert!(state.uki_enabled, "Secure Boot policy should force UKI for EFISTUB");
+    assert!(
+        state.uki_enabled,
+        "Secure Boot policy should force UKI for EFISTUB"
+    );
 }
 
 #[test]

@@ -28,14 +28,16 @@ impl AppState {
     }
 
     pub fn is_secure_boot_enabled(&self) -> bool {
-        self.secure_boot_override.unwrap_or(self.secure_boot_enabled)
+        self.secure_boot_override
+            .unwrap_or(self.secure_boot_enabled)
     }
 
     /// Enforce UKI when EFISTUB is selected under Secure Boot.
     pub fn apply_secure_boot_uki_policy(&mut self) {
         if self.bootloader_index == 2 && self.is_secure_boot_enabled() && !self.uki_enabled {
             self.uki_enabled = true;
-            self.info_message = "Secure Boot detected: UKI enabled automatically for EFISTUB.".into();
+            self.info_message =
+                "Secure Boot detected: UKI enabled automatically for EFISTUB.".into();
             self.debug_log("secure_boot policy: forced uki_enabled=true for EFISTUB");
         }
     }
