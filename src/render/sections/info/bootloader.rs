@@ -21,6 +21,14 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(format!("Bootloader: {bl}")),
+        Line::from(format!(
+            "Secure Boot: {}",
+            if app.is_secure_boot_enabled() {
+                "Enabled"
+            } else {
+                "Disabled/Unknown"
+            }
+        )),
     ];
 
     let mut desc_lines = vec![Line::from(Span::styled(
@@ -36,6 +44,17 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     if app.bootloader_index == 2 && !app.uki_enabled {
         desc_lines.push(Line::from(Span::styled(
             "Note: Without UKI, EFISTUB has no UEFI standard fallback path (EFI/BOOT/BOOTX64.EFI). Consider enabling Unified Kernel Images for maximum firmware compatibility.",
+            Style::default().fg(Color::Yellow),
+        )));
+    }
+    if app.bootloader_index == 2 {
+        let msg = if app.is_secure_boot_enabled() {
+            "Recommendation: EFISTUB should use UKI. Secure Boot is enabled, so UKI is required."
+        } else {
+            "Recommendation: EFISTUB should use UKI for better firmware compatibility. Secure Boot also requires UKI when enabled."
+        };
+        desc_lines.push(Line::from(Span::styled(
+            msg,
             Style::default().fg(Color::Yellow),
         )));
     }
