@@ -13,6 +13,42 @@ impl BootloaderPlan {
     }
 }
 
+/// Derived filenames for a kernel package (e.g. `linux`, `linux-lts`).
+pub struct KernelArtifacts {
+    pub vmlinuz: String,
+    pub initramfs: String,
+    pub initramfs_fallback: String,
+    pub uki_default: String,
+    pub uki_fallback: String,
+    pub preset: String,
+}
+
+pub fn kernel_artifacts(pkg: &str) -> KernelArtifacts {
+    KernelArtifacts {
+        vmlinuz: format!("vmlinuz-{pkg}"),
+        initramfs: format!("initramfs-{pkg}.img"),
+        initramfs_fallback: format!("initramfs-{pkg}-fallback.img"),
+        uki_default: format!("arch-{pkg}.efi"),
+        uki_fallback: format!("arch-{pkg}-fallback.efi"),
+        preset: format!("{pkg}.preset"),
+    }
+}
+
+/// Detect CPU microcode from `/proc/cpuinfo`.
+/// Returns the `.img` filename (e.g. `"intel-ucode.img"`) or `None` when
+/// the CPU vendor is unrecognised or `/proc/cpuinfo` is unavailable (dry-run / CI).
+pub(crate) fn detect_microcode() -> Option<&'static str> {
+    let cpuinfo = std::fs::read_to_string("/proc/cpuinfo").ok()?;
+    let lower = cpuinfo.to_lowercase();
+    if cpuinfo.contains("GenuineIntel") || lower.contains("intel") {
+        Some("intel-ucode.img")
+    } else if cpuinfo.contains("AuthenticAMD") || lower.contains("amd") {
+        Some("amd-ucode.img")
+    } else {
+        None
+    }
+}
+
 pub struct BootloaderService;
 
 impl BootloaderService {
@@ -149,6 +185,7 @@ impl BootloaderService {
         state: &AppState,
         device: &str,
         boot_options_script: &str,
+        esp: &str,
     ) -> Vec<String> {
         fn chroot_cmd(inner: &str) -> String {
             let escaped = inner.replace("'", "'\\''");
@@ -156,47 +193,51 @@ impl BootloaderService {
         }
         let mut out: Vec<String> = Vec::new();
         let uki = Self::uki_requested(state);
+        let ucode = detect_microcode();
+
         if uki {
-            out.push(chroot_cmd(
-                "cat > /boot/limine.conf <<'LIMINEOF'\n\
-timeout: 5\n\
-\n\
-/Arch Linux\n\
-    protocol: efi\n\
-    path: boot():/EFI/Linux/arch-linux.efi\n\
-\n\
-/Arch Linux (fallback UKI)\n\
-    protocol: efi\n\
-    path: boot():/EFI/Linux/arch-linux-fallback.efi\n\
-LIMINEOF",
-            ));
+            // Build UKI limine.conf entries for each selected kernel
+            let mut conf = format!("cat > {esp}/limine.conf <<'LIMINEOF'\ntimeout: 5\n");
+            for kernel in state.selected_kernels.iter() {
+                let ka = kernel_artifacts(kernel);
+                let suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                conf.push_str(&format!(
+                    "\n/Arch Linux{suffix}\n    protocol: efi\n    path: boot():/EFI/Linux/{uki_default}\n\
+                     \n/Arch Linux{suffix} (fallback UKI)\n    protocol: efi\n    path: boot():/EFI/Linux/{uki_fallback}\n",
+                    uki_default = ka.uki_default,
+                    uki_fallback = ka.uki_fallback,
+                ));
+            }
+            conf.push_str("LIMINEOF");
+            out.push(chroot_cmd(&conf));
         } else {
-            out.push(chroot_cmd(&format!(
-                "OPTS=$({boot_options_script}); cat > /boot/limine.conf <<LIMINEOF\n\
-timeout: 5\n\
-\n\
-/Arch Linux\n\
-    protocol: linux\n\
-    path: boot():/vmlinuz-linux\n\
-    cmdline: $OPTS\n\
-    module_path: boot():/initramfs-linux.img\n\
-\n\
-/Arch Linux (fallback initramfs)\n\
-    protocol: linux\n\
-    path: boot():/vmlinuz-linux\n\
-    cmdline: $OPTS\n\
-    module_path: boot():/initramfs-linux-fallback.img\n\
-LIMINEOF"
-            )));
+            // Build non-UKI limine.conf entries for each selected kernel
+            let mut conf = format!("OPTS=$({boot_options_script}); cat > {esp}/limine.conf <<LIMINEOF\ntimeout: 5\n");
+            for kernel in state.selected_kernels.iter() {
+                let ka = kernel_artifacts(kernel);
+                let suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                let ucode_line = ucode
+                    .map(|u| format!("    module_path: boot():/{u}\n"))
+                    .unwrap_or_default();
+                conf.push_str(&format!(
+                    "\n/Arch Linux{suffix}\n    protocol: linux\n    path: boot():/{vmlinuz}\n    cmdline: $OPTS\n{ucode_line}    module_path: boot():/{initramfs}\n\
+                     \n/Arch Linux{suffix} (fallback initramfs)\n    protocol: linux\n    path: boot():/{vmlinuz}\n    cmdline: $OPTS\n{ucode_line}    module_path: boot():/{initramfs_fb}\n",
+                    vmlinuz = ka.vmlinuz,
+                    initramfs = ka.initramfs,
+                    initramfs_fb = ka.initramfs_fallback,
+                ));
+            }
+            conf.push_str("LIMINEOF");
+            out.push(chroot_cmd(&conf));
         }
         if state.is_uefi() {
-            out.push(chroot_cmd(
-                "install -d -m 0755 /boot/EFI/limine && \
-                 install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI && \
-                 install -d -m 0755 /boot/EFI/BOOT && \
-                 install -m 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI",
-            ));
-            out.push(chroot_cmd(
+            out.push(chroot_cmd(&format!(
+                "install -d -m 0755 {esp}/EFI/limine && \
+                 install -m 0644 /usr/share/limine/BOOTX64.EFI {esp}/EFI/limine/BOOTX64.EFI && \
+                 install -d -m 0755 {esp}/EFI/BOOT && \
+                 install -m 0644 /usr/share/limine/BOOTX64.EFI {esp}/EFI/BOOT/BOOTX64.EFI"
+            )));
+            out.push(chroot_cmd(&format!(
                 "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-limine.hook <<HOOK_EOF\n\
 [Trigger]\n\
 Operation = Install\n\
@@ -207,23 +248,23 @@ Target = limine\n\
 [Action]\n\
 Description = Sync Limine EFI binary after package upgrade\n\
 When = PostTransaction\n\
-Exec = /bin/sh -c \"/usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/limine/BOOTX64.EFI && /usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI /boot/EFI/BOOT/BOOTX64.EFI\"\n\
-HOOK_EOF",
-            ));
-            out.push(chroot_cmd(
+Exec = /bin/sh -c \"/usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI {esp}/EFI/limine/BOOTX64.EFI && /usr/bin/install -Dm 0644 /usr/share/limine/BOOTX64.EFI {esp}/EFI/BOOT/BOOTX64.EFI\"\n\
+HOOK_EOF"
+            )));
+            out.push(chroot_cmd(&format!(
                 "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-                 BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                 BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                  DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
                  PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
                  efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || \
                  echo 'WARNING: efibootmgr failed to create NVRAM entry; UEFI fallback path EFI/BOOT/BOOTX64.EFI is available'; \
                  efibootmgr --verbose || true; \
-                 fi",
-            ));
+                 fi"
+            )));
         } else {
-            out.push(chroot_cmd(
-                "install -d -m 0755 /boot/limine && install -m 0644 /usr/share/limine/limine-bios.sys /boot/limine/limine-bios.sys",
-            ));
+            out.push(chroot_cmd(&format!(
+                "install -d -m 0755 {esp}/limine && install -m 0644 /usr/share/limine/limine-bios.sys {esp}/limine/limine-bios.sys"
+            )));
             let disk = device.trim();
             if !disk.is_empty() {
                 out.push(chroot_cmd(&format!("limine bios-install {disk}")));
@@ -245,59 +286,95 @@ HOOK_EOF",
             format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
 
+        let esp = storage_plan.esp_chroot_mountpoint();
+
         state.debug_log(&format!(
-            "bootloader: build_plan start (uefi={}, bootloader_index={}, device={}, encrypted={})",
+            "bootloader: build_plan start (uefi={}, bootloader_index={}, device={}, encrypted={}, esp={})",
             state.is_uefi(),
             state.bootloader_index,
             device,
-            encrypted
+            encrypted,
+            esp
         ));
 
         let boot_options_script = Self::boot_options_script(encrypted);
         let uki = Self::uki_requested(state);
+        let ucode = detect_microcode();
+
+        // Shell snippet to delete stale "Arch Linux" NVRAM entries before creating new ones
+        let nvram_cleanup = "for bootnum in $(efibootmgr 2>/dev/null | grep -i 'Arch Linux' | awk '\"'\"'{print $1}'\"'\"' | sed 's/Boot//;s/\\*//'); do \
+                             efibootmgr -b \"$bootnum\" -B 2>/dev/null || true; done";
 
         match state.bootloader_index {
             // 0: systemd-boot
             0 => {
-                cmds.push(chroot_cmd(
-                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 30s bootctl --no-pager install --no-variables --esp-path=/boot --boot-path=/boot",
-                ));
+                cmds.push(chroot_cmd(&format!(
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 30s bootctl --no-pager install --no-variables --esp-path={esp} --boot-path={esp}"
+                )));
 
-                cmds.push(chroot_cmd(
-                    "install -d -m 0755 /boot/loader && install -d -m 0755 /boot/loader/entries",
-                ));
-                cmds.push(chroot_cmd(
-                    "bash -lc 'cat > /boot/loader/loader.conf <<EOF\ndefault  arch.conf\ntimeout  4\nconsole-mode auto\neditor   no\nEOF'",
-                ));
+                cmds.push(chroot_cmd(&format!(
+                    "install -d -m 0755 {esp}/loader && install -d -m 0755 {esp}/loader/entries"
+                )));
 
-                if uki {
-                    cmds.push(chroot_cmd(
-                        "cat > /boot/loader/entries/arch.conf <<'EOF'\ntitle   Arch Linux\nefi     /EFI/Linux/arch-linux.efi\nEOF",
-                    ));
-                    cmds.push(chroot_cmd(
-                        "cat > /boot/loader/entries/arch-fallback.conf <<'EOF'\ntitle   Arch Linux (fallback UKI)\nefi     /EFI/Linux/arch-linux-fallback.efi\nEOF",
-                    ));
+                // First kernel determines the default entry name
+                let first_kernel = state.selected_kernels.iter().next().cloned().unwrap_or_else(|| "linux".into());
+                let default_conf = if first_kernel == "linux" {
+                    "arch.conf".to_string()
                 } else {
-                    cmds.push(chroot_cmd(&format!(
-                        "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch.conf <<EOF\ntitle   Arch Linux\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux.img\noptions $OPTS\nEOF"
-                    )));
-                    cmds.push(chroot_cmd(&format!(
-                        "OPTS=$({boot_options_script}); cat > /boot/loader/entries/arch-fallback.conf <<EOF\ntitle   Arch Linux (fallback initramfs)\nlinux   /vmlinuz-linux\ninitrd  /initramfs-linux-fallback.img\noptions $OPTS\nEOF"
-                    )));
+                    format!("arch-{first_kernel}.conf")
+                };
+
+                cmds.push(chroot_cmd(&format!(
+                    "cat > {esp}/loader/loader.conf <<EOF\ndefault  {default_conf}\ntimeout  4\nconsole-mode auto\neditor   no\nEOF"
+                )));
+
+                for kernel in state.selected_kernels.iter() {
+                    let ka = kernel_artifacts(kernel);
+                    let conf_name = if kernel == "linux" {
+                        "arch".to_string()
+                    } else {
+                        format!("arch-{kernel}")
+                    };
+                    let title_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+
+                    if uki {
+                        cmds.push(chroot_cmd(&format!(
+                            "cat > {esp}/loader/entries/{conf_name}.conf <<'EOF'\ntitle   Arch Linux{title_suffix}\nefi     /EFI/Linux/{uki_default}\nEOF",
+                            uki_default = ka.uki_default,
+                        )));
+                        cmds.push(chroot_cmd(&format!(
+                            "cat > {esp}/loader/entries/{conf_name}-fallback.conf <<'EOF'\ntitle   Arch Linux{title_suffix} (fallback UKI)\nefi     /EFI/Linux/{uki_fallback}\nEOF",
+                            uki_fallback = ka.uki_fallback,
+                        )));
+                    } else {
+                        let ucode_line = ucode
+                            .map(|u| format!("initrd  /{u}\\n"))
+                            .unwrap_or_default();
+                        cmds.push(chroot_cmd(&format!(
+                            "OPTS=$({boot_options_script}); cat > {esp}/loader/entries/{conf_name}.conf <<EOF\ntitle   Arch Linux{title_suffix}\nlinux   /{vmlinuz}\n{ucode_line}initrd  /{initramfs}\noptions $OPTS\nEOF",
+                            vmlinuz = ka.vmlinuz,
+                            initramfs = ka.initramfs,
+                        )));
+                        cmds.push(chroot_cmd(&format!(
+                            "OPTS=$({boot_options_script}); cat > {esp}/loader/entries/{conf_name}-fallback.conf <<EOF\ntitle   Arch Linux{title_suffix} (fallback initramfs)\nlinux   /{vmlinuz}\n{ucode_line}initrd  /{initramfs_fb}\noptions $OPTS\nEOF",
+                            vmlinuz = ka.vmlinuz,
+                            initramfs_fb = ka.initramfs_fallback,
+                        )));
+                    }
                 }
 
                 cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
-                cmds.push(chroot_cmd(
-                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || { if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE /boot)) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE /boot)) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }",
-                ));
+                cmds.push(chroot_cmd(&format!(
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || {{ if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE {esp})) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE {esp})) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }}"
+                )));
             }
             // 1: grub
             1 => {
                 if state.is_uefi() {
-                    cmds.push(chroot_cmd(
-                        "grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=GRUB",
-                    ));
+                    cmds.push(chroot_cmd(&format!(
+                        "grub-install --target=x86_64-efi --efi-directory={esp} --bootloader-id=GRUB"
+                    )));
                 } else {
                     cmds.push(chroot_cmd(&format!(
                         "grub-install --target=i386-pc {device}"
@@ -311,62 +388,135 @@ HOOK_EOF",
                          sed -i \"s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\\\"$OPTS\\\"|\" /etc/default/grub")
                     ));
                 }
-                cmds.push(chroot_cmd("grub-mkconfig -o /boot/grub/grub.cfg"));
+                cmds.push(chroot_cmd(&format!("grub-mkconfig -o {esp}/grub/grub.cfg")));
             }
+            // 2: EFISTUB — direct kernel boot via firmware
             2 => {
-                // Direct kernel boot via firmware: efibootmgr entries (UKI binary or vmlinuz + cmdline/initrd).
-                // UKI: copy self-contained EFI to `EFI/BOOT/BOOTX64.EFI` when NVRAM entries are missing (same idea as Limine).
-                // Non-UKI: `startup.nsh` on ESP root — Arch Wiki workaround when firmware drops `efibootmgr` entries (e.g. some VMs).
                 if state.is_uefi() {
+                    let first_kernel = state.selected_kernels.iter().next().cloned().unwrap_or_else(|| "linux".into());
+                    let first_ka = kernel_artifacts(&first_kernel);
+
                     if uki {
-                        cmds.push(chroot_cmd(
-                            "install -d -m 0755 /boot/EFI/BOOT && if [ -f /boot/EFI/Linux/arch-linux.efi ]; then \
-                             install -m 0644 /boot/EFI/Linux/arch-linux.efi /boot/EFI/BOOT/BOOTX64.EFI; \
-                             else echo \"WARNING: /boot/EFI/Linux/arch-linux.efi missing; UKI fallback copy skipped\"; fi",
-                        ));
-                        cmds.push(chroot_cmd(
+                        // Copy primary UKI to UEFI standard fallback path
+                        cmds.push(chroot_cmd(&format!(
+                            "install -d -m 0755 {esp}/EFI/BOOT && if [ -f {esp}/EFI/Linux/{uki_default} ]; then \
+                             install -m 0644 {esp}/EFI/Linux/{uki_default} {esp}/EFI/BOOT/BOOTX64.EFI; \
+                             else echo \"WARNING: {esp}/EFI/Linux/{uki_default} missing; UKI fallback copy skipped\"; fi",
+                            uki_default = first_ka.uki_default,
+                        )));
+
+                        // Pacman hook: refresh fallback copy on kernel upgrade (any selected kernel)
+                        let hook_targets: String = state.selected_kernels.iter()
+                            .map(|k| format!("Target = {k}\n"))
+                            .collect();
+                        cmds.push(chroot_cmd(&format!(
                             "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-efistub-uki-fallback.hook <<HOOK_EOF\n\
 [Trigger]\n\
 Operation = Install\n\
 Operation = Upgrade\n\
 Type = Package\n\
-Target = linux\n\
+{hook_targets}\
 \n\
 [Action]\n\
 Description = Refresh UEFI fallback UKI copy after kernel upgrade\n\
 When = PostTransaction\n\
-Exec = /bin/sh -c \"test -f /boot/EFI/Linux/arch-linux.efi && /usr/bin/install -Dm 0644 /boot/EFI/Linux/arch-linux.efi /boot/EFI/BOOT/BOOTX64.EFI\"\n\
+Exec = /bin/sh -c \"for f in {esp}/EFI/Linux/{uki_default} {esp}/EFI/Linux/{uki_fallback}; do [ -f \\\"$f\\\" ] && /usr/bin/install -Dm 0644 \\\"$f\\\" {esp}/EFI/BOOT/BOOTX64.EFI && break; done\"\n\
 HOOK_EOF",
-                        ));
-                        cmds.push(chroot_cmd(
+                            uki_default = first_ka.uki_default,
+                            uki_fallback = first_ka.uki_fallback,
+                        )));
+
+                        // efibootmgr: clean stale entries, then register each kernel's UKI
+                        let mut efi_script = format!(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
-                             BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                             {nvram_cleanup}; \
+                             BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\EFI\\\\Linux\\\\arch-linux.efi' || \
-                             echo \"WARNING: efibootmgr failed; firmware may still boot via EFI/BOOT/BOOTX64.EFI (UKI copy)\"; \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\arch-linux-fallback.efi' || \
-                             echo \"WARNING: efibootmgr failed for fallback UKI NVRAM entry\"; \
-                             efibootmgr --verbose || true; \
-                             fi",
-                        ));
+                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); "
+                        );
+                        for kernel in state.selected_kernels.iter() {
+                            let ka = kernel_artifacts(kernel);
+                            let label_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                            efi_script.push_str(&format!(
+                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{uki_default}' || \
+                                 echo \"WARNING: efibootmgr failed for {kernel} UKI NVRAM entry\"; \
+                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback UKI)' --loader '\\\\EFI\\\\Linux\\\\{uki_fallback}' || \
+                                 echo \"WARNING: efibootmgr failed for {kernel} fallback UKI NVRAM entry\"; ",
+                                uki_default = ka.uki_default,
+                                uki_fallback = ka.uki_fallback,
+                            ));
+                        }
+                        efi_script.push_str("efibootmgr --verbose || true; fi");
+                        cmds.push(chroot_cmd(&efi_script));
                     } else {
+                        // Non-UKI: startup.nsh with FS-scanning loop (primary kernel only)
+                        let ucode_nsh = ucode
+                            .map(|u| format!(" initrd=%d:\\{u}"))
+                            .unwrap_or_default();
                         cmds.push(chroot_cmd(&format!(
-                            "OPTS=$({boot_options_script}); cat > /boot/startup.nsh <<EOF\nvmlinuz-linux $OPTS initrd=\\initramfs-linux.img\nEOF\nchmod 0644 /boot/startup.nsh"
+                            "OPTS=$({boot_options_script}); cat > {esp}/startup.nsh <<'NSHEOF'\n\
+@echo -off\n\
+for %d in FS0 FS1 FS2 FS3 FS4 FS5 FS6 FS7 FS8 FS9\n\
+  if exist %d:\\{vmlinuz} then\n\
+    %d:\\{vmlinuz} $OPTS{ucode_nsh} initrd=%d:\\{initramfs}\n\
+  endif\n\
+endfor\n\
+NSHEOF\nchmod 0644 {esp}/startup.nsh",
+                            vmlinuz = first_ka.vmlinuz,
+                            initramfs = first_ka.initramfs,
                         )));
+
+                        // Pacman hook: regenerate startup.nsh on kernel upgrade
+                        let hook_targets: String = state.selected_kernels.iter()
+                            .map(|k| format!("Target = {k}\n"))
+                            .collect();
                         cmds.push(chroot_cmd(&format!(
+                            "install -d -m 0755 /etc/pacman.d/hooks && cat > /etc/pacman.d/hooks/99-efistub-direct.hook <<HOOK_EOF\n\
+[Trigger]\n\
+Operation = Install\n\
+Operation = Upgrade\n\
+Type = Package\n\
+{hook_targets}\
+\n\
+[Action]\n\
+Description = Refresh EFISTUB startup.nsh after kernel upgrade\n\
+When = PostTransaction\n\
+Exec = /bin/sh -c \"OPTS=$({boot_options_script}); cat > {esp}/startup.nsh <<NSH_INNER\\n@echo -off\\nfor %%d in FS0 FS1 FS2 FS3 FS4 FS5 FS6 FS7 FS8 FS9\\n  if exist %%d:\\\\{vmlinuz} then\\n    %%d:\\\\{vmlinuz} \\$OPTS{ucode_hook} initrd=%%d:\\\\{initramfs}\\n  endif\\nendfor\\nNSH_INNER\"\n\
+HOOK_EOF",
+                            vmlinuz = first_ka.vmlinuz,
+                            initramfs = first_ka.initramfs,
+                            ucode_hook = ucode
+                                .map(|u| format!(" initrd=%%d:\\\\{u}"))
+                                .unwrap_or_default(),
+                        )));
+
+                        // efibootmgr: clean stale entries, then register each kernel
+                        let mut efi_script = format!(
                             "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
+                             {nvram_cleanup}; \
                              OPTS=$({boot_options_script}); \
-                             BOOTSRC=$(findmnt -n -o SOURCE /boot); \
+                             BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux.img\" || \
-                             echo \"WARNING: efibootmgr failed; ESP has /boot/startup.nsh for firmware that runs UEFI Shell startup.nsh\"; \
-                             efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux (fallback initramfs)' --loader '\\\\vmlinuz-linux' --unicode \"$OPTS initrd=\\\\initramfs-linux-fallback.img\" || \
-                             echo \"WARNING: efibootmgr failed for fallback initramfs NVRAM entry\"; \
-                             efibootmgr --verbose || true; \
-                             fi"
-                        )));
+                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); "
+                        );
+                        let ucode_efi = ucode
+                            .map(|u| format!("initrd=\\\\\\\\{u} "))
+                            .unwrap_or_default();
+                        for kernel in state.selected_kernels.iter() {
+                            let ka = kernel_artifacts(kernel);
+                            let label_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                            efi_script.push_str(&format!(
+                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\{initramfs}\" || \
+                                 echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
+                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\{initramfs_fb}\" || \
+                                 echo \"WARNING: efibootmgr failed for {kernel} fallback NVRAM entry\"; ",
+                                vmlinuz = ka.vmlinuz,
+                                initramfs = ka.initramfs,
+                                initramfs_fb = ka.initramfs_fallback,
+                            ));
+                        }
+                        efi_script.push_str("efibootmgr --verbose || true; fi");
+                        cmds.push(chroot_cmd(&efi_script));
                     }
                 }
             }
@@ -375,13 +525,14 @@ HOOK_EOF",
                     state,
                     device,
                     boot_options_script.as_str(),
+                    esp,
                 ));
             }
             _ => {}
         }
 
         state.debug_log(&format!(
-            "bootloader: choice={} mode={} (uefi={}, encrypted={}, uki={})",
+            "bootloader: choice={} mode={} (uefi={}, encrypted={}, uki={}, esp={}, kernels={:?})",
             match state.bootloader_index {
                 0 => "systemd-boot",
                 1 => "grub",
@@ -392,7 +543,9 @@ HOOK_EOF",
             if state.is_uefi() { "UEFI" } else { "BIOS" },
             state.is_uefi(),
             encrypted,
-            uki
+            uki,
+            esp,
+            state.selected_kernels,
         ));
 
         BootloaderPlan::new(cmds)

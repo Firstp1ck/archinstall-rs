@@ -814,6 +814,23 @@ impl StoragePlan {
         None
     }
 
+    /// Returns the chroot-relative ESP mountpoint (`/boot` or `/efi`).
+    /// Checks `/mnt/efi` first: if both exist, `/mnt/efi` is the actual ESP
+    /// and `/mnt/boot` is a separate boot partition.  Falls back to `/boot`.
+    pub fn esp_chroot_mountpoint(&self) -> &str {
+        for mount in &self.mounts {
+            if mount.target == "/mnt/efi" && !mount.is_swap {
+                return "/efi";
+            }
+        }
+        for mount in &self.mounts {
+            if mount.target == "/mnt/boot" && !mount.is_swap {
+                return "/boot";
+            }
+        }
+        "/boot"
+    }
+
     /// Collect setup commands for all device stacks (LVM, RAID, multi-layer).
     /// Returns an empty vec for simple partition-based layouts with no stacks.
     pub fn stack_setup_commands(&self) -> Vec<InstallCmd> {

@@ -499,6 +499,18 @@ impl AppState {
                     .into(),
             );
         }
+        if self.bootloader_index == 2
+            && self.is_uefi()
+            && !self.uki_enabled
+            && let Ok(sp) = StoragePlanner::compile(self)
+            && sp.esp_chroot_mountpoint() == "/efi"
+        {
+            issues.push(
+                "EFISTUB without UKI requires the ESP mounted at /boot (kernel files must \
+                 reside on the ESP). Either mount the ESP at /boot, or enable Unified Kernel Images."
+                    .into(),
+            );
+        }
 
         // Hostname must be non-empty
         if self.hostname_value.trim().is_empty() {

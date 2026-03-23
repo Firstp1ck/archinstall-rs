@@ -33,6 +33,12 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     desc_lines.push(Line::from(
         "Efistub (UEFI only) registers the kernel or a UKI directly with the firmware. Some firmware ignores cmdline options for direct kernel boot; use Unified Kernel Images in that case.",
     ));
+    if app.bootloader_index == 2 && !app.uki_enabled {
+        desc_lines.push(Line::from(Span::styled(
+            "Note: Without UKI, EFISTUB has no UEFI standard fallback path (EFI/BOOT/BOOTX64.EFI). Consider enabling Unified Kernel Images for maximum firmware compatibility.",
+            Style::default().fg(Color::Yellow),
+        )));
+    }
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)

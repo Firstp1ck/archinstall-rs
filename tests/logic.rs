@@ -245,6 +245,11 @@ fn bootloader_systemd_boot_writes_loader_and_entries() {
         joined.contains("rootdev=\"${rootdev%%"),
         "should strip btrfs subvolume suffix from findmnt: {joined}"
     );
+    // No double bash -lc nesting
+    assert!(
+        !joined.contains("bash -lc 'bash -lc"),
+        "loader.conf should not have double bash -lc nesting: {joined}"
+    );
 }
 
 #[test]
@@ -317,12 +322,16 @@ fn bootloader_efistub_creates_efibootmgr_entry() {
         "shared cmdline script should strip btrfs suffix: {joined}"
     );
     assert!(
-        joined.contains("/boot/startup.nsh"),
+        joined.contains("startup.nsh"),
         "non-UKI EFISTUB should write startup.nsh for firmware without persistent NVRAM: {joined}"
     );
     assert!(
-        joined.contains("initrd=\\initramfs-linux.img"),
-        "startup.nsh should use UEFI-style initrd path: {joined}"
+        joined.contains("99-efistub-direct.hook"),
+        "non-UKI EFISTUB should install pacman hook to refresh startup.nsh: {joined}"
+    );
+    assert!(
+        joined.contains("efibootmgr -b"),
+        "should clean duplicate NVRAM entries before creating: {joined}"
     );
 }
 
@@ -347,7 +356,7 @@ fn bootloader_efistub_luks_uses_shared_cmdline() {
         "encrypted EFISTUB should use same LUKS cmdline as systemd-boot: {joined}"
     );
     assert!(
-        joined.contains("/boot/startup.nsh"),
+        joined.contains("startup.nsh"),
         "encrypted non-UKI EFISTUB should still write startup.nsh: {joined}"
     );
 }
@@ -601,7 +610,7 @@ fn pre_mounted_efistub_empty_target_still_generates_efibootmgr() {
     );
     assert!(joined.contains("vmlinuz-linux"), "{joined}");
     assert!(
-        joined.contains("/boot/startup.nsh"),
+        joined.contains("startup.nsh"),
         "pre-mounted non-UKI EFISTUB should still write startup.nsh: {joined}"
     );
 }
@@ -624,4 +633,126 @@ fn pre_mounted_limine_uefi_empty_target_still_installs() {
         joined.contains("EFI/BOOT/BOOTX64.EFI"),
         "should install to UEFI fallback path: {joined}"
     );
+}
+
+// ── Multi-kernel tests ──
+
+#[test]
+fn multi_kernel_efistub_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state, device, &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "EFISTUB should create entry for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux'") || joined.contains("vmlinuz-linux\\"),
+        "EFISTUB should also have entry for linux: {joined}"
+    );
+    assert!(
+        joined.contains("initramfs-linux-lts.img"),
+        "EFISTUB should reference linux-lts initramfs: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_systemd_boot_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 0; // systemd-boot
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state, device, &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("arch-linux-lts.conf"),
+        "systemd-boot should create conf for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("arch.conf") || joined.contains("arch-fallback.conf"),
+        "systemd-boot should still have linux entries: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "systemd-boot should reference linux-lts kernel: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_limine_creates_entries_for_each_kernel() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 3; // Limine
+    state.selected_kernels.insert("linux-lts".into());
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state, device, &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("vmlinuz-linux-lts"),
+        "Limine should have entry for linux-lts: {joined}"
+    );
+    assert!(
+        joined.contains("vmlinuz-linux"),
+        "Limine should also have entry for linux: {joined}"
+    );
+}
+
+#[test]
+fn multi_kernel_sysconfig_uki_patches_all_presets() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.uki_enabled = true;
+    state.bootloader_index = 0;
+    state.selected_kernels.insert("linux-lts".into());
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("linux.preset"),
+        "UKI should patch linux.preset: {joined}"
+    );
+    assert!(
+        joined.contains("linux-lts.preset"),
+        "UKI should patch linux-lts.preset: {joined}"
+    );
+    assert!(
+        joined.contains("arch-linux-lts.efi"),
+        "UKI should reference linux-lts UKI filename: {joined}"
+    );
+}
+
+#[test]
+fn kernel_artifacts_returns_correct_names() {
+    let ka = ai::core::services::bootloader::kernel_artifacts("linux");
+    assert_eq!(ka.vmlinuz, "vmlinuz-linux");
+    assert_eq!(ka.initramfs, "initramfs-linux.img");
+    assert_eq!(ka.initramfs_fallback, "initramfs-linux-fallback.img");
+    assert_eq!(ka.uki_default, "arch-linux.efi");
+    assert_eq!(ka.uki_fallback, "arch-linux-fallback.efi");
+    assert_eq!(ka.preset, "linux.preset");
+
+    let ka_lts = ai::core::services::bootloader::kernel_artifacts("linux-lts");
+    assert_eq!(ka_lts.vmlinuz, "vmlinuz-linux-lts");
+    assert_eq!(ka_lts.initramfs, "initramfs-linux-lts.img");
+    assert_eq!(ka_lts.uki_default, "arch-linux-lts.efi");
+    assert_eq!(ka_lts.preset, "linux-lts.preset");
 }

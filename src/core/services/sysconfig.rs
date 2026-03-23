@@ -1,4 +1,4 @@
-use crate::core::services::bootloader::BootloaderService;
+use crate::core::services::bootloader::{BootloaderService, kernel_artifacts};
 use crate::core::state::AppState;
 use crate::core::storage::StoragePlan;
 
@@ -155,23 +155,30 @@ impl SysConfigService {
             cmds.push(chroot_cmd("userdel -r aurbuild || true"));
         }
 
-        // UKI: kernel cmdline file, output dir, and linux.preset must exist before mkinitcpio -P.
+        // UKI: kernel cmdline file, output dir, and preset per kernel must exist before mkinitcpio -P.
+        let esp = storage_plan.esp_chroot_mountpoint();
         if uki {
             cmds.push(chroot_cmd(&format!(
                 "install -d -m 0755 /etc/kernel && OPTS=$({boot_options_script}) && printf '%s\\n' \"$OPTS\" > /etc/kernel/cmdline"
             )));
-            cmds.push(chroot_cmd("install -d -m 0755 /boot/EFI/Linux"));
-            cmds.push(chroot_cmd(
-                "PRESET=/etc/mkinitcpio.d/linux.preset; \
-                 if [ -f \"$PRESET\" ]; then \
-                   sed -i -E 's/^default_image=/#default_image=/' \"$PRESET\"; \
-                   sed -i -E 's/^fallback_image=/#fallback_image=/' \"$PRESET\"; \
-                   sed -i -E 's|^#?default_uki=.*|default_uki=\"/boot/EFI/Linux/arch-linux.efi\"|' \"$PRESET\"; \
-                   grep -q '^default_uki=' \"$PRESET\" || printf '%s\\n' 'default_uki=\"/boot/EFI/Linux/arch-linux.efi\"' >> \"$PRESET\"; \
-                   sed -i -E 's|^#?fallback_uki=.*|fallback_uki=\"/boot/EFI/Linux/arch-linux-fallback.efi\"|' \"$PRESET\"; \
-                   grep -q '^fallback_uki=' \"$PRESET\" || printf '%s\\n' 'fallback_uki=\"/boot/EFI/Linux/arch-linux-fallback.efi\"' >> \"$PRESET\"; \
-                 fi",
-            ));
+            cmds.push(chroot_cmd(&format!("install -d -m 0755 {esp}/EFI/Linux")));
+            for kernel in state.selected_kernels.iter() {
+                let ka = kernel_artifacts(kernel);
+                cmds.push(chroot_cmd(&format!(
+                    "PRESET=/etc/mkinitcpio.d/{preset}; \
+                     if [ -f \"$PRESET\" ]; then \
+                       sed -i -E 's/^default_image=/#default_image=/' \"$PRESET\"; \
+                       sed -i -E 's/^fallback_image=/#fallback_image=/' \"$PRESET\"; \
+                       sed -i -E 's|^#?default_uki=.*|default_uki=\"{esp}/EFI/Linux/{uki_default}\"|' \"$PRESET\"; \
+                       grep -q '^default_uki=' \"$PRESET\" || printf '%s\\n' 'default_uki=\"{esp}/EFI/Linux/{uki_default}\"' >> \"$PRESET\"; \
+                       sed -i -E 's|^#?fallback_uki=.*|fallback_uki=\"{esp}/EFI/Linux/{uki_fallback}\"|' \"$PRESET\"; \
+                       grep -q '^fallback_uki=' \"$PRESET\" || printf '%s\\n' 'fallback_uki=\"{esp}/EFI/Linux/{uki_fallback}\"' >> \"$PRESET\"; \
+                     fi",
+                    preset = ka.preset,
+                    uki_default = ka.uki_default,
+                    uki_fallback = ka.uki_fallback,
+                )));
+            }
         }
 
         // mkinitcpio: for LUKS, ensure the correct encrypt hook is present.
