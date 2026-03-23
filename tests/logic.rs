@@ -647,7 +647,9 @@ fn multi_kernel_efistub_creates_entries_for_each_kernel() {
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("auto plan should compile");
     let plan = ai::core::services::bootloader::BootloaderService::build_plan(
-        &state, device, &storage_plan,
+        &state,
+        device,
+        &storage_plan,
     );
     let joined = plan.commands.join("\n");
     assert!(
@@ -674,7 +676,9 @@ fn multi_kernel_systemd_boot_creates_entries_for_each_kernel() {
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("auto plan should compile");
     let plan = ai::core::services::bootloader::BootloaderService::build_plan(
-        &state, device, &storage_plan,
+        &state,
+        device,
+        &storage_plan,
     );
     let joined = plan.commands.join("\n");
     assert!(
@@ -702,7 +706,9 @@ fn multi_kernel_limine_creates_entries_for_each_kernel() {
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("auto plan should compile");
     let plan = ai::core::services::bootloader::BootloaderService::build_plan(
-        &state, device, &storage_plan,
+        &state,
+        device,
+        &storage_plan,
     );
     let joined = plan.commands.join("\n");
     assert!(

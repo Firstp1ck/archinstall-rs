@@ -200,7 +200,11 @@ impl BootloaderService {
             let mut conf = format!("cat > {esp}/limine.conf <<'LIMINEOF'\ntimeout: 5\n");
             for kernel in state.selected_kernels.iter() {
                 let ka = kernel_artifacts(kernel);
-                let suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                let suffix = if kernel == "linux" {
+                    String::new()
+                } else {
+                    format!(" ({kernel})")
+                };
                 conf.push_str(&format!(
                     "\n/Arch Linux{suffix}\n    protocol: efi\n    path: boot():/EFI/Linux/{uki_default}\n\
                      \n/Arch Linux{suffix} (fallback UKI)\n    protocol: efi\n    path: boot():/EFI/Linux/{uki_fallback}\n",
@@ -212,10 +216,16 @@ impl BootloaderService {
             out.push(chroot_cmd(&conf));
         } else {
             // Build non-UKI limine.conf entries for each selected kernel
-            let mut conf = format!("OPTS=$({boot_options_script}); cat > {esp}/limine.conf <<LIMINEOF\ntimeout: 5\n");
+            let mut conf = format!(
+                "OPTS=$({boot_options_script}); cat > {esp}/limine.conf <<LIMINEOF\ntimeout: 5\n"
+            );
             for kernel in state.selected_kernels.iter() {
                 let ka = kernel_artifacts(kernel);
-                let suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                let suffix = if kernel == "linux" {
+                    String::new()
+                } else {
+                    format!(" ({kernel})")
+                };
                 let ucode_line = ucode
                     .map(|u| format!("    module_path: boot():/{u}\n"))
                     .unwrap_or_default();
@@ -255,7 +265,7 @@ HOOK_EOF"
                 "if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then \
                  BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                  DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                 PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); \
+                 PART=$(lsblk -no PARTN \"$BOOTSRC\"); \
                  efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux Limine' --loader '\\\\EFI\\\\limine\\\\BOOTX64.EFI' --unicode || \
                  echo 'WARNING: efibootmgr failed to create NVRAM entry; UEFI fallback path EFI/BOOT/BOOTX64.EFI is available'; \
                  efibootmgr --verbose || true; \
@@ -317,7 +327,12 @@ HOOK_EOF"
                 )));
 
                 // First kernel determines the default entry name
-                let first_kernel = state.selected_kernels.iter().next().cloned().unwrap_or_else(|| "linux".into());
+                let first_kernel = state
+                    .selected_kernels
+                    .iter()
+                    .next()
+                    .cloned()
+                    .unwrap_or_else(|| "linux".into());
                 let default_conf = if first_kernel == "linux" {
                     "arch.conf".to_string()
                 } else {
@@ -335,7 +350,11 @@ HOOK_EOF"
                     } else {
                         format!("arch-{kernel}")
                     };
-                    let title_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                    let title_suffix = if kernel == "linux" {
+                        String::new()
+                    } else {
+                        format!(" ({kernel})")
+                    };
 
                     if uki {
                         cmds.push(chroot_cmd(&format!(
@@ -366,7 +385,7 @@ HOOK_EOF"
                 cmds.push(chroot_cmd("env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager list || true"));
 
                 cmds.push(chroot_cmd(&format!(
-                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || {{ if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE {esp})) --part $(lsblk -no PARTNUM $(findmnt -n -o SOURCE {esp})) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }}"
+                    "env SYSTEMD_PAGER=cat SYSTEMD_COLORS=0 timeout 5s bootctl --no-pager status >/dev/null 2>&1 || {{ if mountpoint -q /sys/firmware/efi/efivars || mount -t efivarfs efivarfs /sys/firmware/efi/efivars 2>/dev/null; then timeout 5 efibootmgr --create --disk $(lsblk -no pkname $(findmnt -n -o SOURCE {esp})) --part $(lsblk -no PARTN $(findmnt -n -o SOURCE {esp})) --loader '\\EFI\\systemd\\systemd-bootx64.efi' --label 'Linux Boot Manager' --unicode || true; fi; }}"
                 )));
             }
             // 1: grub
@@ -393,7 +412,12 @@ HOOK_EOF"
             // 2: EFISTUB — direct kernel boot via firmware
             2 => {
                 if state.is_uefi() {
-                    let first_kernel = state.selected_kernels.iter().next().cloned().unwrap_or_else(|| "linux".into());
+                    let first_kernel = state
+                        .selected_kernels
+                        .iter()
+                        .next()
+                        .cloned()
+                        .unwrap_or_else(|| "linux".into());
                     let first_ka = kernel_artifacts(&first_kernel);
 
                     if uki {
@@ -406,7 +430,9 @@ HOOK_EOF"
                         )));
 
                         // Pacman hook: refresh fallback copy on kernel upgrade (any selected kernel)
-                        let hook_targets: String = state.selected_kernels.iter()
+                        let hook_targets: String = state
+                            .selected_kernels
+                            .iter()
                             .map(|k| format!("Target = {k}\n"))
                             .collect();
                         cmds.push(chroot_cmd(&format!(
@@ -432,11 +458,15 @@ HOOK_EOF",
                              {nvram_cleanup}; \
                              BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); "
+                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); "
                         );
                         for kernel in state.selected_kernels.iter() {
                             let ka = kernel_artifacts(kernel);
-                            let label_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                            let label_suffix = if kernel == "linux" {
+                                String::new()
+                            } else {
+                                format!(" ({kernel})")
+                            };
                             efi_script.push_str(&format!(
                                 "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{uki_default}' || \
                                  echo \"WARNING: efibootmgr failed for {kernel} UKI NVRAM entry\"; \
@@ -467,7 +497,9 @@ NSHEOF\nchmod 0644 {esp}/startup.nsh",
                         )));
 
                         // Pacman hook: regenerate startup.nsh on kernel upgrade
-                        let hook_targets: String = state.selected_kernels.iter()
+                        let hook_targets: String = state
+                            .selected_kernels
+                            .iter()
                             .map(|k| format!("Target = {k}\n"))
                             .collect();
                         cmds.push(chroot_cmd(&format!(
@@ -497,14 +529,18 @@ HOOK_EOF",
                              OPTS=$({boot_options_script}); \
                              BOOTSRC=$(findmnt -n -o SOURCE {esp}); \
                              DISK=$(lsblk -no pkname \"$BOOTSRC\"); \
-                             PART=$(lsblk -no PARTNUM \"$BOOTSRC\"); "
+                             PART=$(lsblk -no PARTN \"$BOOTSRC\"); "
                         );
                         let ucode_efi = ucode
                             .map(|u| format!("initrd=\\\\\\\\{u} "))
                             .unwrap_or_default();
                         for kernel in state.selected_kernels.iter() {
                             let ka = kernel_artifacts(kernel);
-                            let label_suffix = if kernel == "linux" { String::new() } else { format!(" ({kernel})") };
+                            let label_suffix = if kernel == "linux" {
+                                String::new()
+                            } else {
+                                format!(" ({kernel})")
+                            };
                             efi_script.push_str(&format!(
                                 "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\{initramfs}\" || \
                                  echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
