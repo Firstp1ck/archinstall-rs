@@ -500,15 +500,34 @@ HOOK_EOF",
                         cmds.push(chroot_cmd(&efi_script));
                     } else {
                         // Non-UKI: startup.nsh with FS-scanning loop (primary kernel only)
+                        // Ensure firmware-loadable artifacts exist on the ESP for EFISTUB paths.
+                        for kernel in state.selected_kernels.iter() {
+                            let ka = kernel_artifacts(kernel);
+                            cmds.push(chroot_cmd(&format!(
+                                "install -d -m 0755 {esp}/EFI/Linux && \
+                                 install -m 0644 /boot/{vmlinuz} {esp}/EFI/Linux/{vmlinuz} && \
+                                 install -m 0644 /boot/{initramfs} {esp}/EFI/Linux/{initramfs} && \
+                                 install -m 0644 /boot/{initramfs_fb} {esp}/EFI/Linux/{initramfs_fb}",
+                                vmlinuz = ka.vmlinuz,
+                                initramfs = ka.initramfs,
+                                initramfs_fb = ka.initramfs_fallback,
+                            )));
+                        }
+                        if let Some(u) = ucode {
+                            cmds.push(chroot_cmd(&format!(
+                                "if [ -f /boot/{u} ]; then install -Dm 0644 /boot/{u} {esp}/EFI/Linux/{u}; fi"
+                            )));
+                        }
+
                         let ucode_nsh = ucode
-                            .map(|u| format!(" initrd=%d:\\{u}"))
+                            .map(|u| format!(" initrd=%d:\\EFI\\Linux\\{u}"))
                             .unwrap_or_default();
                         cmds.push(chroot_cmd(&format!(
                             "OPTS=$({boot_options_script}); cat > {esp}/startup.nsh <<'NSHEOF'\n\
 @echo -off\n\
 for %d in FS0 FS1 FS2 FS3 FS4 FS5 FS6 FS7 FS8 FS9\n\
-  if exist %d:\\{vmlinuz} then\n\
-    %d:\\{vmlinuz} $OPTS{ucode_nsh} initrd=%d:\\{initramfs}\n\
+  if exist %d:\\EFI\\Linux\\{vmlinuz} then\n\
+    %d:\\EFI\\Linux\\{vmlinuz} $OPTS{ucode_nsh} initrd=%d:\\EFI\\Linux\\{initramfs}\n\
   endif\n\
 endfor\n\
 NSHEOF\nchmod 0644 {esp}/startup.nsh",
@@ -533,12 +552,12 @@ Type = Package\n\
 [Action]\n\
 Description = Refresh EFISTUB startup.nsh after kernel upgrade\n\
 When = PostTransaction\n\
-Exec = /bin/sh -c \"OPTS=$({boot_options_script}); cat > {esp}/startup.nsh <<NSH_INNER\\n@echo -off\\nfor %%d in FS0 FS1 FS2 FS3 FS4 FS5 FS6 FS7 FS8 FS9\\n  if exist %%d:\\\\{vmlinuz} then\\n    %%d:\\\\{vmlinuz} \\$OPTS{ucode_hook} initrd=%%d:\\\\{initramfs}\\n  endif\\nendfor\\nNSH_INNER\"\n\
+Exec = /bin/sh -c \"install -d -m 0755 {esp}/EFI/Linux; for f in /boot/vmlinuz-* /boot/initramfs-*.img /boot/*-ucode.img; do [ -f \\\"\\$f\\\" ] && /usr/bin/install -Dm 0644 \\\"\\$f\\\" {esp}/EFI/Linux/\\$(basename \\\"\\$f\\\"); done; OPTS=$({boot_options_script}); cat > {esp}/startup.nsh <<NSH_INNER\\n@echo -off\\nfor %%d in FS0 FS1 FS2 FS3 FS4 FS5 FS6 FS7 FS8 FS9\\n  if exist %%d:\\\\EFI\\\\Linux\\\\{vmlinuz} then\\n    %%d:\\\\EFI\\\\Linux\\\\{vmlinuz} \\$OPTS{ucode_hook} initrd=%%d:\\\\EFI\\\\Linux\\\\{initramfs}\\n  endif\\nendfor\\nNSH_INNER\"\n\
 HOOK_EOF",
                             vmlinuz = first_ka.vmlinuz,
                             initramfs = first_ka.initramfs,
                             ucode_hook = ucode
-                                .map(|u| format!(" initrd=%%d:\\\\{u}"))
+                                .map(|u| format!(" initrd=%%d:\\\\EFI\\\\Linux\\\\{u}"))
                                 .unwrap_or_default(),
                         )));
 
@@ -552,7 +571,7 @@ HOOK_EOF",
                              PART=$(lsblk -no PARTN \"$BOOTSRC\"); "
                         );
                         let ucode_efi = ucode
-                            .map(|u| format!("initrd=\\\\\\\\{u} "))
+                            .map(|u| format!("initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{u} "))
                             .unwrap_or_default();
                         for kernel in state.selected_kernels.iter() {
                             let ka = kernel_artifacts(kernel);
@@ -562,9 +581,9 @@ HOOK_EOF",
                                 format!(" ({kernel})")
                             };
                             efi_script.push_str(&format!(
-                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\{initramfs}\" || \
+                                "efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix}' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs}\" || \
                                  echo \"WARNING: efibootmgr failed; ESP has {esp}/startup.nsh as fallback\"; \
-                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\{initramfs_fb}\" || \
+                                 efibootmgr --create --disk \"/dev/$DISK\" --part \"$PART\" --label 'Arch Linux{label_suffix} (fallback initramfs)' --loader '\\\\EFI\\\\Linux\\\\{vmlinuz}' --unicode \"$OPTS {ucode_efi}initrd=\\\\\\\\EFI\\\\\\\\Linux\\\\\\\\{initramfs_fb}\" || \
                                  echo \"WARNING: efibootmgr failed for {kernel} fallback NVRAM entry\"; ",
                                 vmlinuz = ka.vmlinuz,
                                 initramfs = ka.initramfs,
