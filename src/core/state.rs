@@ -139,6 +139,8 @@ pub struct AppState {
     pub firmware_uefi_override: Option<bool>,
     /// Secure Boot status detected at startup (or forced in tests via override).
     pub secure_boot_enabled: bool,
+    /// True when Secure Boot status was detected confidently.
+    pub secure_boot_known: bool,
     /// Optional test override for Secure Boot state.
     pub secure_boot_override: Option<bool>,
 
@@ -503,6 +505,7 @@ impl AppState {
             bootloader_index: 0,
             firmware_uefi_override: None,
             secure_boot_enabled: false,
+            secure_boot_known: false,
             secure_boot_override: None,
 
             kernels_focus_index: 0,

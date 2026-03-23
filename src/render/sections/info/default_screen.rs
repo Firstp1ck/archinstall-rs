@@ -14,11 +14,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
     if app.current_screen() == Screen::Overview {
         lines.push(Line::from(format!(
             "Secure Boot: {}",
-            if app.is_secure_boot_enabled() {
-                "Enabled"
-            } else {
-                "Disabled/Unknown"
-            }
+            app.secure_boot_status_text()
         )));
     }
     let info = Paragraph::new(lines)

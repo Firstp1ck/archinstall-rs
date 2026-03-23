@@ -21,14 +21,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(format!("Bootloader: {bl}")),
-        Line::from(format!(
-            "Secure Boot: {}",
-            if app.is_secure_boot_enabled() {
-                "Enabled"
-            } else {
-                "Disabled/Unknown"
-            }
-        )),
+        Line::from(format!("Secure Boot: {}", app.secure_boot_status_text())),
     ];
 
     let mut desc_lines = vec![Line::from(Span::styled(
