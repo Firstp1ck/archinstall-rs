@@ -51,7 +51,7 @@ Full install paths (clone + `boot.sh`, build from source, VM tips): [Documents/I
 
 ## Features
 
-High level: ratatui-based UI, Rust codebase, disk planning with validated mounts/fstab, TOML save/load, optional LUKS on automatic layouts (experimental), locales and mirrors, NetworkManager or “copy ISO network”, systemd-boot and GRUB, desktop-oriented experience mode, optional `boot.sh` GUI bootstrap.
+High level: ratatui-based UI, Rust codebase, disk planning with validated mounts/fstab, TOML save/load, optional LUKS on automatic layouts (experimental), locales and mirrors, NetworkManager or “copy ISO network”, systemd-boot, GRUB, **Efistub (experimental, UEFI-only)**, Limine, desktop-oriented experience mode, optional `boot.sh` GUI bootstrap.
 
 Details: [Documents/FEATURES.md](Documents/FEATURES.md).
 

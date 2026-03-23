@@ -495,7 +495,7 @@ impl AppState {
         }
         if self.bootloader_index == 2 && !self.is_uefi() {
             issues.push(
-                "EFISTUB requires UEFI firmware. In BIOS/legacy mode, choose GRUB or Limine."
+                "Efistub (experimental) requires UEFI firmware. In BIOS/legacy mode, choose GRUB or Limine."
                     .into(),
             );
         }
@@ -506,14 +506,14 @@ impl AppState {
             && sp.esp_chroot_mountpoint() == "/efi"
         {
             issues.push(
-                "EFISTUB without UKI requires the ESP mounted at /boot (kernel files must \
+                "Efistub (experimental) without UKI requires the ESP mounted at /boot (kernel files must \
                  reside on the ESP). Either mount the ESP at /boot, or enable Unified Kernel Images."
                     .into(),
             );
         }
         if self.bootloader_index == 2 && self.is_secure_boot_enabled() && !self.uki_enabled {
             issues.push(
-                "Secure Boot with EFISTUB requires Unified Kernel Images (UKI). \
+                "Secure Boot with Efistub (experimental) requires Unified Kernel Images (UKI). \
                  Enable UKI or disable Secure Boot."
                     .into(),
             );

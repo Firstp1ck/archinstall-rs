@@ -22,7 +22,8 @@ pub(crate) fn change_uki_value(app: &mut AppState, _next: bool) {
     }
     if app.uki_focus_index == 0 {
         if app.is_uki_forced_for_efistub() && app.uki_enabled {
-            app.info_message = "Secure Boot with EFISTUB requires UKI; toggle is locked.".into();
+            app.info_message =
+                "Secure Boot with Efistub (experimental) requires UKI; toggle is locked.".into();
             return;
         }
         app.uki_enabled = !app.uki_enabled;
@@ -32,7 +33,8 @@ pub(crate) fn change_uki_value(app: &mut AppState, _next: bool) {
 pub(crate) fn handle_enter_uki(app: &mut AppState) {
     if app.uki_focus_index == 0 {
         if app.is_uki_forced_for_efistub() && app.uki_enabled {
-            app.info_message = "Secure Boot with EFISTUB requires UKI; toggle is locked.".into();
+            app.info_message =
+                "Secure Boot with Efistub (experimental) requires UKI; toggle is locked.".into();
             return;
         }
         app.uki_enabled = !app.uki_enabled;

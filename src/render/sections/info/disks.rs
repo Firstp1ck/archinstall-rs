@@ -202,7 +202,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         let bl = match app.bootloader_index {
             0 => "systemd-boot",
             1 => "GRUB",
-            2 => "efistub",
+            2 => crate::app::bootloader::EFISTUB_SLUG_LABEL,
             3 => "Limine",
             _ => "other",
         };

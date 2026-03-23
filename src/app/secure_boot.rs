@@ -87,7 +87,8 @@ impl AppState {
         if self.bootloader_index == 2 && self.is_secure_boot_enabled() && !self.uki_enabled {
             self.uki_enabled = true;
             self.info_message =
-                "Secure Boot detected: UKI enabled automatically for EFISTUB.".into();
+                "Secure Boot detected: UKI enabled automatically for Efistub (experimental)."
+                    .into();
             self.debug_log("secure_boot policy: forced uki_enabled=true for EFISTUB");
         }
     }

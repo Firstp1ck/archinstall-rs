@@ -4,6 +4,11 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
+/// TUI / user-facing label for the EFISTUB bootloader option.
+pub const EFISTUB_MENU_LABEL: &str = "Efistub (experimental)";
+/// Lowercase-style label for summary lines (install review, disk info).
+pub const EFISTUB_SLUG_LABEL: &str = "efistub (experimental)";
+
 impl AppState {
     #[allow(dead_code)]
     pub fn init_bootloader(&mut self) {
@@ -15,7 +20,7 @@ impl AppState {
         match self.bootloader_index {
             0 => "Systemd-boot",
             1 => "Grub",
-            2 => "Efistub",
+            2 => EFISTUB_MENU_LABEL,
             _ => "Limine",
         }
     }
@@ -31,7 +36,7 @@ pub fn draw_bootloader(frame: &mut ratatui::Frame, app: &mut AppState, area: Rec
 
     let mut lines: Vec<Line> = vec![Line::from(title), Line::from("")];
 
-    let choices = ["Systemd-boot", "Grub", "Efistub", "Limine"];
+    let choices = ["Systemd-boot", "Grub", EFISTUB_MENU_LABEL, "Limine"];
 
     for (idx, label) in choices.iter().enumerate() {
         let is_focused_line = app.bootloader_focus_index == idx;
