@@ -511,6 +511,13 @@ impl AppState {
                     .into(),
             );
         }
+        if self.bootloader_index == 2 && self.is_secure_boot_enabled() && !self.uki_enabled {
+            issues.push(
+                "Secure Boot with EFISTUB requires Unified Kernel Images (UKI). \
+                 Enable UKI or disable Secure Boot."
+                    .into(),
+            );
+        }
 
         // Hostname must be non-empty
         if self.hostname_value.trim().is_empty() {

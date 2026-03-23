@@ -21,6 +21,7 @@ pub mod locales;
 pub mod mirrors;
 pub mod network_configuration;
 pub mod root_password;
+pub mod secure_boot;
 mod save_configuration;
 pub mod swap_partition;
 pub mod timezone;

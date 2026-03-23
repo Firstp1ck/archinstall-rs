@@ -22,12 +22,14 @@ pub(crate) fn change_bootloader_value(app: &mut AppState, _next: bool) {
     }
     if app.bootloader_focus_index < 4 {
         app.bootloader_index = app.bootloader_focus_index;
+        app.apply_secure_boot_uki_policy();
     }
 }
 
 pub(crate) fn handle_enter_bootloader(app: &mut AppState) {
     if app.bootloader_focus_index < 4 {
         app.bootloader_index = app.bootloader_focus_index;
+        app.apply_secure_boot_uki_policy();
         app.update_unified_kernel_images_visibility();
     } else {
         super::common::advance(app);

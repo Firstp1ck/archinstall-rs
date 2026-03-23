@@ -374,6 +374,43 @@ fn bootloader_efistub_luks_uses_shared_cmdline() {
 }
 
 #[test]
+fn secure_boot_efistub_auto_enables_uki_policy() {
+    let mut state = make_state();
+    state.bootloader_index = 2; // EFISTUB
+    state.uki_enabled = false;
+    state.secure_boot_override = Some(true);
+    state.apply_secure_boot_uki_policy();
+    assert!(state.uki_enabled, "Secure Boot policy should force UKI for EFISTUB");
+}
+
+#[test]
+fn secure_boot_efistub_build_plan_uses_uki_even_if_toggle_was_off() {
+    let mut state = make_state();
+    state.firmware_uefi_override = Some(true);
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.bootloader_index = 2; // EFISTUB
+    state.uki_enabled = false; // simulate stale config before policy
+    state.secure_boot_override = Some(true);
+    let device = "/dev/sda";
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::bootloader::BootloaderService::build_plan(
+        &state,
+        device,
+        &storage_plan,
+    );
+    let joined = plan.commands.join("\n");
+    assert!(
+        joined.contains("EFI/Linux/arch-linux.efi"),
+        "Secure Boot EFISTUB should use UKI EFI loader path: {joined}"
+    );
+    assert!(
+        !joined.contains("startup.nsh"),
+        "Secure Boot EFISTUB should avoid non-UKI startup.nsh path: {joined}"
+    );
+}
+
+#[test]
 fn bootloader_limine_uefi_creates_conf_and_efibootmgr() {
     let mut state = make_state();
     state.firmware_uefi_override = Some(true);

@@ -192,7 +192,8 @@ impl BootloaderService {
             format!("arch-chroot /mnt bash -lc '{escaped}'")
         }
         let mut out: Vec<String> = Vec::new();
-        let uki = Self::uki_requested(state);
+        let uki = Self::uki_requested(state)
+            || (state.bootloader_index == 2 && state.is_secure_boot_enabled());
         let ucode = detect_microcode();
 
         if uki {
@@ -317,7 +318,8 @@ HOOK_EOF"
         ));
 
         let boot_options_script = Self::boot_options_script(encrypted);
-        let uki = Self::uki_requested(state);
+        let uki = Self::uki_requested(state)
+            || (state.bootloader_index == 2 && state.is_secure_boot_enabled());
         let ucode = detect_microcode();
 
         // Shell snippet to delete stale "Arch Linux" NVRAM entries before creating new ones
@@ -505,9 +507,13 @@ HOOK_EOF",
                             let ka = kernel_artifacts(kernel);
                             cmds.push(chroot_cmd(&format!(
                                 "install -d -m 0755 {esp}/EFI/Linux && \
-                                 install -m 0644 /boot/{vmlinuz} {esp}/EFI/Linux/{vmlinuz} && \
-                                 install -m 0644 /boot/{initramfs} {esp}/EFI/Linux/{initramfs} && \
-                                 install -m 0644 /boot/{initramfs_fb} {esp}/EFI/Linux/{initramfs_fb}",
+                                 for f in /boot/{vmlinuz} /boot/{initramfs} /boot/{initramfs_fb}; do \
+                                   if [ -f \"$f\" ]; then \
+                                     install -m 0644 \"$f\" {esp}/EFI/Linux/$(basename \"$f\"); \
+                                   else \
+                                     echo \"EFISTUB-DIAG: missing artifact $f; skipping ESP copy\"; \
+                                   fi; \
+                                 done",
                                 vmlinuz = ka.vmlinuz,
                                 initramfs = ka.initramfs,
                                 initramfs_fb = ka.initramfs_fallback,
