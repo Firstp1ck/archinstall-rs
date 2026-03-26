@@ -18,6 +18,9 @@ impl AppState {
             return;
         }
 
+        let original_bootloader_index = self.bootloader_index;
+        let mut bootloader_autocorrected = false;
+
         // Auto-correct invalid bootloader selection on legacy (non-UEFI) systems.
         // - systemd-boot requires UEFI
         // - efistub (experimental) requires UEFI
@@ -28,6 +31,7 @@ impl AppState {
                 self.bootloader_index
             ));
             self.bootloader_index = 1;
+            bootloader_autocorrected = true;
         }
 
         // Guard: Desktop (KDE/GNOME) requires NetworkManager
@@ -36,6 +40,13 @@ impl AppState {
         let selects_gnome = self.selected_desktop_envs.contains("GNOME");
         let needs_nm = desktop_selected && (selects_kde || selects_gnome);
         if needs_nm && self.network_mode_index != 2 {
+            if bootloader_autocorrected {
+                self.debug_log(&format!(
+                    "start_install: reverting bootloader_index {} -> {} (install did not proceed)",
+                    self.bootloader_index, original_bootloader_index
+                ));
+                self.bootloader_index = original_bootloader_index;
+            }
             self.popup_kind = Some(crate::core::types::PopupKind::NetworkManagerSwitchConfirm);
             self.popup_open = true;
             self.popup_items = vec![
@@ -52,6 +63,13 @@ impl AppState {
         if let Some(msg) = self.validate_install_requirements() {
             self.debug_log("start_install: rejected, requirements not met");
             self.open_info_popup(msg);
+            if bootloader_autocorrected {
+                self.debug_log(&format!(
+                    "start_install: reverting bootloader_index {} -> {} (install did not proceed)",
+                    self.bootloader_index, original_bootloader_index
+                ));
+                self.bootloader_index = original_bootloader_index;
+            }
             return;
         }
         self.debug_log("start_install: starting install flow");

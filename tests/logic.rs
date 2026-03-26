@@ -119,6 +119,10 @@ fn sysconfig_enables_sshd_when_selected() {
     let mut state = make_state();
     state.disks_selected_device = Some("/dev/sda".into());
     state.selected_server_types.insert("sshd".into());
+    state.selected_server_packages.insert(
+        "sshd".into(),
+        std::collections::BTreeSet::from(["openssh".to_string()]),
+    );
 
     let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
         .expect("auto plan should compile");
@@ -128,6 +132,28 @@ fn sysconfig_enables_sshd_when_selected() {
     assert!(
         joined.contains("systemctl --root=/mnt enable sshd"),
         "{joined}"
+    );
+}
+
+#[test]
+fn sysconfig_does_not_enable_sshd_if_openssh_not_planned() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.selected_server_types.insert("sshd".into());
+    // Intentionally omit "openssh" from planned server packages.
+    state.selected_server_packages.insert(
+        "sshd".into(),
+        std::collections::BTreeSet::from(["rsync".to_string()]),
+    );
+
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        !joined.contains("systemctl --root=/mnt enable sshd"),
+        "should not enable sshd unless openssh is planned: {joined}"
     );
 }
 
@@ -175,6 +201,29 @@ fn partitioning_auto_includes_root_and_format() {
     // No encryption by default -> mkfs.btrfs on {device}3
     assert!(
         joined.contains(&format!("mkfs.btrfs -f {device}3")),
+        "{joined}"
+    );
+}
+
+#[test]
+fn partitioning_auto_uses_partition_path_helper_for_nvme_devices() {
+    let mut state = make_state();
+    state.swap_enabled = true;
+    state.swap_size_mib = 512;
+    state.disk_encryption_type_index = 0; // no luks
+    state.firmware_uefi_override = Some(true);
+
+    let device = "/dev/nvme0n1";
+    let plan = ai::core::services::partitioning::PartitioningService::build_plan(&state, device);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        joined.contains("mkfs.fat -F 32 /dev/nvme0n1p1"),
+        "{joined}"
+    );
+    assert!(joined.contains("mkswap /dev/nvme0n1p2"), "{joined}");
+    assert!(
+        joined.contains("mkfs.btrfs -f /dev/nvme0n1p3"),
         "{joined}"
     );
 }
@@ -275,7 +324,7 @@ fn system_pacstrap_plan_skips_login_manager_and_polkit_outside_desktop_mode() {
 }
 
 #[test]
-fn start_install_switches_to_grub_on_legacy_for_invalid_bootloaders() {
+fn start_install_does_not_persist_legacy_bootloader_autocorrect_on_early_return() {
     // Ensure we don't rely on host firmware (tests run on whatever CI/host).
     // Use the explicit override instead.
     let mut state = ai::app::AppState::new(true);
@@ -283,11 +332,36 @@ fn start_install_switches_to_grub_on_legacy_for_invalid_bootloaders() {
 
     state.bootloader_index = 0; // systemd-boot (invalid on legacy)
     state.start_install();
-    assert_eq!(state.bootloader_index, 1, "systemd-boot should switch to GRUB");
+    assert_eq!(
+        state.bootloader_index, 0,
+        "auto-correction should not persist if start_install returns early"
+    );
 
     state.bootloader_index = 2; // efistub (invalid on legacy)
     state.start_install();
-    assert_eq!(state.bootloader_index, 1, "efistub should switch to GRUB");
+    assert_eq!(
+        state.bootloader_index, 2,
+        "auto-correction should not persist if start_install returns early"
+    );
+}
+
+#[test]
+fn start_install_does_not_persist_legacy_bootloader_autocorrect_when_nm_confirm_popup_opens() {
+    let mut state = ai::app::AppState::new(true);
+    state.firmware_uefi_override = Some(false);
+    state.bootloader_index = 0; // systemd-boot (invalid on legacy)
+
+    // Trigger the NetworkManager confirmation guard:
+    // Desktop + KDE/GNOME requires NetworkManager, but anything other than index 2 is non-NM.
+    state.experience_mode_index = 0; // Desktop
+    state.selected_desktop_envs.insert("KDE Plasma".into());
+    state.network_mode_index = 0; // not NetworkManager
+
+    state.start_install();
+    assert_eq!(
+        state.bootloader_index, 0,
+        "auto-correction should not persist if a confirmation popup interrupts the install"
+    );
 }
 
 #[test]

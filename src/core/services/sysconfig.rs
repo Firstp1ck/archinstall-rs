@@ -103,7 +103,16 @@ impl SysConfigService {
 
         // Enable SSH daemon when the SSH server type is selected
         // (openssh installs the `sshd.service` unit on Arch).
-        if state.selected_server_types.contains("sshd") {
+        let wants_sshd = state.selected_server_types.contains("sshd");
+        let openssh_in_server_pkgs = state
+            .selected_server_packages
+            .get("sshd")
+            .map_or(false, |set| set.contains("openssh"));
+        let openssh_in_additional_pkgs = state
+            .additional_packages
+            .iter()
+            .any(|p| p.name == "openssh");
+        if wants_sshd && (openssh_in_server_pkgs || openssh_in_additional_pkgs) {
             cmds.push("systemctl --root=/mnt enable sshd".into());
         }
 
