@@ -907,3 +907,35 @@ fn kernel_artifacts_returns_correct_names() {
     assert_eq!(ka_lts.uki_default, "arch-linux-lts.efi");
     assert_eq!(ka_lts.preset, "linux-lts.preset");
 }
+
+#[test]
+fn compute_swap_size_mib_formula() {
+    use ai::common::utils::compute_swap_size_mib;
+
+    // Tiny RAM (< 1 GiB) -> clamp to 1 GiB swap
+    assert_eq!(compute_swap_size_mib(256), 1024);
+
+    // 1 GiB RAM -> 1 GiB swap
+    assert_eq!(compute_swap_size_mib(1024), 1024);
+
+    // 4 GiB RAM -> 4 GiB swap
+    assert_eq!(compute_swap_size_mib(4096), 4096);
+
+    // 8 GiB RAM -> 8 GiB swap (boundary)
+    assert_eq!(compute_swap_size_mib(8192), 8192);
+
+    // 8.5 GiB RAM -> 8 GiB + half(0.5 GiB) = 8.25 GiB
+    assert_eq!(compute_swap_size_mib(8704), 8448);
+
+    // 10 GiB RAM -> 8 GiB + half(2 GiB) = 9 GiB
+    assert_eq!(compute_swap_size_mib(10240), 9216);
+
+    // 16 GiB RAM -> 8 + (16-8)/2 = 12 GiB swap
+    assert_eq!(compute_swap_size_mib(16384), 12288);
+
+    // 32 GiB RAM -> 8 + (32-8)/2 = 20 -> capped at 16 GiB
+    assert_eq!(compute_swap_size_mib(32768), 16384);
+
+    // 64 GiB RAM -> capped at 16 GiB
+    assert_eq!(compute_swap_size_mib(65536), 16384);
+}

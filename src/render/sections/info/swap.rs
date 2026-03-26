@@ -20,6 +20,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         "Disabled"
     };
     info_lines.push(Line::from(format!("Swapon: {swap}")));
+    let ram_gib = app.detected_ram_mib as f64 / 1024.0;
+    let swap_gib = app.swap_size_mib as f64 / 1024.0;
+    info_lines.push(Line::from(format!(
+        "Detected RAM: {ram_gib:.1} GiB  |  Planned swap size: {swap_gib:.2} GiB"
+    )));
     info_lines.push(Line::from(
         "Swapon can be used to activate the swap partition.",
     ));

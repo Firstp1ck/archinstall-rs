@@ -103,16 +103,14 @@ impl PartitioningService {
         }
 
         if state.swap_enabled {
-            let swap_end = if state.is_uefi() {
-                "5121MiB"
-            } else {
-                "4098MiB"
-            };
+            let swap_start_mib: u64 = if state.is_uefi() { 1025 } else { 2 };
+            let swap_end_mib = swap_start_mib + state.swap_size_mib;
+            let swap_end = format!("{swap_end_mib}MiB");
             part_cmds.push(format!(
                 "parted -s {device} mkpart swap linux-swap {next_start} {swap_end}"
             ));
             part_cmds.push(format!("mkswap {device}2"));
-            next_start = swap_end.into();
+            next_start = swap_end;
         }
 
         part_cmds.push(format!(

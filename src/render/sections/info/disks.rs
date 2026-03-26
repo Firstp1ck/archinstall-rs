@@ -213,10 +213,11 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
             info_lines.push(Line::from(format!("Selected drive: {dev}")));
         }
         info_lines.push(Line::from("Planned layout:"));
+        let swap_gib = app.swap_size_mib as f64 / 1024.0;
         if app.is_uefi() {
             info_lines.push(Line::from("- gpt: 1024MiB EFI (FAT, ESP) -> /boot"));
             if app.swap_enabled {
-                info_lines.push(Line::from("- swap: 4GiB"));
+                info_lines.push(Line::from(format!("- swap: {swap_gib:.2}GiB")));
             }
             let enc = if app.disk_encryption_type_index == 1 {
                 " (LUKS)"
@@ -227,7 +228,7 @@ pub(super) fn render(frame: &mut Frame, app: &mut AppState, area: Rect) {
         } else {
             info_lines.push(Line::from("- gpt: 1MiB bios_boot [bios_grub]"));
             if app.swap_enabled {
-                info_lines.push(Line::from("- swap: 4GiB"));
+                info_lines.push(Line::from(format!("- swap: {swap_gib:.2}GiB")));
             }
             let enc = if app.disk_encryption_type_index == 1 {
                 " (LUKS)"

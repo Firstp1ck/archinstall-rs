@@ -82,15 +82,15 @@ impl StoragePlanner {
             part_num += 1;
         }
 
-        let swap_start = if is_uefi { "1025MiB" } else { "2MiB" };
+        let swap_start_mib: u64 = if is_uefi { 1025 } else { 2 };
+        let swap_end_mib = swap_start_mib + state.swap_size_mib;
 
         if state.swap_enabled {
-            let swap_end = if is_uefi { "5121MiB" } else { "4098MiB" };
             partitions.push(PlannedPartition {
                 number: part_num,
                 role: PartitionRole::Swap,
-                start: swap_start.into(),
-                end: swap_end.into(),
+                start: format!("{swap_start_mib}MiB"),
+                end: format!("{swap_end_mib}MiB"),
                 filesystem: FilesystemSpec {
                     fstype: "linux-swap".into(),
                     mkfs_options: vec![],
@@ -112,9 +112,9 @@ impl StoragePlanner {
         }
 
         let root_start = if state.swap_enabled {
-            if is_uefi { "5121MiB" } else { "4098MiB" }
+            format!("{swap_end_mib}MiB")
         } else {
-            swap_start
+            format!("{swap_start_mib}MiB")
         };
 
         let encryption = if luks {
