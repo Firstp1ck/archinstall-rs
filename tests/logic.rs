@@ -115,6 +115,49 @@ fn sysconfig_enables_networkmanager_when_selected() {
 }
 
 #[test]
+fn sysconfig_enables_sshd_when_selected() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.selected_server_types.insert("sshd".into());
+    state.selected_server_packages.insert(
+        "sshd".into(),
+        std::collections::BTreeSet::from(["openssh".to_string()]),
+    );
+
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        joined.contains("systemctl --root=/mnt enable sshd"),
+        "{joined}"
+    );
+}
+
+#[test]
+fn sysconfig_does_not_enable_sshd_if_openssh_not_planned() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.selected_server_types.insert("sshd".into());
+    // Intentionally omit "openssh" from planned server packages.
+    state.selected_server_packages.insert(
+        "sshd".into(),
+        std::collections::BTreeSet::from(["rsync".to_string()]),
+    );
+
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        !joined.contains("systemctl --root=/mnt enable sshd"),
+        "should not enable sshd unless openssh is planned: {joined}"
+    );
+}
+
+#[test]
 fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
     let mut state = make_state();
     state.disks_selected_device = Some("/dev/sda".into());
@@ -158,6 +201,29 @@ fn partitioning_auto_includes_root_and_format() {
     // No encryption by default -> mkfs.btrfs on {device}3
     assert!(
         joined.contains(&format!("mkfs.btrfs -f {device}3")),
+        "{joined}"
+    );
+}
+
+#[test]
+fn partitioning_auto_uses_partition_path_helper_for_nvme_devices() {
+    let mut state = make_state();
+    state.swap_enabled = true;
+    state.swap_size_mib = 512;
+    state.disk_encryption_type_index = 0; // no luks
+    state.firmware_uefi_override = Some(true);
+
+    let device = "/dev/nvme0n1";
+    let plan = ai::core::services::partitioning::PartitioningService::build_plan(&state, device);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        joined.contains("mkfs.fat -F 32 /dev/nvme0n1p1"),
+        "{joined}"
+    );
+    assert!(joined.contains("mkswap /dev/nvme0n1p2"), "{joined}");
+    assert!(
+        joined.contains("mkfs.btrfs -f /dev/nvme0n1p3"),
         "{joined}"
     );
 }
@@ -220,6 +286,82 @@ fn system_pacstrap_plan_includes_pacstrap_when_not_dry_run() {
     let joined = plan.commands.join("\n");
     assert!(joined.contains("pacman -Syy"), "{joined}");
     assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+}
+
+#[test]
+fn system_pacstrap_plan_skips_desktop_packages_when_mode_is_server() {
+    let mut state = make_state();
+    state.experience_mode_index = 2; // Server
+
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+
+    // Sanity: we still build a pacstrap command.
+    assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+
+    // Desktop-only packages should not be pulled in just because they're selected.
+    assert!(!joined.contains("sddm"), "{joined}");
+    assert!(!joined.contains("plasma-meta"), "{joined}");
+    assert!(!joined.contains("plasma-workspace"), "{joined}");
+}
+
+#[test]
+fn system_pacstrap_plan_skips_login_manager_and_polkit_outside_desktop_mode() {
+    let mut state = make_state();
+    state.experience_mode_index = 3; // Xorg
+
+    // Force a desktop env that triggers polkit, and keep a non-none login manager selected.
+    state.selected_desktop_envs.clear();
+    state.selected_desktop_envs.insert("Sway".into());
+    state.selected_login_manager = Some("sddm".into());
+
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+
+    assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+    assert!(!joined.contains("sddm"), "{joined}");
+    assert!(!joined.contains("polkit"), "{joined}");
+}
+
+#[test]
+fn start_install_does_not_persist_legacy_bootloader_autocorrect_on_early_return() {
+    // Ensure we don't rely on host firmware (tests run on whatever CI/host).
+    // Use the explicit override instead.
+    let mut state = ai::app::AppState::new(true);
+    state.firmware_uefi_override = Some(false);
+
+    state.bootloader_index = 0; // systemd-boot (invalid on legacy)
+    state.start_install();
+    assert_eq!(
+        state.bootloader_index, 0,
+        "auto-correction should not persist if start_install returns early"
+    );
+
+    state.bootloader_index = 2; // efistub (invalid on legacy)
+    state.start_install();
+    assert_eq!(
+        state.bootloader_index, 2,
+        "auto-correction should not persist if start_install returns early"
+    );
+}
+
+#[test]
+fn start_install_does_not_persist_legacy_bootloader_autocorrect_when_nm_confirm_popup_opens() {
+    let mut state = ai::app::AppState::new(true);
+    state.firmware_uefi_override = Some(false);
+    state.bootloader_index = 0; // systemd-boot (invalid on legacy)
+
+    // Trigger the NetworkManager confirmation guard:
+    // Desktop + KDE/GNOME requires NetworkManager, but anything other than index 2 is non-NM.
+    state.experience_mode_index = 0; // Desktop
+    state.selected_desktop_envs.insert("KDE Plasma".into());
+    state.network_mode_index = 0; // not NetworkManager
+
+    state.start_install();
+    assert_eq!(
+        state.bootloader_index, 0,
+        "auto-correction should not persist if a confirmation popup interrupts the install"
+    );
 }
 
 #[test]
@@ -838,4 +980,36 @@ fn kernel_artifacts_returns_correct_names() {
     assert_eq!(ka_lts.initramfs, "initramfs-linux-lts.img");
     assert_eq!(ka_lts.uki_default, "arch-linux-lts.efi");
     assert_eq!(ka_lts.preset, "linux-lts.preset");
+}
+
+#[test]
+fn compute_swap_size_mib_formula() {
+    use ai::common::utils::compute_swap_size_mib;
+
+    // Tiny RAM (< 1 GiB) -> clamp to 1 GiB swap
+    assert_eq!(compute_swap_size_mib(256), 1024);
+
+    // 1 GiB RAM -> 1 GiB swap
+    assert_eq!(compute_swap_size_mib(1024), 1024);
+
+    // 4 GiB RAM -> 4 GiB swap
+    assert_eq!(compute_swap_size_mib(4096), 4096);
+
+    // 8 GiB RAM -> 8 GiB swap (boundary)
+    assert_eq!(compute_swap_size_mib(8192), 8192);
+
+    // 8.5 GiB RAM -> 8 GiB + half(0.5 GiB) = 8.25 GiB
+    assert_eq!(compute_swap_size_mib(8704), 8448);
+
+    // 10 GiB RAM -> 8 GiB + half(2 GiB) = 9 GiB
+    assert_eq!(compute_swap_size_mib(10240), 9216);
+
+    // 16 GiB RAM -> 8 + (16-8)/2 = 12 GiB swap
+    assert_eq!(compute_swap_size_mib(16384), 12288);
+
+    // 32 GiB RAM -> 8 + (32-8)/2 = 20 -> capped at 16 GiB
+    assert_eq!(compute_swap_size_mib(32768), 16384);
+
+    // 64 GiB RAM -> capped at 16 GiB
+    assert_eq!(compute_swap_size_mib(65536), 16384);
 }

@@ -159,6 +159,38 @@ pub fn strip_ansi_escape_codes(input: &str) -> String {
     out
 }
 
+/// Detect total system RAM by reading `/proc/meminfo`.
+/// Returns MiB. Falls back to 4096 MiB (4 GiB) if detection fails.
+pub fn detect_ram_mib() -> u64 {
+    if let Ok(contents) = std::fs::read_to_string("/proc/meminfo") {
+        for line in contents.lines() {
+            if let Some(rest) = line.strip_prefix("MemTotal:") {
+                let trimmed = rest.trim();
+                if let Some(kb_str) = trimmed.strip_suffix(" kB") {
+                    if let Ok(kb) = kb_str.trim().parse::<u64>() {
+                        return kb / 1024;
+                    }
+                }
+            }
+        }
+    }
+    4096
+}
+
+/// Compute optimal swap partition size in MiB based on detected RAM.
+/// - RAM <= 8 GiB: swap = RAM (at least 1 GiB)
+/// - RAM >  8 GiB: swap = 8 GiB + half of the excess
+/// - Maximum: 16 GiB
+pub fn compute_swap_size_mib(ram_mib: u64) -> u64 {
+    let ram_mib = ram_mib.max(1024);
+    let swap_mib = if ram_mib <= 8192 {
+        ram_mib
+    } else {
+        8192 + (ram_mib - 8192) / 2
+    };
+    swap_mib.min(16384)
+}
+
 /// Sanitize a terminal output line for safe rendering inside the TUI.
 /// Removes carriage returns, backspaces and ANSI escape sequences.
 pub fn sanitize_terminal_output_line(input: &str) -> String {

@@ -92,7 +92,10 @@ impl PartitioningService {
                 "parted -s {device} mkpart ESP fat32 {next_start} 1025MiB"
             ));
             part_cmds.push(format!("parted -s {device} set 1 esp on"));
-            part_cmds.push(format!("mkfs.fat -F 32 {device}1"));
+            part_cmds.push(format!(
+                "mkfs.fat -F 32 {}",
+                Self::get_partition_path(device, 1)
+            ));
             next_start = "1025MiB".into();
         } else {
             part_cmds.push(format!(
@@ -102,17 +105,20 @@ impl PartitioningService {
             next_start = "2MiB".into();
         }
 
+        let swap_part_num: u32 = 2;
+        let root_part_num: u32 = if state.swap_enabled { 3 } else { 2 };
+        let swap_part_path = Self::get_partition_path(device, swap_part_num);
+        let root_part_path = Self::get_partition_path(device, root_part_num);
+
         if state.swap_enabled {
-            let swap_end = if state.is_uefi() {
-                "5121MiB"
-            } else {
-                "4098MiB"
-            };
+            let swap_start_mib: u64 = if state.is_uefi() { 1025 } else { 2 };
+            let swap_end_mib = swap_start_mib + state.swap_size_mib;
+            let swap_end = format!("{swap_end_mib}MiB");
             part_cmds.push(format!(
                 "parted -s {device} mkpart swap linux-swap {next_start} {swap_end}"
             ));
-            part_cmds.push(format!("mkswap {device}2"));
-            next_start = swap_end.into();
+            part_cmds.push(format!("mkswap {swap_part_path}"));
+            next_start = swap_end;
         }
 
         part_cmds.push(format!(
@@ -125,12 +131,16 @@ impl PartitioningService {
                 "modprobe -q dm_crypt 2>/dev/null || modprobe -q dm-crypt 2>/dev/null || true"
                     .into(),
             );
-            part_cmds.push(format!("cryptsetup luksFormat --type luks2 -q {device}3"));
+            part_cmds.push(format!(
+                "cryptsetup luksFormat --type luks2 -q {root_part_path}"
+            ));
             part_cmds.push("udevadm settle".into());
-            part_cmds.push(format!("cryptsetup open --type luks {device}3 cryptroot"));
+            part_cmds.push(format!(
+                "cryptsetup open --type luks {root_part_path} cryptroot"
+            ));
             part_cmds.push("mkfs.btrfs -f /dev/mapper/cryptroot".into());
         } else {
-            part_cmds.push(format!("mkfs.btrfs -f {device}3"));
+            part_cmds.push(format!("mkfs.btrfs -f {root_part_path}"));
         }
     }
 

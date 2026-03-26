@@ -101,6 +101,21 @@ impl SysConfigService {
             cmds.push("systemctl --root=/mnt enable systemd-timesyncd".into());
         }
 
+        // Enable SSH daemon when the SSH server type is selected
+        // (openssh installs the `sshd.service` unit on Arch).
+        let wants_sshd = state.selected_server_types.contains("sshd");
+        let openssh_in_server_pkgs = state
+            .selected_server_packages
+            .get("sshd")
+            .map_or(false, |set| set.contains("openssh"));
+        let openssh_in_additional_pkgs = state
+            .additional_packages
+            .iter()
+            .any(|p| p.name == "openssh");
+        if wants_sshd && (openssh_in_server_pkgs || openssh_in_additional_pkgs) {
+            cmds.push("systemctl --root=/mnt enable sshd".into());
+        }
+
         // Root password (set only if provided and confirmed)
         if !state.root_password.is_empty() && state.root_password == state.root_password_confirm {
             if state.dry_run {

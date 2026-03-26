@@ -127,6 +127,8 @@ pub struct AppState {
     // Swap Partition state
     pub swap_focus_index: usize, // 0: toggle, 1: Continue
     pub swap_enabled: bool,
+    pub detected_ram_mib: u64,
+    pub swap_size_mib: u64,
 
     // Unified Kernel Images state
     pub uki_focus_index: usize, // 0: toggle, 1: Continue
@@ -395,6 +397,9 @@ impl AppState {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
+        let detected_ram = crate::common::utils::detect_ram_mib();
+        let swap_size = crate::common::utils::compute_swap_size_mib(detected_ram);
+
         let mut s = Self {
             install_completed: false,
             reboot_prompt_open: false,
@@ -499,6 +504,8 @@ impl AppState {
 
             swap_focus_index: 0,
             swap_enabled: true,
+            detected_ram_mib: detected_ram,
+            swap_size_mib: swap_size,
 
             uki_focus_index: 0,
             uki_enabled: false,
