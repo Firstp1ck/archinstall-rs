@@ -115,6 +115,23 @@ fn sysconfig_enables_networkmanager_when_selected() {
 }
 
 #[test]
+fn sysconfig_enables_sshd_when_selected() {
+    let mut state = make_state();
+    state.disks_selected_device = Some("/dev/sda".into());
+    state.selected_server_types.insert("sshd".into());
+
+    let storage_plan = ai::core::storage::planner::StoragePlanner::compile(&state)
+        .expect("auto plan should compile");
+    let plan = ai::core::services::sysconfig::SysConfigService::build_plan(&state, &storage_plan);
+    let joined = plan.commands.join("\n");
+
+    assert!(
+        joined.contains("systemctl --root=/mnt enable sshd"),
+        "{joined}"
+    );
+}
+
+#[test]
 fn sysconfig_luks_uses_mkinitcpio_warning_guard() {
     let mut state = make_state();
     state.disks_selected_device = Some("/dev/sda".into());
@@ -220,6 +237,57 @@ fn system_pacstrap_plan_includes_pacstrap_when_not_dry_run() {
     let joined = plan.commands.join("\n");
     assert!(joined.contains("pacman -Syy"), "{joined}");
     assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+}
+
+#[test]
+fn system_pacstrap_plan_skips_desktop_packages_when_mode_is_server() {
+    let mut state = make_state();
+    state.experience_mode_index = 2; // Server
+
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+
+    // Sanity: we still build a pacstrap command.
+    assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+
+    // Desktop-only packages should not be pulled in just because they're selected.
+    assert!(!joined.contains("sddm"), "{joined}");
+    assert!(!joined.contains("plasma-meta"), "{joined}");
+    assert!(!joined.contains("plasma-workspace"), "{joined}");
+}
+
+#[test]
+fn system_pacstrap_plan_skips_login_manager_and_polkit_outside_desktop_mode() {
+    let mut state = make_state();
+    state.experience_mode_index = 3; // Xorg
+
+    // Force a desktop env that triggers polkit, and keep a non-none login manager selected.
+    state.selected_desktop_envs.clear();
+    state.selected_desktop_envs.insert("Sway".into());
+    state.selected_login_manager = Some("sddm".into());
+
+    let plan = ai::core::services::system::SystemService::build_pacstrap_plan(&state);
+    let joined = plan.commands.join("\n");
+
+    assert!(joined.contains(" pacstrap -K /mnt "), "{joined}");
+    assert!(!joined.contains("sddm"), "{joined}");
+    assert!(!joined.contains("polkit"), "{joined}");
+}
+
+#[test]
+fn start_install_switches_to_grub_on_legacy_for_invalid_bootloaders() {
+    // Ensure we don't rely on host firmware (tests run on whatever CI/host).
+    // Use the explicit override instead.
+    let mut state = ai::app::AppState::new(true);
+    state.firmware_uefi_override = Some(false);
+
+    state.bootloader_index = 0; // systemd-boot (invalid on legacy)
+    state.start_install();
+    assert_eq!(state.bootloader_index, 1, "systemd-boot should switch to GRUB");
+
+    state.bootloader_index = 2; // efistub (invalid on legacy)
+    state.start_install();
+    assert_eq!(state.bootloader_index, 1, "efistub should switch to GRUB");
 }
 
 #[test]

@@ -116,6 +116,8 @@ impl SystemService {
         let mut package_set: BTreeSet<String> = BTreeSet::new();
         let mut missing: Vec<String> = Vec::new();
 
+        let desktop_mode = state.experience_mode_index == 0; // 0: Desktop, 1: Minimal, 2: Server, 3: Xorg
+
         // Essentials
         for p in [
             "base",
@@ -173,28 +175,33 @@ impl SystemService {
             _ => {}
         }
 
-        // Polkit for Hyprland or Sway
-        if state
-            .selected_desktop_envs
-            .iter()
-            .any(|e| e == "Hyprland" || e == "Sway")
+        // Polkit for Hyprland or Sway (desktop-only)
+        if desktop_mode
+            && state
+                .selected_desktop_envs
+                .iter()
+                .any(|e| e == "Hyprland" || e == "Sway")
         {
             package_set.insert("polkit".into());
         }
 
-        // Login manager (if set and not none)
-        if let Some(lm) = state.selected_login_manager.clone()
-            && !lm.is_empty()
-            && lm != "none"
-        {
-            package_set.insert(lm);
+        // Login manager (if set and not none) - desktop-only
+        if desktop_mode {
+            if let Some(lm) = state.selected_login_manager.clone()
+                && !lm.is_empty()
+                && lm != "none"
+            {
+                package_set.insert(lm);
+            }
         }
 
-        // Desktop environment packages (only for selected environments)
-        for env in state.selected_desktop_envs.iter() {
-            if let Some(set) = state.selected_env_packages.get(env) {
-                for p in set.iter() {
-                    package_set.insert(p.clone());
+        // Desktop environment packages (only for selected environments) - desktop-only
+        if desktop_mode {
+            for env in state.selected_desktop_envs.iter() {
+                if let Some(set) = state.selected_env_packages.get(env) {
+                    for p in set.iter() {
+                        package_set.insert(p.clone());
+                    }
                 }
             }
         }

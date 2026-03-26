@@ -101,6 +101,12 @@ impl SysConfigService {
             cmds.push("systemctl --root=/mnt enable systemd-timesyncd".into());
         }
 
+        // Enable SSH daemon when the SSH server type is selected
+        // (openssh installs the `sshd.service` unit on Arch).
+        if state.selected_server_types.contains("sshd") {
+            cmds.push("systemctl --root=/mnt enable sshd".into());
+        }
+
         // Root password (set only if provided and confirmed)
         if !state.root_password.is_empty() && state.root_password == state.root_password_confirm {
             if state.dry_run {
